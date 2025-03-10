@@ -1,5 +1,42 @@
 c!include "../mppl.h"
 c!include "../sptodp.h"
+
+
+      MODULE recycling
+        IMPLICIT NONE
+
+
+        CONTAINS
+        FUNCTION outflux_mol(
+     .      iflx_i, iflx_a, thflx_a, thflx_m, recyca, recycm,
+     .      alba, albm
+     .  )
+            IMPLICIT NONE
+            REAL, INTENT(IN) :: iflx_i, iflx_a, thflx_a, thflx_m, recyca,
+     .                recycm, alba, albm
+            REAL, DIMENSION(2) :: outflux_mol
+            REAL :: totflx
+
+            totflx = iflx_i+iflx_a+thflx_a
+            outflux_mol(1) = recyca*alba*iflx_i - (1-recyca*alba)*iflx_a
+            outflux_mol(2) = 0.5*recycm*(1-recyca)*alba*totflx - (1-albm)*thflx_m
+
+          END FUNCTION outflux_mol
+
+          FUNCTION outflux_atom(
+     .          iflx_i, thflx_a, frecyc, alba 
+     .    ) RESULT(oflx_a)
+          IMPLICIT NONE
+            REAL(8), INTENT(IN) :: iflx_i, thflx_a, frecyc, alba
+            REAL(8) :: oflx_a
+                oflx_a = frecyc*iflx_i - (1-alba)*thflx_a
+
+          END FUNCTION outflux_atom
+
+      END MODULE recycling
+
+
+
 c-----------------------------------------------------------------------
       subroutine bouncon(neq, yl, yldot)
 
@@ -63,6 +100,7 @@ c_mpi      Use(MpiVars)  #module defined in com/mpivarsmod.F.in
 
       Use(MCN_dim)
       Use(MCN_sources) # edisspl, edisspr, cmntgpl, cmntgpl
+      Use(recycling)
 
 c...  local scalars
       real totfeix, totfeex, kfeix, vyn, cosphi,
@@ -83,11 +121,12 @@ c...  local scalars
       #Former Aux module variables
       integer ix,iy,igsp,iv,iv1,iv2,iv3,iv4,ix1,ix2,ix3,ix4
       real t0,t1
-      real thflxa, thflxm, outfluxa, outfluxm
+      real thflxa, thflxm
 
 *  -- external procedures --
-      real sdot, yld96, kappa, outflux_atom
-      external sdot, outflux_mol
+      real sdot, yld96, kappa
+      real, dimension(2) :: outflux
+      external sdot
 
 *  -- procedures --
       real ave
@@ -211,16 +250,15 @@ c ...                   Molecular thermal flux impinging on iy=0 boundary
      .                          (8 * max(cdifg(2)*tg(ix,0,2),tgmin*ev)
      .                      )/(pi*mg(2)) )
 
-                        call outflux_mol(
-     .                      fniy(ix,0,1), 
-     .                      fniy(ix,0,2)*isupgon(1) + fngy(ix,0,1)*(1-isupgon(1)),
+                        outflux = outflux_mol(
+     .                      min(fniy(ix,0,1),0.), 
+     .                      min(fniy(ix,0,2)*isupgon(1) + fngy(ix,0,1)*(1-isupgon(1)), 0.),
      .                      -thflxa, -thflxm, recycwit(ix,1,1), recycwit(ix,2,1),
-     .                      albedoi(ix,1), albedoi(ix,2), 
-     .                      outfluxa, outfluxm 
+     .                      albedoi(ix,1), albedoi(ix,2)
      .                  )
-                        yldot(idxn(ix,0,2)) = -nurlxg*( fniy(ix,0,2) 
-     .                      - outfluxa - fngyi_use(ix,1) - fngysi(ix,1) 
-     .                      - fng_chem ) / (vyn*n0g(1)*sy(ix,0))
+c                        yldot(idxn(ix,0,2)) = -nurlxg*( fniy(ix,0,2) 
+c     .                      + outflux(1) - fngyi_use(ix,1) - fngysi(ix,1) 
+c     .                      - fng_chem ) / (vyn*n0g(1)*sy(ix,0))
 
                         END IF 
                     elseif (recycwit(ix,1,1) < -1) then
@@ -783,24 +821,22 @@ c ...                   Molecular thermal flux impinging on iy=0 boundary
      .                          (8 * max(cdifg(2)*tg(ix,0,2),tgmin*ev)
      .                      )/(pi*mg(2)) )
 
-                        call outflux_mol(
+                        outflux = outflux_mol(
      .                      min(fniy(ix,0,1),0.), 
      .                      min(fniy(ix,0,2)*isupgon(1) + fngy(ix,0,1)*(1-isupgon(1)), 0.),
      .                      -thflxa, -thflxm, recycwit(ix,1,1), recycwit(ix,2,1),
-     .                      albedoi(ix,1), albedoi(ix,2), 
-     .                      outfluxa, outfluxm 
+     .                      albedoi(ix,1), albedoi(ix,2)
      .                  )
 
                         IF (isupgon(1) .eq. 0) THEN
-                        yldot(idxn(ix,0,1)) = -nurlxg*( fngy(ix,0,1) 
-     .                      + outfluxa - fngyi_use(ix,1) - fngysi(ix,1) 
+                        yldot(idxg(ix,0,1)) = -nurlxg*( fngy(ix,0,1) 
+     .                      + outflux(1) - fngyi_use(ix,1) - fngysi(ix,1) 
      .                      - fng_chem ) / 
      .                                    (vyn*n0g(1)*sy(ix,0))
                         ENDIF
 
                         yldot(idxg(ix,0,2)) = -nurlxg*( fngy(ix,0,2) 
-c     .                           - 1e20 ) / 
-     .                      + outfluxm - fngyi_use(ix,2) - fngysi(ix,2) 
+     .                      + outflux(2) - fngyi_use(ix,2) - fngysi(ix,2) 
      .                      - fng_chem + sputflxpf(ix,2) ) / 
      .                                    (vyn*n0g(2)*sy(ix,0))
 
@@ -1264,16 +1300,15 @@ c ...                   Molecular thermal flux impinging on iy=0 boundary
      .                          (8 * max(cdifg(2)*tg(ix,ny,2),tgmin*ev)
      .                      )/(pi*mg(2)) )
 
-                        call outflux_mol(
-     .                      fniy(ix,ny,1), 
-     .                      fniy(ix,ny,2)*isupgon(1) + fngy(ix,ny,1)*(1-isupgon(1)),
-     .                      thflxa, thflxm, recycwot(ix,1), recycwot(ix,2),
-     .                      albedoo(ix,1), albedoo(ix,2), 
-     .                      outfluxa, outfluxm 
-     .                  )
-                        yldot(idxn(ix,ny,2)) = nurlxg*( fniy(ix,ny,2) 
-     .                      + outfluxa - fngyo_use(ix,1) - fngyso(ix,1) 
-     .                      - fng_chem ) / (vyn*n0g(1)*sy(ix,ny))
+                    outflux = outflux_mol(
+     .                  fniy(ix,ny,1),
+     .                  fniy(ix,ny,2)*isupgon(1) + fngy(ix,ny,1)*(1-isupgon(1)),
+     .                  thflxa, thflxm, recycwot(ix,1), recycwot(ix,2),
+     .                  albedoo(ix,1), albedoo(ix,2)
+     .              )
+c                        yldot(idxn(ix,ny+1,2)) = nurlxg*( fniy(ix,ny,2) 
+c     .                      + outflux(1) - fngyo_use(ix,1) - fngyso(ix,1) 
+c     .                      - fng_chem ) / (vyn*n0g(1)*sy(ix,ny))
 
                         END IF 
  
@@ -1561,26 +1596,24 @@ c ...               Molecular thermal flux impingin on iy boundary
      .                      (8*max(cdifg(2)*tg(ix,ny+1,2), tgmin*ev)
      .                  )/(pi*mg(2)) ) 
 
-                    call outflux_mol(
+                    outflux = outflux_mol(
      .                  fniy(ix,ny,1),
      .                  fniy(ix,ny,2)*isupgon(1) + fngy(ix,ny,1)*(1-isupgon(1)),
      .                  thflxa, thflxm, recycwot(ix,1), recycwot(ix,2),
-     .                  albedoo(ix,1), albedoo(ix,2),
-     .                  outfluxa, outfluxm
+     .                  albedoo(ix,1), albedoo(ix,2)
      .              )
 
 
                     IF (isupgon(1) .eq. 0) THEN
                     yldot(idxg(ix,ny+1,1)) = nurlxg*( fngy(ix,ny,1) 
-     .                      + outfluxa + fngyso(ix,1) 
+     .                      + outflux(1) + fngyso(ix,1) 
      .                      + fngyo_use(ix,1) 
      .                      + fng_chem + sputflxw(ix,1) ) / 
      .                             (vyn*n0g(1)*sy(ix,ny))
                     ENDIF
     
                     yldot(idxg(ix,ny+1,2)) = nurlxg*( fngy(ix,ny,2)
-c                    yldot(iv) = nurlxg*( fngy(ix,ny,2)
-     .                      + outfluxm + fngyso(ix,2) 
+     .                      + outflux(2) + fngyso(ix,2) 
      .                      + fngyo_use(ix,2) 
      .                      + fng_chem + sputflxw(ix,2) ) / 
      .                             (vyn*n0g(2)*sy(ix,ny))
@@ -1887,27 +1920,26 @@ c ...               Molecular thermal flux impingin on iy boundary
      .                      (8*engbsr* max(tg(1,iy,2), tgmin*ev)
      .                  )/(pi*mg(2)) ) 
 
-                    call outflux_mol(
+                    outflux = outflux_mol(
      .                  fnix(0,iy,1),
      .                  fnix(0,iy,2)*isupgon(1) + fngx(0,iy,1)*(1-isupgon(1)),
      .                  -thflxa, -thflxm, recylb(iy,1,1), recylb(iy,2,1),
-     .                  alblb(iy,1,1), alblb(iy,2,1),
-     .                  outfluxa, outfluxm
+     .                  alblb(iy,1,1), alblb(iy,2,1)
      .              )
 
 
                     IF (isupgon(1) .eq. 0) THEN
                     yldot(idxg(0,iy,1)) = -nurlxg*( fngx(0,iy,1) 
-     .                      + outfluxa + fngxlb_use(iy,1,1) + fngxslb(iy,1,1)
+     .                      + outflux(1) + fngxlb_use(iy,1,1) + fngxslb(iy,1,1)
      .                      ) /  (vpnorm*n0g(1)*sx(0,iy))
                     ELSE
                     yldot(idxn(0,iy,2)) = -nurlxg*( fngx(0,iy,1) 
-     .                      + outfluxa + fngxlb_use(iy,1,1) + fngxslb(iy,1,1)
+     .                      + outflux(1) + fngxlb_use(iy,1,1) + fngxslb(iy,1,1)
      .                      ) /  (vpnorm*n0g(1)*sx(0,iy))
                     ENDIF
     
                     yldot(idxg(0,iy,2)) = -nurlxg*( fngx(0,iy,2) 
-     .                      + outfluxa + fngxlb_use(iy,2,1) + fngxslb(iy,2,1)
+     .                      + outflux(2) + fngxlb_use(iy,2,1) + fngxslb(iy,2,1)
      .                      ) /  (vpnorm*n0g(2)*sx(0,iy))
 
                 ELSE 
@@ -2274,27 +2306,26 @@ c ...               Molecular thermal flux impingin on iy boundary
      .                      (8*engbsr* max(tg(ixt1,iy,2), tgmin*ev)
      .                  )/(pi*mg(2)) ) 
 
-                    call outflux_mol(
+                    outflux = outflux_mol(
      .                  fnix(ixt,iy,1),
      .                  fnix(ixt,iy,2)*isupgon(1) + fngx(ixt,iy,1)*(1-isupgon(1)),
      .                  -thflxa, -thflxm, recylb(iy,1,jx), recylb(iy,2,jx),
-     .                  alblb(iy,1,jx), alblb(iy,2,jx),
-     .                  outfluxa, outfluxm
+     .                  alblb(iy,1,jx), alblb(iy,2,jx)
      .              )
 
 
                     IF (isupgon(1) .eq. 0) THEN
                     yldot(idxg(ixt,iy,1)) = -nurlxg*( fngx(ixt,iy,1) 
-     .                      + outfluxa + fngxlb_use(iy,1,jx) + fngxslb(iy,1,jx)
+     .                      + outflux(1) + fngxlb_use(iy,1,jx) + fngxslb(iy,1,jx)
      .                      ) /  (vpnorm*n0g(1)*sx(ixt,iy))
                     ELSE
                     yldot(idxn(ixt,iy,2)) = -nurlxg*( fngx(ixt,iy,1) 
-     .                      + outfluxa + fngxlb_use(iy,1,jx) + fngxslb(iy,1,jx)
+     .                      + outflux(1) + fngxlb_use(iy,1,jx) + fngxslb(iy,1,jx)
      .                      ) /  (vpnorm*n0g(1)*sx(ixt,iy))
                     ENDIF
     
                     yldot(idxg(ixt,iy,2)) = -nurlxg*( fngx(ixt,iy,2) 
-     .                      + outfluxa + fngxlb_use(iy,2,jx) + fngxslb(iy,2,jx)
+     .                      + outflux(2) + fngxlb_use(iy,2,jx) + fngxslb(iy,2,jx)
      .                      ) /  (vpnorm*n0g(2)*sx(ixt,iy))
 
                 ELSE 
@@ -2622,26 +2653,25 @@ c ...               Molecular thermal flux impingin on iy boundary
      .                      (8*engbsr* max(tg(nx,iy,2), tgmin*ev)
      .                  )/(pi*mg(2)) ) 
 
-                    call outflux_mol(
+                    outflux = outflux_mol(
      .                  fnix(nx,iy,1),
      .                  fnix(nx,iy,2)*isupgon(1) + fngx(nx,iy,1)*(1-isupgon(1)),
      .                  thflxa, thflxm, recyrb(iy,1,jx), recyrb(iy,2,jx),
-     .                  albrb(iy,1,nxpt), albrb(iy,2,nxpt),
-     .                  outfluxa, outfluxm
+     .                  albrb(iy,1,nxpt), albrb(iy,2,nxpt)
      .              )
 
                     IF (isupgon(1) .eq. 0) THEN
                     yldot(idxg(nx+1,iy,1)) = -nurlxg*( fngx(nx,iy,1) 
-     .                      + outfluxa + fngxrb_use(iy,1,1) - fngxsrb(iy,1,1)
+     .                      + outflux(1) + fngxrb_use(iy,1,1) - fngxsrb(iy,1,1)
      .                      ) /  (vpnorm*n0g(1)*sx(nx,iy))
                     ELSE
                     yldot(idxn(nx+1,iy,2)) = -nurlxg*( fngx(nx,iy,1) 
-     .                      + outfluxa + fngxrb_use(iy,1,1) - fngxsrb(iy,1,1)
+     .                      + outflux(1) + fngxrb_use(iy,1,1) - fngxsrb(iy,1,1)
      .                      ) /  (vpnorm*n0g(1)*sx(nx,iy))
                     ENDIF
     
                     yldot(idxg(nx+1,iy,2)) = -nurlxg*( fngx(nx,iy,2) 
-     .                      + outfluxa + fngxrb_use(iy,2,1) - fngxsrb(iy,2,1)
+     .                      + outflux(2) + fngxrb_use(iy,2,1) - fngxsrb(iy,2,1)
      .                      ) /  (vpnorm*n0g(2)*sx(nx,iy))
 
                 ELSE 
@@ -3026,26 +3056,25 @@ c ...               Molecular thermal flux impingin on iy boundary
      .                      (8*engbsr* max(tg(ixt1,iy,2), tgmin*ev)
      .                  )/(pi*mg(2)) ) 
 
-                    call outflux_mol(
+                    outflux = outflux_mol(
      .                  fnix(ixt1,iy,1),
      .                  fnix(ixt1,iy,2)*isupgon(1) + fngx(ixt1,iy,1)*(1-isupgon(1)),
      .                  thflxa, thflxm, recyrb(iy,1,jx), recyrb(iy,2,jx),
-     .                  albrb(iy,1,jx), albrb(iy,2,jx),
-     .                  outfluxa, outfluxm
+     .                  albrb(iy,1,jx), albrb(iy,2,jx)
      .              )
 
                     IF (isupgon(1) .eq. 0) THEN
                     yldot(idxg(ixt,iy,1)) = nurlxg*( fngx(ixt1,iy,1) 
-     .                      + outfluxa + fngxrb_use(iy,1,jx) - fngxsrb(iy,1,jx)
+     .                      + outflux(1) + fngxrb_use(iy,1,jx) - fngxsrb(iy,1,jx)
      .                      ) /  (vpnorm*n0g(1)*sx(ixt1,iy))
                     ELSE
                     yldot(idxn(ixt,iy,2)) = nurlxg*( fngx(ixt1,iy,1) 
-     .                      + outfluxa + fngxrb_use(iy,1,jx) - fngxsrb(iy,1,jx)
+     .                      + outflux(1) + fngxrb_use(iy,1,jx) - fngxsrb(iy,1,jx)
      .                      ) /  (vpnorm*n0g(1)*sx(ixt1,iy))
                     ENDIF
     
                     yldot(idxg(ixt,iy,2)) = nurlxg*( fngx(ixt1,iy,2) 
-     .                      + outfluxa + fngxrb_use(iy,2,jx) - fngxsrb(iy,2,jx)
+     .                      + outflux(2) + fngxrb_use(iy,2,jx) - fngxsrb(iy,2,jx)
      .                      ) /  (vpnorm*n0g(2)*sx(ixt1,iy))
 
                 ELSE 
@@ -5235,35 +5264,5 @@ c   Compute fluxes along inner wall (need to change sign; some segms are core)
 
 ***** End of subroutine outwallflux ***********
 c----------------------------------------------------------------------c
-
-
-      FUNCTION outflux_atom(
-     .      iflx_i, thflx_a, frecyc, alba 
-     .) RESULT(oflx_a)
-      IMPLICIT NONE
-        REAL(8), INTENT(IN) :: iflx_i, thflx_a, frecyc, alba
-        REAL(8) :: oflx_a
-            oflx_a = frecyc*iflx_i - (1-alba)*thflx_a
-
-      END FUNCTION outflux_atom
-
-      SUBROUTINE outflux_mol(
-     .      iflx_i, iflx_a, thflx_a, thflx_m, recyca, recycm,
-     .      alba, albm,
-     .
-     .      oflx_a, oflx_m
-     . )
-      IMPLICIT NONE
-        REAL, INTENT(IN) :: iflx_i, iflx_a, thflx_a, thflx_m, recyca,
-     .              recycm, alba, albm
-        REAL, INTENT(OUT) :: oflx_a, oflx_m
-        REAL :: totflx
-
-        totflx = iflx_i+iflx_a+thflx_a
-        oflx_a = recyca*alba*iflx_i - (1-recyca*alba)*iflx_a
-        oflx_m = 0.5*recycm*(1-recyca)*alba*totflx - (1-albm)*thflx_m
-
-      RETURN
-      END SUBROUTINE outflux_mol
 
 
