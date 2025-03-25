@@ -202,6 +202,7 @@ class UeBalance():
         for jx in range(com.nxpt):
             for ix in range(com.ixlb[jx]+1, com.ixrb[jx]+1):
                 for iy in range(1,com.ny+1):
+                    ix1 = bbb.ixm1[ix,iy]
                     self.engerr[ix,iy] = (
                             self.fetx[ix1,iy] - self.fetx[ix,iy] + self.fety[ix,iy-1] \
                             - self.fety[ix,iy] - self.peirad[ix,iy] - bbb.png2ni[ix,iy]
@@ -817,12 +818,10 @@ class UeBalance():
         print("   Particle fluxes: {:.2e}".format(self.ptotpart))
         print("   Radiation: {:.2e}".format(self.ptotrad))
 
-        #
         if bbb.isupgon[0] == 1:
            print("\nEst. of pdiviout and pdivin from atoms (backscatter) [Watts]:")
            print("   Outer: {:.2e}".format(self.pdivnout))
            print("   Inner: {:.2e}".format(self.pdivnin))
-
 
         print("\nPower [W] lost via ionization & recombination radiation is:")
         print("   {:.2e}".format(sum(self.pradiz + self.pradrc)))
@@ -849,19 +848,17 @@ class UeBalance():
         
         print("\nPower [W] lost via dissociation of molecules is:")
         print("   {:.2e}".format(sum(self.prdiss)))
-        #
+        
         print("\nPower [W] gained by ions from initial Franck-Condon Energy:")
         print("   {:.2e}".format(sum(self.pibirth)))
-        #
 
         print("\nPower [W] lost in parallel momentum exhange via charge exchange:")
         print("   {:.2e}".format(sum(self.pmomv)))
-        #
+        
         print("\nPower [W] from J.E Joule heating - goes to electrons:")
         print("   {:.2e}".format(sum(bbb.wjdote[1:-1,1:-1])))
-        #
+
         print("\nPower Flow [Watts] incident on Vessel Wall is:")
-        ###print(self.pwalli,self.pwalle,self.pwallm,self.pwallbd,self.pradhwall,self.pradzwall,self.pneutw)
         print("   Outerwall_sum: {:.2e}".format(self.pwalli + self.pwalle + self.pwallm + self.pwallbd + self.pradhwall + self.pradzwall + self.pneutw))
         print("      pwalli: {:.2e}".format(self.pwalli))
         print("      pwalle: {:.2e}".format(self.pwalle))
@@ -871,7 +868,6 @@ class UeBalance():
         print("      pradzwall: {:.2e}".format(self.pradzwall))
         print("      pneutw: {:.2e}".format(self.pneutw))
 
-
         print("\nPower Flow [Watts] incident on Private Flux Wall is:")
         print("   PFwall_sum: {:.2e}".format(self.ppfi + self.ppfe + self.ppfm + self.ppfbd + self.pneutpf))
         print("      ppfi: {:.2e}".format(self.ppfi))
@@ -879,13 +875,6 @@ class UeBalance():
         print("      ppfm: {:.2e}".format(self.ppfm))
         print("      ppfbd: {:.2e}".format(self.ppfbd))
         print("      pneutpf: {:.2e}".format(self.pneutpf))
-
-           
-        ##print(" ")
-        ##print("Total power out")
-        ##print( (pbcoree+pbcorei+pcorebd+p_i_vol+p_e_vol+bbb.ptjdote - ptotpart -
-        ##          self.pwalli-self.pwalle-self.pwallm-self.pwallbd-self.ppfi-self.ppfe-self.ppfm-self.ppfbd-sum(pradimpt)-
-        ##          bbb.pradfft-bbb.pradht-bbb.prdiss-bbb.pvmomcx+bbb.pibirth))
 
         print("\nPower Balance: (Pin-Pout)/Pin")
         print("    {:.2e}".format(self.powbal))
@@ -1322,6 +1311,7 @@ def checkbal():
     bbb.engbal(1)
     bbb.pradpltwl()
     new.engbal()
+    new.calc_engerr(1, False)
     new.pradpltwl()
 
     for var in ['fetx', 'fety', 'engerr', 'peirad',
