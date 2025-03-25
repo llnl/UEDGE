@@ -8,29 +8,41 @@ class UeBalance():
         from uedge import com
         for var in [
             'fetx', 'fety', 'engerr', 'pmloss', 'pmrada', 'pmradm', 'pmpot',
-            'peirad', 'pmomv', 'engerr', 'pradrc', 'pradiz', 'pradht', 'prdiss',
+            'peirad', 'pmomv', 'pradrc', 'pradiz', 'pradht', 'prdiss',
             'pibirth', 'pbinde', 'pbindrc', 'pradzbind', 'pradff'
         ]:
             self.__dict__[var] = zeros((com.nx+2, com.ny+2))
         for var in ['icxgas', 'iion', 'irecomb']:
             self.__dict__[var] = zeros((com.nx+2, com.ny+2, com.ngsp))
-
         self.pradimp = zeros((com.nx+2, com.ny+2, sum(com.nzsp), sum(com.nzsp)))
-            
+        self.pwr_plth = zeros((com.ny+2, 2*com.nxpt))
+        self.pwr_pltz = zeros((com.ny+2, 2*com.nxpt))
+        self.pwr_wallh = zeros((com.nx+2))
+        self.pwr_wallz = zeros((com.nx+2))
+        self.pwr_pfwallh = zeros((com.nx+2, com.nxpt))
+        self.pwr_pfwallz = zeros((com.nx+2, com.nxpt))
+
         return
 
     def ave(x, y, cutlo=1e-300):
         return (x * y) / (x + y + cutlo)
 
 
-    def engbal(self):
+    def engbal(self, pwrin=1):
         """ Calculates various components of the 2-D energy flow and the 
         ionization and radiation for use in the postprocessing file
         balancee to determine energy balance; these 2-D loops become 
         expensive when done from the parser.
         """
-        from uedge import bbb, com
+        from uedge import bbb, com, aph
         from numpy import zeros, cos
+
+        for var in ['icxgas', 'iion', 'irecomb', 'pradimp',
+            'fetx', 'fety', 'engerr', 'pmloss', 'pmrada', 'pmradm', 'pmpot',
+            'peirad', 'pmomv', 'pradrc', 'pradiz', 'pradht', 'prdiss',
+            'pibirth', 'pbinde', 'pbindrc', 'pradzbind', 'pradff']:
+            self.__dict__[var] *= 0
+
 
         '''
  c-----------------------------------------------------------------------
@@ -73,7 +85,7 @@ class UeBalance():
                         self.fety[ix,iy] += (bbb.mi[ii]/32)*(
                                 upi[ix1,iy,ii] + upi[ix,iy,ii] \
                                 + upi[ix1,iy+1,ii] + upi[ix,iy+1,ii]\
-                            )**2 * bbb.fnix[ix,iy,ii] \
+                            )**2 * bbb.fniy[ix,iy,ii] \
                         -bbb.cfvisy*0.5*com.sy[ix,iy]*com.gyf[ix,iy]\
                             *eta_dup2dy
                     
@@ -87,44 +99,7 @@ class UeBalance():
                     self.fety[ix,iy] += bbb.feey[ix,iy] + bbb.feiy[ix,iy]
                     self.fetx[ix,iy] += bbb.feex[ix,iy] + bbb.feix[ix,iy]
 
-        '''
-      do jx = 1, nxpt
-        do ix=ixlb(jx),ixrb(jx)
-          do iy=0,ny
-            ix1 = ixm1(ix,iy)
-            ix2 = ixp1(ix,iy)
-            fety(ix,iy) = 0.
-            fetx(ix,iy) = 0.
-            do id = 1, nusp
-	       thetaix =  0.5*(angfx(ix1,iy) + angfx(ix,iy))
-               thetaix2 = 0.5*(angfx(ix,iy) + angfx(ix2,iy))
-               eta_dup2dy = 0.25*( visy(ix,iy+1,id)*
-     .                       (upi(ix1,iy+1,id)+upi(ix,iy+1,id))**2 -
-     .                             visy(ix,iy  ,id)*
-     .                       (upi(ix1,iy  ,id)+upi(ix,iy  ,id))**2 )
-               fety(ix,iy) = fety(ix,iy) + (mi(id)/32)*
-                            ( upi(ix1,iy,id)+
-     .                         upi(ix,iy,id)+upi(ix1,iy+1,id)+
-     .                         upi(ix,iy+1,id) )**2*fniy(ix,iy,id) -
-     .                         cfvisy*0.5*sy(ix,iy)*gyf(ix,iy)*eta_dup2dy
 
-
-
-               fetx(ix,iy) = fetx(ix,iy) + 0.5*mi(id)*upi(ix,iy,id)**2*
-     .                          fnix(ix,iy,id) - cfvisx*0.25*sx(ix,iy)*(
-     .                         visx(ix ,iy,id)*gx(ix ,iy)*cos(thetaix)* 
-     .                          ( upi(ix,iy,id)**2 - upi(ix1,iy,id)**2 ) +
-
-     .                        visx(ix2,iy,id)*gx(ix2,iy)*cos(thetaix2)* 
-     .                          ( upi(ix2,iy,id)**2 - upi(ix,iy,id)**2 ) )
-               fetx(ix,iy) = fetx(ix,iy) - upi(ix,iy,id)*fmixy(ix,iy,id)
-            enddo
-            fety(ix,iy) = fety(ix,iy) + feey(ix,iy) + feiy(ix,iy)
-            fetx(ix,iy) = fetx(ix,iy) + feex(ix,iy) + feix(ix,iy)
-          enddo
-        enddo
-      enddo
-    '''
     # Correct the boundary x-fluxes if non-unity ckinfl
         up = bbb.up
         if (abs(bbb.ckinfl - 1) > 1e-10):
@@ -141,69 +116,40 @@ class UeBalance():
                         - bbb.ckinfl*0.5*com.sx[ixt,iy]*bbb.visx[ixt1,iy,ii]*com.gx[ixt1,iy]* \
                         (up[ixt1, iy, ii]**2 - up[ixt, iy, ii]**2)
 
-                        self.fety[ixr,iy] += 0.5*bbb.mi[ii]*up[ixr,iy,ii]**2*bbb.fnix[ixr,iy,ii] \
+                        self.fetx[ixr,iy] += 0.5*bbb.mi[ii]*up[ixr,iy,ii]**2*bbb.fnix[ixr,iy,ii] \
                         - bbb.ckinfl*0.5*com.sx[ixr,iy]*bbb.visx[ixr,iy,ii]*com.gx[ixr,iy] * \
                         (up[ixr,iy,ii]**2 - up[ixr1,iy,ii]**2)
                 self.fetx[ixt,iy] += bbb.feex[ixt,iy] + bbb.feix[ixt,iy]
                 self.fetx[ixr,iy] += bbb.feex[ixr,iy] + bbb.feix[ixr,iy]
-        '''
 
-# Now correct the boundary x-fluxes if non-unity ckinfl
-      if (abs(ckinfl-1.) > 1.e-10) then
-       do jx = 1, nxpt
-         ixt  = ixlb(jx)
-         ixt1 = ixt + 1
-         ixr  = ixrb(jx)
-         ixr1 = ixr - 1
-         do 15 iy = 0, ny
-            fetx(ixt,iy) = 0.
-            fetx(ixr,iy) = 0.
-            do id = 1, nfsp
-               fetx(ixt,iy) = fetx(ixt,iy) +
-     .                        0.5*mi(id)*up(ixt,iy,id)**2*fnix(ixt,iy,id) -
-     .                   ckinfl*0.5*sx(ixt,iy)*visx(ixt1,iy,id)*gx(ixt1,iy)*
-     .                          ( up(ixt1,iy,id)**2 - up(ixt,iy,id)**2 )
-
-
-
-               fetx(ixr,iy) = fetx(ixr,iy) +
-     .                        0.5*mi(id)*up(ixr,iy,id)**2*fnix(ixr,iy,id) - 
-     .                   ckinfl*0.5*sx(ixr,iy)*visx(ixr,iy,id)*gx(ixr,iy)*
-     .                          ( up(ixr,iy,id)**2 - up(ixr1,iy,id)**2 )
-            enddo
-            fetx(ixt,iy) = fetx(ixt,iy) + feex(ixt,iy) + feix(ixt,iy)
-            fetx(ixr,iy) = fetx(ixr,iy) + feex(ixr,iy) + feix(ixr,iy)
- 15      continue
-       enddo  # end do-loop over nxpt mesh regions
-      endif   # test on ckinfl-1
-
-    
-        '''
         pwrin = 1
 
         for jx in range(com.nxpt):
-            for ix in range(com.ixlb[jx], com.ixrb[jx]+1):
+            for ix in range(com.ixlb[jx]+1, com.ixrb[jx]+1):
                 for iy in range(1,com.ny+1):
+                    ix1 = bbb.ixm1[ix,iy]
+                    ix2 = bbb.ixp1[ix,iy]
+                    self.pmloss[ix,iy] = (1-bbb.ismolcrm)*bbb.cnsor*( \
+                            bbb.ediss*bbb.ev*(0.5*bbb.psordis[ix,iy,1]) \
+                            + bbb.ceisor*bbb.eion*bbb.ev*(bbb.psordis[ix,iy,1])
+                        ) + bbb.ismolcrm*bbb.cnsor*( \
+                            bbb.cmesori*(bbb.emolia[ix,iy,0] + bbb.emolia[ix,iy,1]) \
+                            + bbb.cmesore*bbb.edisse[ix,iy]
+                        )
                     if bbb.ishymol:
-                        self.pmloss[ix,iy] = (1-bbb.ismolcrm)*bbb.cnsor*( \
-                                bbb.ediss*bbb.ev*(0.5*bbb.psordis[ix,iy,1]) \
-                                + bbb.ceisor*bbb.eion*bbb.ev*(bbb.psordis[ix,iy,1])
-                            ) + bbb.ismolcrm*bbb.cnsor*( \
-                                bbb.cmesori*(bbb.emolia[ix,iy,0] + bbb.emolia[ix,iy,1]) \
-                                + bbb.cmsore*bbb.edisse[ix,iy]
-                            )
                         self.pmpot[ix,iy] = bbb.ismolcrm*bbb.ng[ix,iy,1]*com.vol[ix,iy] \
-                            *sv_crumpet(bbb.te[ix,iy], bbb.ne[ix,iy], 22)
+                            *aph.sv_crumpet(bbb.te[ix,iy], bbb.ne[ix,iy], 22)
                         self.pmrada[ix,iy] = bbb.ismolcrm*bbb.ng[ix,iy,1]*com.vol[ix,iy] \
-                            *sv_crumpet(bbb.te[ix,iy], bbb.ne[ix,iy], 23)
+                            *aph.sv_crumpet(bbb.te[ix,iy], bbb.ne[ix,iy], 23)
                         self.pmradm[ix,iy] = bbb.ismolcrm*bbb.ng[ix,iy,1]*com.vol[ix,iy] \
-                            *sv_crumpet(bbb.te[ix,iy], bbb.ne[ix,iy], 24)
+                            *aph.sv_crumpet(bbb.te[ix,iy], bbb.ne[ix,iy], 24)
 # Here peirad includes sum of electron and ion energy losses; note that binding
 # energy is included in eeli term, but it is carried by the ions.
 # Note also that eion and ediss generally balance in the next line
 # because should have ediss=2*eion - transfer from electron to ion energy
                     self.peirad[ix,iy] = bbb.cnsor*(
-                            bbb.ebind*bbb.ev*bbb.psor[ix,iy,0] \
+                            bbb.erliz[ix,iy] + bbb.erlrc[ix,iy]
+                            + bbb.ebind*bbb.ev*bbb.psor[ix,iy,0] \
                             - bbb.ebind*bbb.ev*bbb.psorrg[ix,iy,0] \
                             + self.pmloss[ix,iy]
                         )
@@ -222,121 +168,17 @@ class UeBalance():
                         ) / abs(pwrin)
                     if bbb.isimpon != 0:
                         self.engerr[ix,iy] -= bbb.prad[ix,iy]*com.vol[ix,iy]/abs(pwrin)                        
-        '''
-      pvmomcx = 0.e0
-      ptjdote = 0.e0 
-      do jx = 1, nxpt
-        do ix=ixlb(jx)+1,ixrb(jx)
-          do iy=1,ny
-            ix1 = ixm1(ix,iy)
-            ix2 = ixp1(ix,iy)
-                pmloss(ix,iy) =(1-ismolcrm)*cnsor*(ediss*ev*(0.5*psordis(ix,iy,2))+
-     .                      ceisor*eion*ev*(psordis(ix,iy,2)) ) + 
-     .                      ismolcrm*cnsor*(
-     .                            cmesori*(emolia(ix,iy,1) + emolia(ix,iy,2))
-     .                          + cmesore*edisse(ix,iy)
-     .                      )
-                pmpot(ix,iy) = ismolcrm*ng(ix,iy,2)*vol(ix,iy)*
-     .                          sv_crumpet(te(ix,iy), ne(ix,iy), 22)
-                pmrada(ix,iy) = ismolcrm*ng(ix,iy,2)*vol(ix,iy)*
-     .                          sv_crumpet(te(ix,iy), ne(ix,iy), 23)
-                pmradm(ix,iy) = ismolcrm*ng(ix,iy,2)*vol(ix,iy)*
-     .                          sv_crumpet(te(ix,iy), ne(ix,iy), 24)
-            peirad(ix,iy) = cnsor*( erliz(ix,iy) + erlrc(ix,iy) +
-     .                              ebind*ev*psor(ix,iy,1) -
-     .                              ebind*ev*psorrg(ix,iy,1) +
-     .                              pmloss(ix,iy))
-# other energy diagnostics are given below
-cc            jdote(ix,iy) = -   # this energy is included in resee, not lost
-cc     .                  0.5 * fqx(ix ,iy)*(phi(ix2,iy  )+phi(ix ,iy)) +
-cc     .                  0.5 * fqx(ix1,iy)*(phi(ix ,iy  )+phi(ix1,iy)) -
-cc     .                  0.5 * fqy(ix ,iy)*(phi(ix ,iy+1)+phi(ix ,iy)) +
-cc     .                  0.5 * fqy(ix,iy-1)*(phi(ix,iy)+phi(ix,iy-1))
-            ptjdote = ptjdote + wjdote(ix,iy)
-
-            if (isupgon(1) .eq. 0) then
-               pmomv(ix,iy)=cngmom(1)*up(ix,iy,1)*sx(ix,iy)*rrv(ix,iy)*
-     .                           ( ng(ix2,iy,1)*tg(ix2,iy,1)- 
-     .                             ng(ix ,iy,1)*tg(ix ,iy,1) ) +
-     .             cmwall(1)*0.125*mi(1)*(up(ix,iy,1)+up(ix1,iy,1))**2*
-     .                ng(ix,iy,1)*nucx(ix,iy,1)*vol(ix,iy)
-            elseif (isupgon(1) .eq. 1) then    # inertial neutrals
-               pmomv(ix,iy) = 0.  # coupled back to therm eng for inertial neut
-            endif
-            pvmomcx = pvmomcx + pmomv(ix,iy)
-
-            engerr(ix,iy) = ( fetx(ix1,iy  )-fetx(ix,iy)+
-     .                        fety(ix ,iy-1)-fety(ix,iy)-
-     .                        peirad(ix,iy)-png2ni(ix,iy) ) /
-     .                         abs(pwrin)
-            if (isimpon.ne.0) then  # prad allocated only if isimpon.ne.0
-               engerr(ix,iy) = engerr(ix,iy) - prad(ix,iy)*vol(ix,iy)/
-     .                                                     abs(pwrin)
-            endif
-          enddo
-        enddo
-      enddo
-
-        '''
 
         for jx in range(com.nxpt):
             for ix in range(com.ixlb[jx]+1, com.ixrb[jx]+1):
                 for iy in range(1, com.ny+1):
-                    for ig in range(1, com.ngsp):
+                    for ig in range(com.ngsp):
                         if ((bbb.ishymol == 0) or (ig != 1)):
                             self.iion[ix,iy,ig] -= bbb.cnsor*bbb.qe*bbb.psorg[ix,iy,ig]
                             self.irecomb[ix,iy,ig] -= bbb.cnsor*bbb.qe*bbb.psorrg[ix,iy,ig]
                             self.icxgas[ix,iy,ig] -= bbb.qe*bbb.psorcxg[ix,iy,ig]
         
-                    '''
-# ionization and background sources
 
-      iion_tot = 0.e0
-      irecomb_tot = 0.e0
-      icxgas_tot = 0.e0
-      pradrc = 0.e0
-      pradiz = 0.e0
-      pradht = 0.e0
-      prdiss = 0.e0
-      pibirth = 0.e0
-      pbinde = 0.e0
-      pbindrc = 0.e0
-      pradzbind = 0.e0
-      do igsp = 1, ngsp
-         iion(igsp) = 0.e0
-         irecomb(igsp) = 0.e0
-         icxgas(igsp) = 0.e0
-      enddo
-      do igsp = 1, max(1, ngsp-nhgsp)
-         pradimpt(igsp) = 0.
-         if (nzsp(igsp) .ne. 0) then
-            do iimp = 0, nzsp(igsp)
-               pradimp(iimp,igsp) = 0.
-            enddo
-         endif
-      enddo    
-      pradfft = 0.
-      
-      do jx = 1, nxpt
-        do ix = ixlb(jx)+1,ixrb(jx)
-          do iy = 1, ny
-            do igsp = 1, ngsp
-              if (ishymol.eq.0 .or. igsp.ne.2) then
-               iion(igsp) = iion(igsp) - cnsor*qe*psorg(ix,iy,igsp)
-               irecomb(igsp) = irecomb(igsp) -cnsor*qe*psorrg(ix,iy,igsp)
-               icxgas(igsp) = icxgas(igsp) - qe*psorcxg(ix,iy,igsp)
-              endif
-            enddo
-          enddo
-        enddo
-      enddo
-
-      do igsp = 1, ngsp
-         iion_tot = iion_tot + iion(igsp)
-         irecomb_tot = irecomb_tot + irecomb(igsp)
-         icxgas_tot = icxgas_tot + icxgas(igsp)
-      enddo
-                    '''
                     self.pradrc[ix,iy] += bbb.cnsor*bbb.erlrc[ix,iy]
                     self.pradiz[ix,iy] += (bbb.eeli[ix,iy] - bbb.ebind*bbb.ev) * bbb.psor[ix,iy,0]
                     self.pbinde[ix,iy] += bbb.ebind*bbb.ev*bbb.psor[ix,iy,0]
@@ -353,35 +195,12 @@ cc     .                  0.5 * fqy(ix,iy-1)*(phi(ix,iy)+phi(ix,iy-1))
                                 )*bbb.nucx[ix,iy,0]*com.vol[ix,iy]
                             )
                                 
-            
-        '''
 
-      do iy = 1, ny
-        do jx = 1, nxpt
-          do ix = ixlb(jx)+1, ixrb(jx)
-            ix1 = ixm1(ix,iy)
-            pradrc = pradrc + cnsor*erlrc(ix,iy)
-            pradiz = pradiz + (eeli(ix,iy)-ebind*ev) * psor(ix,iy,1) 
-            pbinde = pbinde + ebind*ev * psor(ix,iy,1)
-            pbindrc = pbindrc + ebind*ev*psorrg(ix,iy,1)
-            prdiss = prdiss+(1-ismolcrm)*(ediss*ev*(0.5*psordis(ix,iy,2)))+
-     .                              ismolcrm*cmesore*edisse(ix,iy)
-            pibirth = pibirth+(1-ismolcrm)*(ceisor* eion*ev * (psordis(ix,iy,2)) -
-     .                ccoldsor*ng(ix,iy,1)*(1.5*ti(ix,iy)-eion*ev)*
-     .                                          nucx(ix,iy,1)*vol(ix,iy) )+
-     .                  ismolcrm*( ceisor*cmesore*(emolia(ix,iy,1) + emolia(ix,iy,2))
-     .                   - ccoldsor*ng(ix,iy,1)*(1.5*ti(ix,iy)-eion*ev)*
-     .                                          nucx(ix,iy,1)*vol(ix,iy) )
-         enddo
-        enddo
-      enddo
-      pradht = pradiz + pradrc
-        '''
         for jx in range(com.nxpt):
             for ix in range(com.ixlb[jx], com.ixrb[jx]+1):
                 for iy in range(1,com.ny+1):
                     if (bbb.isimpon in [2,7]):
-                        self.pradff[ix,iy] += bbb.pracff[ix,iy]*com.vol[ix,iy]
+                        self.pradff[ix,iy] += bbb.pradcff[ix,iy]*com.vol[ix,iy]
                     if bbb.isimpon > 2:
                         for ig in range(com.nhgsp+1, com.ngsp+1):
                             for jz in range(com.ngsp - com.nhgsp):
@@ -391,153 +210,52 @@ cc     .                  0.5 * fqy(ix,iy-1)*(phi(ix,iy)+phi(ix,iy-1))
                             
                         
 
-        '''
-   
-      if (isimpon .eq. 2 .or. isimpon .eq. 7) then #fixed fraction model
-         do iy = 1, ny
-           do jx = 1, nxpt
-             do ix = ixlb(jx)+1, ixrb(jx)
-               pradfft = pradfft + pradcff(ix,iy)*vol(ix,iy)
-             enddo
-           enddo
-         enddo
-      endif
-
-      if (isimpon .gt. 2) then  #separate impurity species
-         do iy = 1, ny
-           do jx = 1, nxpt
-             do ix = ixlb(jx)+1, ixrb(jx)
-               do igsp = nhgsp+1, ngsp
-                  jz = igsp - nhgsp
-                  do iimp = 0, nzsp(jz)
-                     pradimp(iimp,jz) = pradimp(iimp,jz) +
-     .                             pradz(ix,iy,iimp,jz)*vol(ix,iy)
-                  enddo
-               enddo
-               pradzbind = pradzbind + (pwrze(ix,iy)-prad(ix,iy))*
-     .                                vol(ix,iy) # only total pradzbind calc
-             enddo
-           enddo
-         enddo
-         do igsp = nhgsp+1, ngsp
-            jz = igsp - nhgsp
-            do iimp = 0, nzsp(jz)
-               pradimpt(jz) = pradimpt(jz) + pradimp(iimp,jz)
-            enddo
-         enddo
-      endif
-  
-      return
-      end          
-
-******* end of subroutine engbal *******
-
-        '''
 
     def pradpltwl(self):
         """ Calc radiation power to divertor and outer wall surfaces """
         from uedge import bbb, com
         from numpy import zeros, arctan2, pi, cos
         from copy import deepcopy
-        nz = com.nxomit 
+        nj = com.nxomit 
         prdu = deepcopy(bbb.prad)
-        '''
-c----------------------------------------------------------------------c
-      subroutine pradpltwl
-c ... Local variables
-      real prdu(0:nx+1,0:ny+1)   
-      real theta_ray1, theta_ray2, dthgy, dthgx, sxo, frth
-      integer ixv, iyv, nj, ix, iy, ip, iodd
 
-# Initialize arrays
-      call sfill ((ny+2)*2*nxpt, 0., pwr_pltz, 1)   
-      call sfill ((ny+2)*2*nxpt, 0., pwr_plth, 1)   
-      call sfill ((nx+2), 0., pwr_wallz, 1)   
-      call sfill ((nx+2), 0., pwr_wallh, 1) 
-      call sfill ((nx+2)*nxpt, 0., pwr_pfwallz, 1)   
-      call sfill ((nx+2)*nxpt, 0., pwr_pfwallh, 1) 
-  
-      if (isimpon > 0) then   # use prdu since prad might not be dimensioned
-         call s2copy (nx+2,ny+2, prad,1,nx+2, prdu,1,nx+2) #prad --> prdu
-      else
-         call s2fill (nx+2, ny+2, 0., prdu, 1, nx+2)
-      endif
+        # Initialize arrays for subsequent runs
+        for var in ['pwr_pltz', 'pwr_plth', 'pwr_wallh', 'pwr_wallz', 
+            'pwr_pfwallh', 'pwr_pfwallz']:
+            self.__dict__[var] *= 0
 
-      nj = nxomit
-        '''
-        """ Divertor plates """
         for ip in range(2*com.nxpt):
-            iodd = int((ip % 2)==1)
-            if iodd:
-                ixv = com.ixlb[ip/2 + 1]
+            if (ip % 2) == 0: # Even numbers
+                ixv = com.ixlb[int( ip > 1) + int(ip > 3)]
             else:
-                ixv = ixrb[ip/2] + 1
+                ixv = com.ixrb[int( ip > 1) + int(ip > 3)]+1
             for iyv in range(1, com.ny+1):
-                for iy in range(1, com.ny):
+                for iy in range(1, com.ny+1):
                     for ix in range(1,com.nx+1):
                         thetaray1 = arctan2(
                             com.zm[ixv+nj, iyv, 1] - com.zm[ix+nj, iy, 0],
-                            com.rm[ixv+nf, iyv, 1] - com.rm[ix+nj, iy, 0]
+                            com.rm[ixv+nj, iyv, 1] - com.rm[ix+nj, iy, 0]
                         )
                         thetaray2 = arctan2(
                             com.zm[ixv+nj, iyv, 3] - com.zm[ix+nj, iy, 0],
-                            com.rm[ixv+nf, iyv, 3] - com.rm[ix+nj, iy, 0]
+                            com.rm[ixv+nj, iyv, 3] - com.rm[ix+nj, iy, 0]
                         )
                         dthgy = abs(thetaray1 - thetaray2)
                         frth = min(dthgy, 2*pi - dthgy)/2/pi
                         sxo = com.sx[ixv, iyv]/cos(com.angfx[ixv,iyv])
-                        pwr_pltz[iyv,ip] += prdu[ix,iy]*com.vol[ix,iy]*fth/sxo
-                        pwr_plth[iyv,ip] += ( (bbb.eeli[ix,iy] - bbb.ebind*bbb.ev) \
-                            *bbb.psor[ix,iy,0]) + bbb.erlrc[ix,iy]*frth/sxo
+                        self.pwr_pltz[iyv,ip] += prdu[ix,iy]*com.vol[ix,iy]*frth/sxo
+                        self.pwr_plth[iyv,ip] += ( (bbb.eeli[ix,iy] - bbb.ebind*bbb.ev) \
+                            *bbb.psor[ix,iy,0] + bbb.erlrc[ix,iy])*frth/sxo
             # Set corner values
-            pwr_pltz[0,ip] = pwr_pltz[1,ip]
-            pwr_pltz[com.ny+1,ip] = pwr_pltz[com.ny,ip]
-            pwr_plth[0,ip] = pwr_plth[1,ip]
-            pwr_plth[com.ny+1,ip] = pwr_plth[com.ny,ip]
-                            
-            
+            self.pwr_pltz[0,ip] = self.pwr_pltz[1,ip]
+            self.pwr_pltz[com.ny+1,ip] = self.pwr_pltz[com.ny,ip]
+            self.pwr_plth[0,ip] = self.pwr_plth[1,ip]
+            self.pwr_plth[com.ny+1,ip] = self.pwr_plth[com.ny,ip]
 
 
-        '''
-
-c ... First do the divertor plate surfaces
-      do ip = 1, 2*nxpt
-        iodd = (ip+1)/2 - ip/2  # =1 if ip odd, =0 if ip even
-	if (iodd==1) then
-          ixv = ixlb(ip/2+1)    # viewing ix position
-	else
-	  ixv = ixrb(ip/2) + 1
-	endif
-        do iyv = 1, ny		# loop over viewing ix
-          do iy = 1, ny	        # loop over source iy
-            do ix = 1, nx	# loop over source ix
-              theta_ray1 = atan2( zm(ixv+nj,iyv,1)-zm(ix+nj,iy,0), 
-     .                            rm(ixv+nj,iyv,1)-rm(ix+nj,iy,0) )
-              theta_ray2 = atan2( zm(ixv+nj,iyv,3)-zm(ix+nj,iy,0), 
-     .                            rm(ixv+nj,iyv,3)-rm(ix+nj,iy,0) )
-              dthgy = abs(theta_ray1-theta_ray2)
-              frth = min(dthgy, 2*pi-dthgy)/(2*pi)  # frac.; need angle < pi
-              sxo = sx(ixv,iyv)/(cos(angfx(ixv,iyv)))
-              pwr_pltz(iyv,ip) = pwr_pltz(iyv,ip) + 
-     .                                 prdu(ix,iy)*vol(ix,iy)*frth/sxo
-              pwr_plth(iyv,ip) = pwr_plth(iyv,ip) + (
-     .                           (eeli(ix,iy)-ebind*ev)*psor(ix,iy,1)
-     .                                        + erlrc(ix,iy))*frth/sxo
-            enddo
-          enddo
-        enddo
-c ... Set corner values
-      pwr_pltz(0,ip)    = pwr_pltz(1,ip)	
-      pwr_pltz(ny+1,ip) = pwr_pltz(ny,ip)
-      pwr_plth(0,ip)    = pwr_plth(1,ip)	
-      pwr_plth(ny+1,ip) = pwr_plth(ny,ip)
-
-      enddo             # end of ip loop over divertor plates
-
-        '''
         """ OUTER WALL """
         iyv = com.ny + 1
-        for ixv in range(1, nx+1):
+        for ixv in range(1, com.nx+1):
             for iy in range(1, com.ny+1):
                 for ix in range(1, com.nx+1):
                     thetaray1 = arctan2(
@@ -549,43 +267,16 @@ c ... Set corner values
                         com.rm[ixv+nj, iyv, 2] - com.rm[ix+nj, iy, 0],
                     )
                     dthgz = abs(thetaray1 - thetaray2)
-                    frth = min(dthgz, 2*pi - dthgx)/2/pi
-                    pwr_wallz[ixv] += prdu[ix,iy]*com.vol[ix,iy]*frth/com.sy[ixv,iyv]
-                    pwr_wallh[ixv] += ( (bbb.eeli[ix,iy] - bbb.ebind*bbb.ev)*bbb.psor[ix,iy,0] \
+                    frth = min(dthgz, 2*pi - dthgz)/2/pi
+                    self.pwr_wallz[ixv] += prdu[ix,iy]*com.vol[ix,iy]*frth/com.sy[ixv,iyv]
+                    self.pwr_wallh[ixv] += ( (bbb.eeli[ix,iy] - bbb.ebind*bbb.ev)*bbb.psor[ix,iy,0] \
                         +bbb.erlrc[ix,iy])*frth/com.sy[ixv,iyv]
-        pwr_wallz[0] = pwr_wallz[1]	# Because prad(0,) is not calculated
-        pwr_wallz[com.nx+1] = pwr_wallz[com.nx]
-        pwr_wallh[0] = pwr_wallh[1]
-        pwr_wallh[com.nx+1] = pwr_wallh[com.nx]
+        self.pwr_wallz[0] = self.pwr_wallz[1]	# Because prad(0,) is not calculated
+        self.pwr_wallz[com.nx+1] = self.pwr_wallz[com.nx]
+        self.pwr_wallh[0] = self.pwr_wallh[1]
+        self.pwr_wallh[com.nx+1] = self.pwr_wallh[com.nx]
     
 
-        '''
-
-c ... Now do the "outer" wall surface, i.e., iy=ny+1
-      iyv = ny+1                # viewing iy position
-      do ixv = 1, nx		# loop over viewing ix
-        do iy = 1, ny	        # loop over source iy
-          do ix = 1, nx	        # loop over source ix
-            theta_ray1 = atan2( zm(ixv+nj,iyv,1)-zm(ix+nj,iy,0),
-     .                          rm(ixv+nj,iyv,1)-rm(ix+nj,iy,0) )
-            theta_ray2 = atan2( zm(ixv+nj,iyv,2)-zm(ix+nj,iy,0),
-     .                          rm(ixv+nj,iyv,2)-rm(ix+nj,iy,0) )
-            dthgx = abs(theta_ray1-theta_ray2)             
-            frth = min(dthgx, 2*pi-dthgx)/(2*pi)  # frac; need angle < pi
-            pwr_wallz(ixv) = pwr_wallz(ixv) + 
-     .                           prdu(ix,iy)*vol(ix,iy)*frth/sy(ixv,iyv) 
-            pwr_wallh(ixv) = pwr_wallh(ixv) + (
-     .                       (eeli(ix,iy)-ebind*ev)*psor(ix,iy,1) +
-     .                          erlrc(ix,iy) )*frth/sy(ixv,iyv) 
-          enddo
-        enddo
-      enddo
-      pwr_wallz(0) = pwr_wallz(1)	# Because prad(0,) is not calculated
-      pwr_wallz(nx+1) = pwr_wallz(nx)
-      pwr_wallh(0) = pwr_wallh(1)
-      pwr_wallh(nx+1) = pwr_wallh(nx)
-
-        '''
         """ PFR WALL """
         iyv = 0
         for ip in range(com.nxpt):
@@ -602,56 +293,17 @@ c ... Now do the "outer" wall surface, i.e., iy=ny+1
                         )
                         dthgx = abs(thetaray1 - thetaray2)
                         frth = min(dthgx, 2*pi - dthgx)/2/pi
-                        pwr_pfwallz[ixv,ip] += prdu[ix,iy]*com.vol[ix,iy]*frth/com.sy[ixv,iyv]
-                        pwr_pfwallh[ixv,ip] += (
+                        self.pwr_pfwallz[ixv,ip] += prdu[ix,iy]*com.vol[ix,iy]*frth/com.sy[ixv,iyv]
+                        self.pwr_pfwallh[ixv,ip] += (
                             (bbb.eeli[ix,iy] - bbb.ebind*bbb.ev)*bbb.psor[ix,iy,0] \
                             + bbb.erlrc[ix,iy])*frth/com.sy[ixv,iyv]
                 if ((ixv>com.ixpt1[ip]) and (ixv<com.ixpt2[ip]+1)):
-                    pwr_pfwallh[ixv,ip] = 0
-                    pwr_pfwallz[ixv,ip] = 0
-            pwr_pfwallz[0,ip] = pwr_pfwallz[1,ip]
-            pwr_pfwallz[com.nx+1,ip] = pwr_pfwallz[com.nx,ip]
-            pwr_pfwallh[0,ip] = pwr_pfwallh[1,ip]
-            pwr_pfwallh[com.nx+1,ip] = pwr_pfwallh[com.nx,ip]
-
-        '''
-c ... Finally do the private-flux wall surfaces, i.e., iy=0
-      iyv = 0                        # viewing iy position
-      do ip = 1, nxpt                # loop over number of x-points
-        do ixv = 1, nx   	     # loop over viewing ix
-          do iy = 1, ny	             # loop over source iy
-            do ix = 1, nx	     # loop over source ix
-              theta_ray1 = atan2( zm(ixv+nj,iyv,1)-zm(ix+nj,iy,0),
-     .                          rm(ixv+nj,iyv,1)-rm(ix+nj,iy,0) )
-              theta_ray2 = atan2( zm(ixv+nj,iyv,2)-zm(ix+nj,iy,0),
-     .                          rm(ixv+nj,iyv,2)-rm(ix+nj,iy,0) )
-              dthgx = abs(theta_ray1-theta_ray2)             
-              frth = min(dthgx, 2*pi-dthgx)/(2*pi)  # frac; need angle < pi
-              pwr_pfwallz(ixv,ip) = pwr_pfwallz(ixv,ip) + 
-     .                           prdu(ix,iy)*vol(ix,iy)*frth/sy(ixv,iyv) 
-              pwr_pfwallh(ixv,ip) = pwr_pfwallh(ixv,ip) + (
-     .                       (eeli(ix,iy)-ebind*ev)*psor(ix,iy,1) +
-     .                          erlrc(ix,iy) )*frth/sy(ixv,iyv) 
-            enddo
-          enddo
-          if(ixv>ixpt1(ip) .and. ixv <ixpt2(ip)+1) then  # 0 in core region
-            pwr_pfwallh(ixv,ip) = 0.
-            pwr_pfwallh(ixv,ip) = 0.
-            pwr_pfwallz(ixv,ip) = 0.
-            pwr_pfwallz(ixv,ip) = 0.
-          endif
-        enddo
-        pwr_pfwallz(0,ip) = pwr_pfwallz(1,ip)  # prad(0,) is not calculated
-        pwr_pfwallz(nx+1,ip) = pwr_pfwallz(nx,ip)
-        pwr_pfwallh(0,ip) = pwr_pfwallh(1,ip)
-        pwr_pfwallh(nx+1,ip) = pwr_pfwallh(nx,ip)
-      enddo
-
-      return
-      end
-******* end of subroutine pradpltwl *******
-        '''
-
+                    self.pwr_pfwallh[ixv,ip] = 0
+                    self.pwr_pfwallz[ixv,ip] = 0
+            self.pwr_pfwallz[0,ip] = self.pwr_pfwallz[1,ip]
+            self.pwr_pfwallz[com.nx+1,ip] = self.pwr_pfwallz[com.nx,ip]
+            self.pwr_pfwallh[0,ip] = self.pwr_pfwallh[1,ip]
+            self.pwr_pfwallh[com.nx+1,ip] = self.pwr_pfwallh[com.nx,ip]
 
 
 
@@ -689,8 +341,6 @@ c ... Finally do the private-flux wall surfaces, i.e., iy=0
         ixm1 = bbb.ixm1
         mi = bbb.mi
         znucl = bbb.znucl
-        pwr_wallh = bbb.pwr_wallh
-        pwr_wallz = bbb.pwr_wallz
         fngy = bbb.fngy
         pradht = bbb.pradht
         pradrc = bbb.pradrc
@@ -745,9 +395,7 @@ c ... Finally do the private-flux wall surfaces, i.e., iy=0
         ev = bbb.ev
         qe = bbb.qe
         l_parloss = bbb.l_parloss
-        engbal = bbb.engbal
         nfsp = com.nfsp
-        pradpltwl = bbb.pradpltwl
         ishymol = bbb.ishymol
         nusp = com.nusp
         ckinfl = bbb.ckinfl
@@ -765,8 +413,6 @@ c ... Finally do the private-flux wall surfaces, i.e., iy=0
         irecomb_tot = bbb.irecomb_tot
         icxgas_tot = bbb.icxgas_tot
         fegy = bbb.fegy
-        pwr_plth = bbb.pwr_plth
-        pwr_pltz = bbb.pwr_pltz
 
 
         try:
@@ -882,7 +528,7 @@ c ... Finally do the private-flux wall surfaces, i.e., iy=0
         ptotin = pbcoree+pbcorei ## +p_i_vol+p_e_vol
         ptotin = pbcoree+pbcorei+p_i_vol+p_e_vol
 
-        engbal(ptotin)
+        self.engbal(ptotin)
 
         #########################################################################
 
@@ -934,9 +580,9 @@ c ... Finally do the private-flux wall surfaces, i.e., iy=0
 
 
         # First get radiation power in pwr_plth and pwr_pltz
-        pradpltwl()
-        sdrin = pwr_plth[:,0]+pwr_pltz[:,0]
-        sdrout = pwr_plth[:,1]+pwr_pltz[:,1]
+        self.pradpltwl()
+        sdrin = self.pwr_plth[:,0]+self.pwr_pltz[:,0]
+        sdrout = self.pwr_plth[:,1]+self.pwr_pltz[:,1]
 
 
         # here the sds are ion and electron poloidal power fluxes in W/m**2
@@ -992,7 +638,7 @@ c ... Finally do the private-flux wall surfaces, i.e., iy=0
            sneutout[iy] = cenggpl*2.*vxno*ng[ixoneut,iy,0]*tg[ixoneut,iy,0]
            sdeout[iy] = ( feex[ixo,iy]+fqx[ixo,iy]*(phi[ixo,iy]-phi0r[iy]) )/sxo
            sdtout[iy] = sdeout[iy] + sdiout[iy] + sbindout[iy] + sdmout[iy] + \
-                           sbindzout[iy] + pwr_plth[iy,1] + pwr_pltz[iy,1]
+                           sbindzout[iy] + self.pwr_plth[iy,1] + self.pwr_pltz[iy,1]
            sdiin[iy]  -= feix[ixi,iy]/sxi 
            if ishymoleng==1: #mol heat flux; drift eng small,<0
              sdmin[iy] -= fegx[ixi,iy,1]/sxo
@@ -1001,7 +647,7 @@ c ... Finally do the private-flux wall surfaces, i.e., iy=0
            sneutin[iy] = cenggpl*2.*vxni*ng[ixineut,iy,0]*tg[ixineut,iy,0]
            sdein[iy]  = -( feex[ixi,iy] + .001*fqx[ixi,iy]*(phi[ixi,iy]-phi0l[iy]) )/sxi
            sdtin[iy] = sdein[iy] + sdiin[iy] + sdmin[iy] + sbindin[iy] + \
-                          sbindzin[iy] + pwr_plth[iy,0] + pwr_pltz[iy,0]
+                          sbindzin[iy] + self.pwr_plth[iy,0] + self.pwr_pltz[iy,0]
            pdiviout += sdiout[iy]*sxo ## + sdioutd[iy,1]*sxo
            pdiveout += sdeout[iy]*sxo
            pdivmout += sdmout[iy]*sxo
@@ -1014,10 +660,10 @@ c ... Finally do the private-flux wall surfaces, i.e., iy=0
            pbindzin += sbindzin[iy]*sxi
            pneutout += 0*sneutout[iy]*sxo  # included in pdiviout
            pneutin += 0.*sneutin[iy]*sxo     # included in pdiviin
-           pradhout += pwr_plth[iy,1]*sxo
-           pradzout += pwr_pltz[iy,1]*sxo
-           pradhin += pwr_plth[iy,0]*sxi
-           pradzin += pwr_pltz[iy,0]*sxi
+           pradhout += self.pwr_plth[iy,1]*sxo
+           pradzout += self.pwr_pltz[iy,1]*sxo
+           pradhin += self.pwr_plth[iy,0]*sxi
+           pradzin += self.pwr_pltz[iy,0]*sxi
            if isupgon[0] == 1: # Approx. neutral energy flux
               sdnout[iy]=sdioutd[iy,1] + ( sx[ixo,iy]*hcxn[ixo,iy]*gxf[ixo,iy]* \
                                                     (ti[ixo,iy]-ti[ixo+1,iy]) + \
@@ -1118,8 +764,8 @@ c ... Finally do the private-flux wall surfaces, i.e., iy=0
                       (up[ix1,iywall  ,0]+up[ix,iywall  ,0])**2 ) )
            pwalle += fluxfacy*feey[ix,iywall]
            pwallbd += fluxfacy*fniy[ix,iywall,0]*ebind*ev
-           pradhwall += fluxfacy*pwr_wallh[ix]*sy[ix,iywall]
-           pradzwall += fluxfacy*pwr_wallz[ix]*sy[ix,iywall]
+           pradhwall += fluxfacy*self.pwr_wallh[ix]*sy[ix,iywall]
+           pradzwall += fluxfacy*self.pwr_wallz[ix]*sy[ix,iywall]
            sneutw[ix] = cenggw*2.*vynw*tg[ix,ny+1,0]*sx[ix,ny]
            pneutw += sneutw[ix]
            if ishymoleng == 1:  #molec temp eqn active
@@ -1761,20 +1407,78 @@ c-------------------------------------------------------------------------c
 def checkbal():
     from uedge import bbb
     import matplotlib.pyplot as plt
+    from numpy import sum
     from mpl_toolkits.axes_grid1 import make_axes_locatable
+    import contextlib
 
     plt.ion()
     
-    new = UeBalance()
-    new.engbal()
-    bbb.engbal(1)
-    for var in ['fetx', 'fety', 'engerr']:
-        dif = abs( (new.__dict__[var] - bbb.__getattribute__(var))/ bbb.__getattribute__(var)**0)
-        f, ax = plt.subplots()
-        divider = make_axes_locatable(ax)
-        cax = divider.append_axes('right', size='5%', pad=0.05)
 
-        im = ax.imshow(dif, cmap='viridis')
-        f.colorbar(im, cax=cax, orientation='vertical')
-        ax.set_title(var)
-        print(var,  dif.max())
+    new = UeBalance()
+
+
+    bbb.engbal(1)
+    bbb.pradpltwl()
+    new.engbal()
+    new.pradpltwl()
+
+    for var in ['fetx', 'fety', 'engerr', 'peirad',
+        'pmloss', 'pmpot', 'pmrada', 'pmradm', 'pmomv'
+    ]:
+        denom = bbb.__getattribute__(var)
+        denom[denom==0] = 1e-100
+        dif = abs( (new.__dict__[var] - bbb.__getattribute__(var))/ denom)
+        dif[denom == 1e-100] = 0
+        if dif.max() > 1e-6:
+            print(var,  dif.max())
+            f, ax = plt.subplots()
+            divider = make_axes_locatable(ax)
+            cax = divider.append_axes('right', size='5%', pad=0.05)
+            im = ax.imshow(dif, cmap='viridis')
+            f.colorbar(im, cax=cax, orientation='vertical')
+            ax.set_title(var)
+
+    varlist = [
+        'iion', 'irecomb', 'icxgas', 'pradrc', 'pradiz', 'pbinde', 'pbindrc', 'prdiss', 'pibirth', 'pradff'
+    ]
+    if (bbb.isimpon > 2):
+        varlist += ['pradimp']
+    for var in varlist:
+        if var == 'pradff':
+            dif = abs(sum(new.__dict__[var]) - bbb.pradfft)/max(bbb.pradfft,1e-100)
+        else:
+            denom = sum(bbb.__getattribute__(var))
+            if len(denom.shape)>1:
+                denom[denom==0] = 1e-100
+            else:
+                denom += 1e-100
+            dif = abs(sum(new.__dict__[var]) - sum(bbb.__getattribute__(var)))/ denom
+            if len(denom.shape)>1:
+                dif[denom==0] = 0
+            else:
+                dif -= 1e100
+        if dif > 1e-6:
+            print(var, dif)
+    
+    for var in ['pwr_plth', 'pwr_pltz', 'pwr_wallh', 'pwr_wallz', 'pwr_pfwallh', 'pwr_pfwallz' 
+    ]:
+        denom = bbb.__getattribute__(var)
+        denom[denom==0] = 1e-100
+        dif = abs( (new.__dict__[var] - bbb.__getattribute__(var))/ denom)
+        dif[denom == 1e-100] = 0
+        if dif.max() > 1e-6:
+            print(var,  dif.max())
+            f, ax = plt.subplots()
+            colors = ['k', 'r', 'b', 'c', 'm', 'g']
+            for ix in range(bbb.__getattribute__(var).shape[-1]):
+                ax.plot(dif[:, ix], color=colors[ix])
+#            divider = make_axes_locatable(ax)
+#            cax = divider.append_axes('right', size='5%', pad=0.05)
+#            im = ax.imshow(dif, cmap='viridis')
+#            f.colorbar(im, cax=cax, orientation='vertical')
+#            ax.set_title(var)
+
+
+
+
+
