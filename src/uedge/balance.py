@@ -657,8 +657,6 @@ class UeBalance():
            self.powbal *= abs(self.ptotin + sum(bbb.wjdote[1:-1,1:-1]))/abs(self.pdivein+self.pdiviin)
 
 
-
-
     def balance_particles(self, redo=True):
         # converted into UeBalance by AH on March 25, 2025
         # balancee as of 22Dec21, now includes molecular energy fluxes to plate/walls
@@ -685,13 +683,17 @@ class UeBalance():
            ixdivin = com.ix_lim+1
            iybegin = com.iy_lims
 
-        for var in ['iwall', 'ipf', 'igaswall', 'igaspf', 'igascr',
-            'idivout', 'idivin', 'icore'
-        ]:
-            self.__dict__[var] = zeros((com.nfsp,))
+        for var in ['igaswall', 'igaspf', 'igascr']:
+            self.__dict__[var] = zeros((com.nx+2,com.ngsp))
+
+        for var in ['iwall', 'ipf', 'icore']:
+            self.__dict__[var] = zeros((com.nx+2,com.nfsp))
+
+        for var in['idivout', 'idivin']:
+            self.__dict__[var] = zeros((com.ny+2,com.nfsp))
            
         for var in ['igasout', 'igasin']:
-            self.__dict__[var] = zeros((com.ngsp,))
+            self.__dict__[var] = zeros((com.ny+2,com.ngsp))
   
         for var in ['igastot', 'igasdenom']:
             self.__dict__[var] = 0
@@ -703,48 +705,30 @@ class UeBalance():
 
         iywall=com.ny       # DEFINITION
         iypf=0
-        for ix in range(0, com.nx+2):
-           for id in range(com.nfsp):
-              self.iwall[id] += fluxfacy*bbb.fniy[ix,iywall,id]
-           for igsp in range(com.ngsp):
-              self.igaswall[igsp] += fluxfacy*bbb.fngy[ix,iywall,igsp]
+        self.iwall += fluxfacy*bbb.fniy[:,com.ny]
+        self.igaswall += fluxfacy*bbb.fngy[:,com.ny]
 
-        for ix in range(0, com.ixpt1[0]+1):
-           for id in range(0, com.nfsp):
-              self.ipf[id] += fluxfacy*bbb.fniy[ix,iypf,id]
-           for igsp in range(com.ngsp):
-              self.igaspf[igsp] += fluxfacy*bbb.fngy[ix,iypf,igsp]
+        self.ipf[:com.ixpt1[0]+1] += fluxfacy*bbb.fniy[:com.ixpt1[0]+1,0]
+        self.igaspf[:com.ixpt1[0]+1] += fluxfacy*bbb.fngy[:com.ixpt1[0]+1,0]
+        self.ipf[com.ixpt2[0]+1:] += fluxfacy*bbb.fniy[com.ixpt2[0]+1:,0]
+        self.igaspf[com.ixpt2[0]+1:] += fluxfacy*bbb.fngy[com.ixpt2[0]+1:,0]
 
-        for ix in range(com.ixpt2[0]+1, com.nx+2):
-           for id in range(0, com.nfsp):
-              self.ipf[id] += fluxfacy*bbb.fniy[ix,iypf,id]
-           for igsp in range(com.ngsp):
-              self.igaspf[igsp] += fluxfacy*bbb.fngy[ix,iypf,igsp]
-
-        for ix in range(max(com.ixpt1[0]+1,0), com.ixpt2[0]+1):
-           for igsp in range(com.ngsp):
-              self.igascr[igsp] =  fluxfacy*bbb.fngy[ix,iypf,igsp]
+        self.igascr[max(com.ixpt1[0]+1,0):com.ixpt2[0]+1] = \
+            fluxfacy*bbb.fngy[max(com.ixpt1[0]+1,0):com.ixpt2[0]+1,0]
 
         # ion current to divertor plate
-
-        for iy in range(iybegin,com.ny+1):
-           for id in range(com.nfsp):
-              self.idivout[id] += bbb.fnix[com.nx,iy,id]
-              self.idivin[id] += bbb.fnix[ixdivin,iy,id]
-           for igsp in range(com.ngsp):
-              if bbb.isupgon[igsp] == 0:
-                 self.igasout[igsp] += bbb.fngx[com.nx,iy,igsp]
-                 self.igasin[igsp] += bbb.fngx[ixdivin,iy,igsp]
-              else:
-                 self.igasout[igsp] += bbb.fnix[com.nx,iy,1]
-                 self.igasin[igsp] += bbb.fnix[ixdivin,iy,1]
+        self.idivout[1:-1] += bbb.fnix[com.nx,1:com.ny+1]
+        self.idivin[1:-1] += bbb.fnix[0,1:com.ny+1]
+        self.igasout[1:-1] += bbb.fngx[com.nx,1:com.ny+1]
+        self.igasin[1:-1] += bbb.fngx[0,1:com.ny+1]
+        if bbb.isupgon[1] == 0:
+             self.igasout[1:-1,0] = bbb.fnix[com.nx,1:com.ny+1,1]
+             self.igasin[1:-1,0] = bbb.fnix[0,1:com.ny+1,1]
 
         # ion current to the core
-        for ix in range(max(0, com.ixpt1[0]+1), com.ixpt2[0]+1):
-           for id in range(com.nfsp):
-              self.icore[id] += fluxfacy*bbb.fniy[ix,0,id]
- 
-           
+        self.icore[max(0,com.ixpt1[0]+1):com.ixpt2[0]+1] += \
+                fluxfacy*bbb.fniy[max(0,com.ixpt1[0]+1):com.ixpt2[0]+1,0]
+
         for var in [
             'idivout', 'idivin', 'igasout', 'igasin', 'icore', 'iwall',
             'igaswall', 'ipf', 'igaspf', 'igascr'
@@ -757,17 +741,21 @@ class UeBalance():
           self.i_vol -= sum(bbb.nuvl[:,:,0]*com.vol*bbb.ni[:,:,0])*bbb.qe
 
 
-        for id in range(com.ngsp):
-           self.igastot += self.igasin[id]-self.igasout[id]-self.igaswall[id]+self.igaspf[id]\
-                             + self.igascr[id] + self.i_vol
-           self.igasdenom += self.igasin[id] -self.igasout[id]
+        self.igastot += (sum(self.igasin - self.igasout) + sum(-self.igaswall + self.igaspf \
+                         + self.igascr) + self.i_vol)
+        self.igasdenom += sum((self.igasin - self.igasout))
 
         if bbb.ishymol == 1:  # add id=2 case again because of 2 atoms/molecule
-           self.igastot += self.igasin[1]-self.igasout[1]-self.igaswall[1]+self.igaspf[1]\
-                             + self.igascr[1]
-           self.igasdenom += (self.igasin[1] - self.igasout[1])
+           self.igastot += self.igasin[:,1]-self.igasout[:,1]-self.igaswall[:,1] \
+                        +self.igaspf[:,1]+ self.igascr[:,1]
+           self.igasdenom += (self.igasin[:,1] - self.igasout[:,1])
 
         self.deligas = (self.igastot - sum(self.iion) - sum(self.irecomb) -sum(self.icxgas)) / self.igasdenom
+
+        # particle outflow from separatrix
+        self.isephyd = bbb.qe*sum(bbb.fniy[max(com.ixpt1[0]+1,0):com.ixpt2[0]+1,com.iysptrx,0])
+
+
 
 
 
@@ -841,7 +829,7 @@ class UeBalance():
            for id in range(com.nzdf):
               id2 += com.nzsp[id]
               print("  for nuclear charge = {};  Power = {}".format(bbb.znucl[id2], sum(self.pradimp, axis=(0,1,2))[id]))
-              print("  for fixed-fraction species;  Power = ", sum(self.pradff))
+              print("  for fixed-fraction species;  Power = {:.2e}".format( sum(self.pradff)))
            
            print("\nElectron Power [W] lost at impur. ioniz. but carried as binding-energy:")
            print("   {:.2e}".format(sum(self.pradzbind)))
@@ -886,19 +874,18 @@ class UeBalance():
         from uedge import bbb, com
         if redo:
             self.balance_particles()
-        # particle outflow from separatrix
-        self.isephyd = bbb.qe*sum(bbb.fniy[max(com.ixpt1[0]+1,0):com.ixpt2[0]+1,com.iysptrx,0])
 
-
+        icore = sum(self.icore, axis=(0))
         print("\nParticle Flow [Amps] from Core to Scrape-off Layer is:")
         for id in range(com.nfsp):
            if bbb.zi[id] > 0:
               print("  for nuclear charge = {}; ion charge = {}".format(bbb.znucl[id],bbb.zi[id]))
-              print("  icore = {}\n".format(self.icore[id]))
+              print("  icore = {:.2e}\n".format(icore[id]))
 
+        igascr = sum(self.igascr, axis=(0))
         for id in range(com.ngsp):
-           print("  for gas species = {}; igascr = {:.2e}".format(id, self.igascr[id]))
-        print("  hydrogen ion current at separatrix, isephyd = ", self.isephyd)
+           print("  for gas species = {}; igascr = {:.2e}".format(id, igascr[id]))
+        print("  hydrogen ion current at separatrix, isephyd = {:.2e}".format(self.isephyd))
         #
         print("\nCurrent from Fixed Volume Source (Sinks) [Amps]:")
         print("  ion current, i_vol = ", self.i_vol)
@@ -919,30 +906,34 @@ class UeBalance():
 
         print("\nParticle Flow [Amps] incident on Divertor Plate is:")
 
+        idivin = sum(self.idivin, axis=(0))
+        idivout = sum(self.idivout, axis=(0))
         for id in range(com.nfsp):
            if bbb.zi[id] > 0:
               print("  for nuclear charge = {}; ion charge = {}".format(bbb.znucl[id], bbb.zi[id]))
-              print("  idivin = {:.2e}   idivout = {:.2e}\n".format(self.idivin[id],self.idivout[id]))
+              print("  idivin = {:.2e}   idivout = {:.2e}\n".format(idivin[id], idivout[id]))
          
         print("Neutral Flow [Amps] away from Divertor Plate is:")
 
+        igasin = sum(self.igasin, axis=(0))
+        igasout = sum(self.igasout, axis=(0))
         for id in range(com.ngsp):
-           print("  for gas species = {}; igasin = {:.2e},  igasout = {:.2e}".format(id,  self.igasin[id], self.igasout[id]))
+           print("  for gas species = {}; igasin = {:.2e},  igasout = {:.2e}".format(id,  igasin[id], igasout[id]))
 
         print("\nParticle Flow [Amps] incident on Vessel Wall is:")
         for id in range(com.nfsp):
-           print("  for ion species = {}; iwall = {:.2e}".format(id, self.iwall[id]))
+           print("  for ion species = {}; iwall = {:.2e}".format(id, sum(self.iwall[id],axis=(0))))
 
         for id in range(com.ngsp):
-           print("  for gas species = {}; igaswall = {:.2e}".format(id, self.igaswall[id]))
+           print("  for gas species = {}; igaswall = {:.2e}".format(id, sum(self.igaswall[id], axis=(0))))
 
 
         print("\nParticle Flow [Amps] incident on Private Flux Wall is:")
         for id in range(com.nfsp):
-           print("  for ion species = {}; ipf = {:.2e}".format(id, self.ipf[id]))
+           print("  for ion species = {}; ipf = {:.2e}".format(id, sum(self.ipf[id],axis=(0))))
 
         for id in range(com.ngsp):
-           print("  for gas species = {}; igaspf = {:.2e}".format(id, self.igaspf[id]))
+           print("  for gas species = {}; igaspf = {:.2e}".format(id, sum(self.igaspf[id],axis=0)))
 
 
         print("\nParticle Balance for Neutrals: (Iinput-Itotal)/Iinput")
@@ -1297,6 +1288,7 @@ def checkbal():
     new = UeBalance()
 
 
+    '''
     with open('new_balancee.txt', 'w') as f:
         with contextlib.redirect_stdout(f):
             new.balancee_new()
@@ -1306,7 +1298,6 @@ def checkbal():
             new.balancee()
     '''
     new.balancee_new()
-    '''
 
     bbb.engbal(1)
     bbb.pradpltwl()
