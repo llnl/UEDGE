@@ -21,14 +21,9 @@ class UeBalance():
         self.pwr_wallz = zeros((com.nx+2))
         self.pwr_pfwallh = zeros((com.nx+2, com.nxpt))
         self.pwr_pfwallz = zeros((com.nx+2, com.nxpt))
-
         return
 
-    def ave(x, y, cutlo=1e-300):
-        return (x * y) / (x + y + cutlo)
-
-
-    def engbal(self, pwrin=1):
+    def engbal(self):
         """ Calculates various components of the 2-D energy flow and the 
         ionization and radiation for use in the postprocessing file
         balancee to determine energy balance; these 2-D loops become 
@@ -39,7 +34,7 @@ class UeBalance():
 
         for var in ['icxgas', 'iion', 'irecomb', 'pradimp',
             'fetx', 'fety', 'engerr', 'pmloss', 'pmrada', 'pmradm', 'pmpot',
-            'peirad', 'pmomv', 'pradrc', 'pradiz', 'prdiss',
+            'peirad', 'pmomv', 'pradrc', 'pradiz', 'prdiss', 'pradzbind',
             'pibirth', 'pbinde', 'pbindrc', 'pradzbind', 'pradff']:
             self.__dict__[var] *= 0
 
@@ -154,12 +149,6 @@ class UeBalance():
                             ) + bbb.cmwall[0]*0.125*bbb.mi[0]*(
                                 up[ix,iy,0] + up[ix1,iy,1] 
                             )**2*bbb.ng[ix,iy,0]*bbb.nucx[ix,iy,0]*com.vol[ix,iy]
-                    self.engerr[ix,iy] = (
-                            self.fetx[ix1,iy] - self.fetx[ix,iy] + self.fety[ix,iy-1] \
-                            - self.fety[ix,iy] - self.peirad[ix,iy] - bbb.png2ni[ix,iy]
-                        ) / abs(pwrin)
-                    if bbb.isimpon != 0:
-                        self.engerr[ix,iy] -= bbb.prad[ix,iy]*com.vol[ix,iy]/abs(pwrin)                        
 
         for jx in range(com.nxpt):
             for ix in range(com.ixlb[jx]+1, com.ixrb[jx]+1):
@@ -199,10 +188,26 @@ class UeBalance():
                                 for iimp in range(com.nzsp[jz]):
                                     ii = iimp + com.nhgsp + sum(com.nzsp[:jz]) - 1
                                     self.pradimp[ix,iy, ii, jz] += bbb.pradz[ix,iy,ii,jz]*com.vol[ix,iy]
-        self.pradzbind = (bbb.pwrze - bbb.prad)*com.vol
+                self.pradzbind[ix,iy] = (bbb.pwrze - bbb.prad)[ix,iy]*com.vol[ix,iy]
                             
                         
 
+    def calc_engerr(self, pwrin=1, redo=True):
+        from uedge import bbb, com
+
+        self.engerr *= 0
+        if redo:
+            self.engbal()
+
+        for jx in range(com.nxpt):
+            for ix in range(com.ixlb[jx]+1, com.ixrb[jx]+1):
+                for iy in range(1,com.ny+1):
+                    self.engerr[ix,iy] = (
+                            self.fetx[ix1,iy] - self.fetx[ix,iy] + self.fety[ix,iy-1] \
+                            - self.fety[ix,iy] - self.peirad[ix,iy] - bbb.png2ni[ix,iy]
+                        ) / abs(pwrin)
+                    if bbb.isimpon != 0:
+                        self.engerr[ix,iy] -= bbb.prad[ix,iy]*com.vol[ix,iy]/abs(pwrin)                        
 
     def pradpltwl(self):
         """ Calc radiation power to divertor and outer wall surfaces """
@@ -314,705 +319,8 @@ class UeBalance():
 
         return
 
-
-    def balancee(self):
-        # balancee as of 22Dec21, now includes molecular energy fluxes to plate/walls
-        # sdmin, sdmout, pwallm, and ppfm, as well as impurity ion binding energy
-        # heating on plates (sbindzin, sbindzout) (GDP 11 June 2018).
-        # As before, also ncludes neutral energy fluxes to plates and walls.
-        #
-        # added sbindzin, sbindzout, pbindzin, pbindzout	11 June 2018 (GDP)
-        # TOTAL POWER AND PARTICLE FLOWS
-        from uedge import bbb, com
-        from numpy import cos, zeros, sqrt, pi, sum
-
-        def have(x1, x2):
-           # The function ave gives the harmonic average of two numbers
-           return (2*x1*x2)/(x1+x2)
-
-        ix, iy, id, igsp = 0, 0, 0, 0
-        ixdivin=0
-        iycore=0
-        ixineut=1
-        iybegin=1
-
-
-
-        for var in [
-            'ppfi', 'pwalle', 'ppfe', 'pwallm', 'ppfm', 'pwallbd', 'ppfbd',
-            'pradhwall', 'pradzwall', 'pradhpf', 'pradzpf', 'pneutpf', 'pneutw',
-            'pdiviin', 'pdiviout', 'pdivein', 'pdiveout', 'pdivmin', 'pdivmout',
-            'pbindout', 'pbindin', 'pdivnout', 'pdivnin', 'pbindzout', 
-            'pbindzin', 'pneutout', 'pneutin', 'pradhout', 'pradhin',
-            'pradzin', 'pradzout', 'pwalli'
-        ]:
-            self.__dict__[var] = 0
-
-        for var in ['sneutpf', 'sneutw']:
-            self.__dict__[var] = zeros((com.nx+2,))
-
-        for var in [
-            'sdrout', 'sdrin', 'sdiout', 'sdeout', 'sdiin', 'sdmout',
-            'sdmin', 'sdein', 'sdtout', 'sdtin', 'sbindout', 'sbindin',
-            'sbindzout', 'sbindzin', 'sneutout', 'sneutin',
-            'sdioutd', 'sdiind', 'sdnout', 'sdnin'
-        ]:
-            self.__dict__[var] = zeros((com.ny+2,))
-
-        for var in ['sdioutd', 'sdiind']:
-            self.__dict__[var] = zeros((com.ny+2,com.nfsp))
-
-        for var in ['iwall', 'ipf', 'igaswall', 'igaspf', 'igascr']:
-            self.__dict__[var] = zeros((com.nfsp,))
-            
-  
-        # note: ixi=ixdivin has been set to 1 to allow velocity derivatives to be calc.
-        ixi=ixdivin
-        ixo=com.nx
-
-
-        #two ifs to be able to used old executables
-        if(com.islimon == 1) and (com.nyomitmx != 0):
-           com.nx = com.ix_lim-1
-           ixdivin = com.ix_lim+1
-           iybegin = com.iy_lims
-          
-
-        iycore = 1*(bbb.isguardc == 0)
-        # Determine if molecular hydrogen energy fluxes are present
-        if(com.ngsp >= 2) and (bbb.ishymol*bbb.istgon[1] == 1):
-           ishymoleng = 1
-        else: 
-           ishymoleng = 0
-
-        # here we calculate the distance along the inner and outer divertor plates,
-        # ydpin and ydpout in meters
-        #
-        dysepi = 1/(com.gy[0,0]*cos(com.angfx[0,0]))
-        dysepo = 1/(com.gy[com.nx+1,0]*cos(com.angfx[com.nx+1,0]))
-        for iy in range(1, com.iysptrx+1):
-           dysepi += 1/(com.gy[0,iy]*cos(com.angfx[0,iy]))
-           dysepo += 1/(com.gy[com.nx,iy]*cos(com.angfx[com.nx,iy]))
-
-
-        ydpin, ydpout = zeros((com.ny+2,)), zeros((com.ny+2,))
-        ydpin[0]  = -dysepi
-        ydpout[0] = -dysepo
-        for iy in range(1,com.ny+2):
-           ydpin[iy]  = ydpin[iy-1] + ( 1/com.gy[0,iy-1] + 1/com.gy[0   ,iy]) / \
-                                       ( cos(com.angfx[0,iy-1])+cos(com.angfx[0,iy]) )
-           ydpout[iy] = ydpout[iy-1] + ( 1/com.gy[com.nx,iy-1] + 1/com.gy[com.nx,iy] ) / \
-                                       ( cos(com.angfx[com.nx,iy-1])+cos(com.angfx[com.nx,iy]) )
-
-
-        # power outflow from separatrix
-        psepi, psepe, psepb, pbcorei, pbcoree, pcorebd = 0, 0, 0, 0, 0, 0
-        try:
-           fluxfacy = fluxfacy
-        except:
-           fluxfacy=1.
-
-
-        try:
-           cenggpl = bbb.cenggpl
-        except:
-           cenggpl = 0
-        try:
-           cenggw = bbb.cenggw
-        except:
-           cenggw = 0
-
-
-
-        for ix in range(max(com.ixpt1[0]+1,0), com.ixpt2[0]+1):
-           ix1 = bbb.ixm1[ix,com.iysptrx]
-           psepi += fluxfacy*( bbb.feiy[ix,com.iysptrx] + (bbb.mi[0]/32)*
-                       (bbb.up[ix1,com.iysptrx  ,0]+bbb.up[ix,com.iysptrx  ,0]+
-                        bbb.up[ix1,com.iysptrx+1,0]+bbb.up[ix,com.iysptrx+1,0])**2*bbb.fniy[ix,com.iysptrx,0] -
-               bbb.cfvisy*0.125*com.sy[ix,com.iysptrx]*have( bbb.visy[ix,com.iysptrx,0]*com.gy[ix,com.iysptrx],
-                                   bbb.visy[ix,com.iysptrx+1,0]*com.gy[ix,com.iysptrx+1]) *
-                    ( (bbb.up[ix1,com.iysptrx+1,0]+bbb.up[ix,com.iysptrx+1,0])**2 -
-                      (bbb.up[ix1,com.iysptrx  ,0]+bbb.up[ix,com.iysptrx  ,0])**2 ) )
-           ix1 = bbb.ixm1[ix,iycore]
-           psepe += fluxfacy*bbb.feey[ix,com.iysptrx]
-           pbcorei += fluxfacy*( bbb.feiy[ix,iycore] + (bbb.mi[0]/32)*
-                       (bbb.up[ix1,iycore  ,0]+bbb.up[ix,iycore  ,0]+
-                        bbb.up[ix1,iycore+1,0]+bbb.up[ix,iycore+1,0])**2*bbb.fniy[ix,iycore,0] -
-                 bbb.cfvisy*0.125*com.sy[ix,iycore]*have( bbb.visy[ix,iycore  ,0]*com.gy[ix,iycore],
-                                             bbb.visy[ix,iycore+1,0]*com.gy[ix,iycore+1] ) *
-                    ( (bbb.up[ix1,iycore+1,0]+bbb.up[ix,iycore+1,0])**2 -
-                      (bbb.up[ix1,iycore  ,0]+bbb.up[ix,iycore  ,0])**2 ) )
-           pbcoree += fluxfacy*bbb.feey[ix,iycore]
-           pcorebd += fluxfacy*bbb.fniy[ix,iycore,0]*bbb.ebind*bbb.ev
-           psepb += fluxfacy*bbb.fniy[ix,com.iysptrx,0]*bbb.ebind*bbb.ev
-
-        #
-        # particle outflow from separatrix
-        isephyd = bbb.qe*sum(bbb.fniy[max(com.ixpt1[0]+1,0):com.ixpt2[0]+1,com.iysptrx,0])
-
-
-        #       POWER INPUT FROM BIAS SUPPLY
-        p_bias = -sum(bbb.fqx[com.nx,1:com.ny+1]*(bbb.phi0r[1:com.ny+1]-bbb.phi0l[1:com.ny+1]))
-
-        #       TOTAL BIAS CURRENT
-        i_bias = sum(bbb.fqx[com.nx,1:com.ny+1])
-
-        #       ION SATURATION CURRENT
-        i_sat_outer = bbb.qe*bbb.zi[0]*sum(bbb.fnix[com.nx,1:com.ny+1,0])
-        i_sat_inner = bbb.qe*bbb.zi[0]*sum(bbb.fnix[0,1:com.ny+1,0])
-
-        #       CURRENT AND POWER FROM FIXED VOLUME SOURCES
-
-        p_e_vol = sum(bbb.pwrsore)
-        p_i_vol = sum(bbb.pwrsori)
-        i_vol = bbb.qe*sum(bbb.volpsor[:,:,0])
-
-        if bbb.l_parloss <= 1e9:
-          p_e_vol -= sum(bbb.nuvl[:,:,0]*vol*ne*bcee*te)
-          p_i_vol -= sum(bbb.nuvl[:,:,0]*vol*bbb.ni[:,:,0]*bcei*ti)
-          i_vol -= sum(bbb.nuvl[:,:,0]*vol*bbb.ni[:,:,0])*bbb.qe
-
-
-        #########################################################################
-        # 2-D arrays for checking energy conservation, and for calculation of
-        # ionization and radiation sources 
-
-        ptotin = pbcoree+pbcorei ## +p_i_vol+p_e_vol
-        ptotin = pbcoree+pbcorei+p_i_vol+p_e_vol
-
-        self.engbal(ptotin)
-
-        #########################################################################
-
-        # power incident on divertor plate
-        # Allow use of "old" or "new" switches for neutral energy loss
-
-
-        # First get radiation power in pwr_plth and pwr_pltz
-        self.pradpltwl()
-        self.sdrin = self.pwr_plth[:,0]+self.pwr_pltz[:,0]
-        self.sdrout = self.pwr_plth[:,1]+self.pwr_pltz[:,1]
-
-
-        # here the sds are ion and electron poloidal power fluxes in W/m**2
-        for iy in range(iybegin, com.ny+1):
-           sxo = com.sx[ixo,iy]/(cos(com.angfx[ixo,iy]))
-           sxi = com.sx[ixi,iy]/(cos(com.angfx[ixi,iy]))
-           vxno =  0.25*sqrt(8*bbb.tg[com.nx,iy,0]/(pi*bbb.mg[0]))
-           vxni =  0.25*sqrt(8*bbb.tg[ixineut,iy,0]/(pi*bbb.mg[0]))
-
-           for id in range(com.nfsp): # note: upi=0 for the netural species
-              if bbb.zi[id] > 0:
-                 self.sdioutd[iy,id] = ( 0.5*bbb.mi[id]*bbb.upi[ixo,iy,id]**2*bbb.fnix[ixo,iy,id] )/sxo
-                 self.sdiind[iy,id] = ( -0.5*bbb.mi[id]*bbb.upi[ixi,iy,id]**2*bbb.fnix[ixi,iy,id] )/sxi
-              else:  #zero-out neutrals as fnix will be into plasma 5/27/08 - TDR
-                 if bbb.ishymol == 0: # recompute parallel fnix
-                    self.sdioutd[iy,id] = 0.5*bbb.mi[id]*abs(bbb.up[ixo,iy,id])**3*bbb.ni[ixo,iy,id]*com.rrv[ixo,iy]
-                    self.sdiind[iy,id] = 0.5*bbb.mi[id]*abs(bbb.up[ixi,iy,id])**3*bbb.ni[ixi,iy,id]*com.rrv[ixi,iy]
-                 else:   # for molecules, fnix should be ok
-                    self.sdiout[iy,id]=0#1e-20*( -0.5*bbb.mi[id]*bbb.up[ixo,iy,id]**2*bbb.fnix[ixo,iy,id] )/sxo
-                    self.sdiind[iy,id]=0#1e-20*( -0.5*bbb.mi[id]*bbb.up[ixi,iy,id]**2*bbb.fnix[ixi,iy,id] )/sxi
-              self.sdiout[iy] += self.sdioutd[iy,id]
-              self.sdiin[iy]  += self.sdiind[iy,id]
-
-           # AH: bbb.ckinfl treated as array, although it is double. Legacy switch?
-           for id in range(com.nusp):      # note: up for the netural species in nonzero
-              tempvo =  - bbb.ckinfl*0.5*com.sx[ixo,iy]*bbb.visx[ixo,iy,id]*com.gx[ixo,iy]*\
-                            ( bbb.up[ixo,iy,id]**2 - bbb.up[ixo-1,iy,id]**2 ) /sxo
-              tempvi =  + bbb.ckinfl*0.5*com.sx[ixi,iy]*bbb.visx[ixi+1,iy,id]*com.gx[ixi+1,iy]*\
-                           ( bbb.up[ixi+1,iy,id]**2 - bbb.up[ixi,iy,id]**2 ) / sxi
-              self.sdioutd[iy,id] += tempvo
-              self.sdiout[iy] += tempvo
-              self.sdiind[iy,id] += tempvi
-              self.sdiin[iy] += tempvi
-
-           self.sdiout[iy] += bbb.feix[ixo,iy]/sxo
-           self.sbindout[iy] = bbb.fnix[ixo,iy,0] * bbb.ebind*bbb.ev / sxo
-           if ishymoleng==1:  #mol heat flux; drift eng small,<0
-             self.sdmout[iy] += fecom.gx[ixo,iy,1]/sxo
-
-        #  Compute binding-energy energy fluxes for impurities
-           for id in range(com.nzdf):
-              if (id == 0):
-                 id2min = com.nhsp
-                 id2max = id2min +com.nzsp[id]-1
-              else:
-                 id2min = com.nhsp+sum(com.nzsp[1:id-1])
-                 id2max = id2min + com.nzsp[id]-1
-              for id2 in range(id2min, id2max+1):
-                 for id3 in range(bbb.znucl[id]):
-                    self.sbindzout[iy] += bbb.fnix[ixo,iy,id2]*bbb.ebindz(id3,bbb.znucl[id2])*bbb.ev/sxo
-                    self.sbindzin[iy] -= bbb.fnix[ixi,iy,id2]*bbb.ebindz(id3,bbb.znucl[id2])*bbb.ev/sxo
-
-           self.sneutout[iy] = cenggpl*2.*vxno*bbb.ng[com.nx,iy,0]*bbb.tg[com.nx,iy,0]
-           self.sdeout[iy] = ( bbb.feex[ixo,iy]+bbb.fqx[ixo,iy]*(bbb.phi[ixo,iy]-bbb.phi0r[iy]) )/sxo
-           self.sdtout[iy] = self.sdeout[iy] + self.sdiout[iy] + self.sbindout[iy] + self.sdmout[iy] + \
-                           self.sbindzout[iy] + self.pwr_plth[iy,1] + self.pwr_pltz[iy,1]
-           self.sdiin[iy]  -= bbb.feix[ixi,iy]/sxi 
-           if ishymoleng==1: #mol heat flux; drift eng small,<0
-             self.sdmin[iy] -= fecom.gx[ixi,iy,1]/sxo
-           
-           self.sbindin[iy] = - bbb.fnix[ixi,iy,1] * bbb.ebind*bbb.ev / sxi
-           self.sneutin[iy] = cenggpl*2.*vxni*bbb.ng[ixineut,iy,0]*bbb.tg[ixineut,iy,0]
-           self.sdein[iy]  = -( bbb.feex[ixi,iy] + .001*bbb.fqx[ixi,iy]*(bbb.phi[ixi,iy]-bbb.phi0l[iy]) )/sxi
-           self.sdtin[iy] = self.sdein[iy] + self.sdiin[iy] + self.sdmin[iy] + self.sbindin[iy] + \
-                          self.sbindzin[iy] + self.pwr_plth[iy,0] + self.pwr_pltz[iy,0]
-           self.pdiviout += self.sdiout[iy]*sxo ## + self.sdioutd[iy,1]*sxo
-           self.pdiveout += self.sdeout[iy]*sxo
-           self.pdivmout += self.sdmout[iy]*sxo
-           self.pdiviin  += self.sdiin[iy]*sxi ## + self.sdiind[iy,1]*sxi
-           self.pdivein  += self.sdein[iy]*sxi
-           self.pdivmin  += self.sdmin[iy]*sxi
-           self.pbindout += self.sbindout[iy]*sxo
-           self.pbindzout += self.sbindzout[iy]*sxo
-           self.pbindin += self.sbindin[iy]*sxi
-           self.pbindzin += self.sbindzin[iy]*sxi
-           self.pneutout += 0*self.sneutout[iy]*sxo  # included in self.pdiviout
-           self.pneutin += 0.*self.sneutin[iy]*sxo     # included in self.pdiviin
-           self.pradhout += self.pwr_plth[iy,1]*sxo
-           self.pradzout += self.pwr_pltz[iy,1]*sxo
-           self.pradhin += self.pwr_plth[iy,0]*sxi
-           self.pradzin += self.pwr_pltz[iy,0]*sxi
-           if bbb.isupgon[0] == 1: # Approx. neutral energy flux
-              self.sdnout[iy]=self.sdioutd[iy,1] + ( com.sx[ixo,iy]*bbb.hcxn[ixo,iy]*com.gxf[ixo,iy]* \
-                                                    (bbb.ti[ixo,iy]-bbb.ti[ixo+1,iy]) + \
-                                          2.5*bbb.fnix[ixo,iy,1]*bbb.ti[ixo+1,iy] ) / sxo
-              self.sdnin[iy]=self.sdiind[iy,1] + ( com.sx[ixi,iy]*bbb.hcxn[ixi,iy]*com.gxf[ixi,iy]* \
-                                                  (bbb.ti[ixi,iy]-bbb.ti[ixi+1,iy]) + \
-                                          2.5*bbb.fnix[ixi,iy,1]*bbb.ti[ixi,iy] ) / sxi
-              self.pdivnout += self.sdnout[iy]*sxo
-              self.pdivnin += self.sdnin[iy]*sxi
-
-        # 
-        # added, 11Jun2018 GDP - only diagnostic; not used below
-        ptot=self.pdiviout+self.pdiveout+self.pdiviin+self.pdivein+self.pbindout+self.pbindin+\
-                   self.pbindzin+self.pbindzout+self.pdivmout+self.pdivmin+self.pneutout+self.pneutin
-        #
-
-        # Fix up boundary values
-        self.sdtin[0] = self.sdtin[1]
-        self.sdtin[com.ny+1] = self.sdtin[com.ny]
-        self.sdein[0] = self.sdein[1]
-        self.sdein[com.ny+1] = self.sdein[com.ny]
-        self.sdiin[0] = self.sdiin[1]
-        self.sdiin[com.ny+1] = self.sdiin[com.ny]
-        self.sdtout[0] = self.sdtout[1]
-        self.sdtout[com.ny+1] = self.sdtout[com.ny]
-        self.sdeout[0] = self.sdeout[1]
-        self.sdeout[com.ny+1] = self.sdeout[com.ny]
-        self.sdiout[0] = self.sdiout[1]
-        self.sdiout[com.ny+1] = self.sdiout[com.ny]
-
-
-        #
-        ptotpartin = self.pdiviin+self.pdivein+self.pbindin+self.pbindzin+self.pdivmin  ##self.pneutin
-        ptotpartout = self.pdiviout+self.pdiveout+self.pbindout+self.pbindzout+self.pdivmout  ##self.pneutout
-        ptotpart = ptotpartin+ptotpartout  ##self.pneutout+self.pneutin
-        ptotrad = self.pradhout+self.pradzout+self.pradhin+self.pradzin
-        #
-        # ion current to divertor plate
-        idivout = zeros((com.nfsp,))
-        idivin= zeros((com.nfsp,))
-        igasout= zeros((com.ngsp,))
-        igasin= zeros((com.ngsp,))
-
-        for iy in range(iybegin,com.ny+1):
-           for id in range(com.nfsp):
-              idivout[id] += bbb.fnix[com.nx,iy,id]
-              idivin[id] += bbb.fnix[ixdivin,iy,id]
-           for igsp in range(com.ngsp):
-              if bbb.isupgon[igsp] == 0:
-                 igasout[igsp] += bbb.fngx[com.nx,iy,igsp]
-                 igasin[igsp] += bbb.fngx[ixdivin,iy,igsp]
-              else:
-                 igasout[igsp] += bbb.fnix[com.nx,iy,1]
-                 igasin[igsp] += bbb.fnix[ixdivin,iy,1]
-
-        idivout *= bbb.qe
-        idivin *= bbb.qe
-        igasout *= bbb.qe
-        igasin *= bbb.qe
-        #
-        # ion current to the core
-        icore = zeros((com.nfsp,))
-        for ix in range(max(0, com.ixpt1[0]+1), com.ixpt2[0]+1):
-           for id in range(com.nfsp):
-              icore[id] += fluxfacy*bbb.fniy[ix,0,id]
-           
-        icore *= bbb.qe
-        #
-        iywall=com.ny       # DEFINITION
-        iypf=0
-        #
-        # power flow to vessel and private flux wall
-
-
-        for ix in range(com.nx+2):
-           ix1 = bbb.ixm1[ix,iywall]
-           vynw = 0.25*sqrt(8*bbb.tg[ix,com.ny+1,0]/(pi*bbb.mg[0]))
-           self.pwalli += fluxfacy*( bbb.feiy[ix,iywall] +
-                    0.125*bbb.mi[0]*(bbb.up[ix1,iywall,0]+bbb.up[ix,iywall,0])**2*bbb.fniy[ix,iywall,0] -
-                    bbb.cfvisy*0.125*com.sy[ix,iywall]*have( bbb.visy[ix,iywall,0]*com.gy[ix,iywall],
-                                             bbb.visy[ix,iywall+1,0]*com.gy[ix,iywall+1] ) *
-                    ( (bbb.up[ix1,iywall+1,0]+bbb.up[ix,iywall+1,0])**2 -
-                      (bbb.up[ix1,iywall  ,0]+bbb.up[ix,iywall  ,0])**2 ) )
-           self.pwalle += fluxfacy*bbb.feey[ix,iywall]
-           self.pwallbd += fluxfacy*bbb.fniy[ix,iywall,0]*bbb.ebind*bbb.ev
-           self.pradhwall += fluxfacy*self.pwr_wallh[ix]*com.sy[ix,iywall]
-           self.pradzwall += fluxfacy*self.pwr_wallz[ix]*com.sy[ix,iywall]
-           self.sneutw[ix] = cenggw*2.*vynw*bbb.tg[ix,com.ny+1,0]*com.sx[ix,com.ny]
-           self.pneutw += self.sneutw[ix]
-           if ishymoleng == 1:  #molec temp eqn active
-              self.pwallm += fecom.gy[ix,iywall,1]
-
-
-        for ix in range(0, com.ixpt1[0]+1):
-           ix1 = bbb.ixm1[ix,iypf]
-           vynpf = 0.25*sqrt(8*bbb.tg[ix,0,1]/(pi*bbb.mg[0]))
-           self.ppfi -= fluxfacy*(bbb.feiy[ix,iypf] -
-                    0.125*bbb.mi[0]*(bbb.up[ix1,iypf,0]+bbb.up[ix,iypf,0])**2*bbb.fniy[ix,iypf,0] +
-                    bbb.cfvisy*0.125*com.sy[ix,iypf]*have( bbb.visy[ix,iypf,0]*com.gy[ix,iypf ],
-                                           bbb.visy[ix,iypf+1,0]*com.gy[ix,iypf+1] ) *
-                    ( (bbb.up[ix1,iypf+1,0]+bbb.up[ix,iypf+1,0])**2 -
-                      (bbb.up[ix1,iypf  ,0]+bbb.up[ix,iypf  ,0])**2 ) )
-           self.ppfe -= fluxfacy*bbb.feey[ix,iypf]
-           self.ppfbd -= fluxfacy*bbb.fniy[ix,iypf,0]*bbb.ebind*bbb.ev
-        ##   self.pradhpf += fluxfacy*pwr_pfh[ix]*com.sy[ix,iywall]
-        ##   self.pradzpf += fluxfacy*pwr_pfz[ix]*com.sy[ix,iywall]
-           self.sneutpf[ix] = cenggw*2.*vynw*bbb.tg[ix,0,1]*com.sx[ix,0]
-           self.pneutpf += self.sneutpf[ix]
-           if ishymoleng==1:  #molec temp eqn active
-             self.ppfm -= fecom.gy[ix,iypf,1]
-           
-
-        for ix in range(com.ixpt2[0]+1, com.nx+2):
-           ix1 = bbb.ixm1[ix,iypf]
-           vynpf = 0.25*sqrt(8*bbb.tg[0,iy,0]/(pi*bbb.mg[0]))
-           self.ppfi -= fluxfacy*( bbb.feiy[ix,iypf] -
-                    0.125*bbb.mi[0]*(bbb.up[ix1,iypf,0]+bbb.up[ix,iypf, 0])**2*bbb.fniy[ix,iypf,0] +
-                    bbb.cfvisy*0.125*com.sy[ix,iypf]*have( bbb.visy[ix,iypf,0]*com.gy[ix,iypf],
-                                           bbb.visy[ix,iypf+1,0]*com.gy[ix,iypf+1] ) *
-                    ( (bbb.up[ix1,iypf+1,0]+bbb.up[ix,iypf+1,0])**2 -
-                      (bbb.up[ix1,iypf  ,0]+bbb.up[ix,iypf  ,0])**2 ) )
-           self.ppfe -= fluxfacy*bbb.feey[ix,iypf]
-           self.ppfbd -= fluxfacy*bbb.fniy[ix,iypf,0] * bbb.ebind*bbb.ev
-           if ishymoleng==1: #molec temp eqn active
-             self.ppfm -= fecom.gy[ix,iypf,1]
-           
-        #
-        # ion current to vessel wallst.
-
-
-
-
-        for ix in range(0, com.nx+2):
-           for id in range(com.nfsp):
-              self.iwall[id] += fluxfacy*bbb.fniy[ix,iywall,id]
-           for igsp in range(com.ngsp):
-              self.igaswall[igsp] += fluxfacy*bbb.fngy[ix,iywall,igsp]
-
-        for ix in range(0, com.ixpt1[0]+1):
-           for id in range(0, com.nfsp):
-              self.ipf[id] += fluxfacy*bbb.fniy[ix,iypf,id]
-           for igsp in range(com.ngsp):
-              self.igaspf[igsp] += fluxfacy*bbb.fngy[ix,iypf,igsp]
-
-        for ix in range(com.ixpt2[0]+1, com.nx+2):
-           for id in range(0, com.nfsp):
-              self.ipf[id] += fluxfacy*bbb.fniy[ix,iypf,id]
-           for igsp in range(com.ngsp):
-              self.igaspf[igsp] += fluxfacy*bbb.fngy[ix,iypf,igsp]
-
-        for ix in range(max(com.ixpt1[0]+1,0), com.ixpt2[0]+1):
-           for igsp in range(com.ngsp):
-              self.igascr[igsp] =  fluxfacy*bbb.fngy[ix,iypf,igsp]
-           
-
-        self.iwall *= bbb.qe
-        self.igaswall *= bbb.qe
-        self.ipf *= bbb.qe
-        self.igaspf *= bbb.qe
-        self.igascr *= bbb.qe
-        #
-        print(" ")
-        print("Power Flow [Watts] from Core to Scrape-off Layer is:")
-        print("   Total: {:.2e}".format(pbcorei+pbcoree+pcorebd))
-        print("   Ion contribution: {:.2e}".format(pbcorei))
-        print("   Electron contribution: {:.2e}".format(pbcorei))
-        print("   Binding energy contribution: {:.2e}".format(pbcorei))
-        print()
-        print("Power Flow [Watts] over the separatrix to Scrape-off Layer is:")
-        print("Power Flow [Watts] over the separatrix to Scrape-off Layer is:")
-        print("   Total: {:.2e}".format(psepi+psepe+psepb))
-        print("   Ion contribution: {:.2e}".format(psepi))
-        print("   Electron contribution: {:.2e}".format(psepe))
-        print("   Binding energy contribution: {:.2e}".format(psepb))
-        #
-        print(" ")
-        print("Power Input [Watts] from Fixed Volume Sources (Sinks):")
-        print(p_i_vol)
-        print(p_e_vol)
-        #
-        print(" ")
-        print("Power Flows [Watts] incident on Divertor Plates are:")
-        print("Inner plate:")
-        print("   Total: {:.2e}".format(self.pdiviin+self.pdivein+self.pdivmin,self.pbindin+self.pneutin+self.pradhin+self.pradzin))
-        print("   Ion contribution: {:.2e}".format(self.pdiviin))
-        print("   Electron contribution: {:.2e}".format(self.pdivein))
-        print("   Molecular contribution: {:.2e}".format(self.pdivmin))
-        print("   Neutral atom contribution: {:.2e}".format(self.pneutin))
-        print("   Binding energy contribution: {:.2e}".format(self.pbindin))
-        print("   Hydrogenic radiation contribution: {:.2e}".format(self.pradhin))
-        print("   Impurity radiation contribution: {:.2e}".format(self.pradzin))
-
-        print("Outer plate;")
-        print("   Total: {:.2e}".format(self.pdiviout+self.pdiveout+self.pdivmout,self.pbindout+self.pneutout+self.pradhout+self.pradzout))
-        print("   Ion contribution: {:.2e}".format(self.pdiviout))
-        print("   Electron contribution: {:.2e}".format(self.pdiveout))
-        print("   Molecular contribution: {:.2e}".format(self.pdivmout))
-        print("   Neutral atom contribution: {:.2e}".format(self.pneutout))
-        print("   Binding energy contribution: {:.2e}".format(self.pbindout))
-        print("   Hydrogenic radiation contribution: {:.2e}".format(self.pradhout))
-        print("   Impurity radiation contribution: {:.2e}".format(self.pradzout))
-
-        print("Totals for both plates:")
-        print("   Total: {:.2e}".format(ptotpart+ptotrad))
-        print("   Particle fluxes: {:.2e}".format(ptotpart))
-        print("   Radiation: {:.2e}".format(ptotrad))
-
-        #
-        if bbb.isupgon[0] == 1:
-           print(" ")
-           print("Est. of pdiviout and pdivin from atoms (backscatter) [Watts]:")
-           print("   Outer: {:.2e}".format(self.pdivnout))
-           print("   Inner: {:.2e}".format(self.pdivnin))
-
-        #
-        print(" ")
-        print("Power [W] lost via ionization & recombination radiation is:")
-        print("{:.2e}".format(bbb.pradht))
-        #
-        print(" ")
-        print("Power [W] lost via recombination only (included in pradht above):")
-        print("{:.2e}".format(bbb.pradrc))
-        #
-        print(" ")
-        print("Power [W] lost at ionization but carried as ion binding-energy:")
-        print("{:.2e}".format(bbb.pbinde))
-        #
-        print(" ")
-        print("Power [W] gained by electrons in 3-body recombination (via binding eng):")
-        print("{:.2e}".format(bbb.pbindrc))
-        #
-        if bbb.isimpon != 0:
-           print(" ")
-           print("Power [W] lost via impurity radiation is:")
-           id2=com.nhsp-1
-           try:
-              bbb.pradfft = bbb.pradfft
-           except:
-              bbb.pradfft = 0
-           for id in range(com.nzdf):
-              id2 += com.nzsp[id]
-              print("  for nuclear charge = {};  Power = {}".format(bbb.znucl[id2], sum(self.pradimp, axis=(0,1,2))[id]))
-              print("  for fixed-fraction species;  Power = ", bbb.pradfft)
-           #
-           print(" ")
-           print("Electron Power [W] lost at impur. ioniz. but carried as binding-energy:")
-           print("{:.2e}".format(bbb.pradzbind))
-        #
-        print(" ")
-        print("Power [W] lost via dissociation of molecules is:")
-        print("{:.2e}".format(bbb.prdiss))
-        #
-        print(" ")
-        print("Power [W] gained by ions from initial Franck-Condon Energy:")
-        print("{:.2e}".format(bbb.pibirth))
-        #
-
-        print(" ")
-        print("Power [W] lost in parallel momentum exhange via charge exchange:")
-        print("{:.2e}".format(bbb.pvmomcx))
-        #
-        print(" ")
-        print("Power [W] from J.E Joule heating - goes to electrons:")
-        print("{:.2e}".format(sum(bbb.wjdote[1:-1,1:-1])))
-        #
-        print(" ")
-        print("Power Flow [Watts] incident on Vessel Wall is:")
-        ###print(self.pwalli,self.pwalle,self.pwallm,self.pwallbd,self.pradhwall,self.pradzwall,self.pneutw)
-        print("   Outerwall_sum: {:.2e}".format(self.pwalli+self.pwalle+self.pwallm+self.pwallbd+self.pradhwall+self.pradzwall+self.pneutw))
-        print("      pwalli: {:.2e}".format(self.pwalli))
-        print("      pwalle: {:.2e}".format(self.pwalle))
-        print("      pwallm: {:.2e}".format(self.pwallm))
-        print("      pwallbd: {:.2e}".format(self.pwallbd))
-        print("      pradhwall: {:.2e}".format(self.pradhwall))
-        print("      pradzwall: {:.2e}".format(self.pradzwall))
-        print("      pneutw: {:.2e}".format(self.pneutw))
-
-
-        print(" ")
-        print("Power Flow [Watts] incident on Private Flux Wall is:")
-
-
-        ###print("Total power: {:.2e}" .format(self.ppfi+self.ppfe+self.ppfm+self.ppfbd+self.pneutpf+self.ppfi+self.ppfe)
-        print("   PFwall_sum: {:.2e}".format(self.ppfi+self.ppfe+self.ppfm+self.ppfbd+self.pneutpf))
-        print("      ppfi: {:.2e}".format(self.ppfi))
-        print("      ppfe: {:.2e}".format(self.ppfe))
-        print("      ppfm: {:.2e}".format(self.ppfm))
-        print("      ppfbd: {:.2e}".format(self.ppfbd))
-        print("      pneutpf: {:.2e}".format(self.pneutpf))
-
-        # Calculate power into plasma volume for normalizing factor in power balance
-        pnormpb = 0.
-        if ptotpartin > 0.:
-            pnormpb += ptotpartin
-        if ptotpartout < 0.:
-            pnormpb += ptotpartout
-        if pbcoree+pbcorei+pcorebd+p_i_vol > 0.:
-            pnormpb += pbcoree + pbcorei + pcorebd + p_i_vol
-        if p_i_vol+p_e_vol > 0.:
-            pnormpb += p_i_vol + p_e_vol
-
-        newpnormpb = 0
-        for jx in range(com.nxpt):
-            0
-
-        # Here particle power and radiation power are separate terms
-        powbal = (pbcoree+pbcorei+pcorebd+p_i_vol+p_e_vol+bbb.ptjdote - ptotpart -
-                  self.pwalli-self.pwalle-self.pwallm-self.pwallbd-self.ppfi-self.ppfe-self.ppfm-self.ppfbd-sum(bbb.pradimpt)-
-                  bbb.pradfft-bbb.pradht-bbb.prdiss-bbb.pvmomcx+bbb.pibirth)/ pnormpb
-        if abs(self.pdivein+self.pdiviin) > 10.*abs(ptotin+bbb.ptjdote):   #for cases with no radial pwr input
-           powbal = powbal*abs(ptotin+bbb.ptjdote)/abs(self.pdivein+self.pdiviin)
-           
-        ##print(" ")
-        ##print("Total power out")
-        ##print( (pbcoree+pbcorei+pcorebd+p_i_vol+p_e_vol+bbb.ptjdote - ptotpart -
-        ##          self.pwalli-self.pwalle-self.pwallm-self.pwallbd-self.ppfi-self.ppfe-self.ppfm-self.ppfbd-sum(pradimpt)-
-        ##          bbb.pradfft-bbb.pradht-bbb.prdiss-bbb.pvmomcx+bbb.pibirth))
-
-        print(" ")
-        print("Power Balance: (Pin-Pout)/Pin")
-        print("    {:.2e}".format(powbal))
-        #
-        print("============================================================== ")
-        print(" ")
-        print("Particle Flow [Amps] from Core to Scrape-off Layer is:")
-        for id in range(com.nfsp):
-           if bbb.zi[id] > 0:
-              print("  for nuclear charge = {}; ion charge = {}".format(bbb.znucl[id],bbb.zi[id]))
-              print("  icore = ", icore[id])
-              print(" ")
-
-        for id in range(com.ngsp):
-           print("  for gas species = {}; igascr = {:.2e}".format(id, self.igascr[id]))
-        print("  hydrogen ion current at separatrix, isephyd = ", isephyd)
-        #
-        print(" ")
-        print("Current from Fixed Volume Source (Sinks) [Amps]:")
-        print("  ion current, i_vol = ", i_vol)
-        #
-        print(" ")
-        print("Ionization current [Amps] created by re-ionization of gas is:")
-
-        for id in range(com.ngsp):
-           print("  for gas species = {}; iion = {:.2e}".format(id, bbb.iion[id]))
-        print(" ")
-        print("Recomb. current [Amps] from ions --> gas by electron-ion recombination:")
-
-        for id in range(com.ngsp):
-           print("  for gas species = {}; irecomb = {:.2e}".format(id, bbb.irecomb[id]))
-
-        print(" ")
-        print("Charge exchange current [Amps] from ions --> gas by iter-species cx:")
-
-        for id in range(com.ngsp):
-           print("  for gas species = {}; icxgas = {:.2e}".format(id, bbb.icxgas[id]))
-
-        print(" ")
-        print("Particle Flow [Amps] incident on Divertor Plate is:")
-
-        for id in range(com.nfsp):
-           if bbb.zi[id] > 0:
-              print("  for nuclear charge = {}; ion charge = {}".format(bbb.znucl[id], bbb.zi[id]))
-              print("  idivin = {:.2e}   idivout = {:.2e}".format(idivin[id],idivout[id]))
-              print(" ")
-         
-
-        print("Neutral Flow [Amps] away from Divertor Plate is:")
-
-        for id in range(com.ngsp):
-           print("  for gas species = {}; igasin = {:.2e},  igasout = {:.2e}".format(id,  igasin[id], igasout[id]))
-
-
-        #
-        print(" ")
-        print("Particle Flow [Amps] incident on Vessel Wall is:")
-        for id in range(com.nfsp):
-           print("  for ion species = {}; iwall = {:.2e}".format(id, self.iwall[id]))
-
-        for id in range(com.ngsp):
-           print("  for gas species = {}; igaswall = {:.2e}".format(id, self.igaswall[id]))
-
-
-        print(" ")
-        print("Particle Flow [Amps] incident on Private Flux Wall is:")
-        for id in range(com.nfsp):
-           print("  for ion species = {}; ipf = {:.2e}".format(id, self.ipf[id]))
-
-        for id in range(com.ngsp):
-           print("  for gas species = {}; igaspf = {:.2e}".format(id, self.igaspf[id]))
-
-
-        #
-
-        igastot = 0.
-        igasdenom = 0.
-        for id in range(com.ngsp):
-           igastot += igasin[id]-igasout[id]-self.igaswall[id]+self.igaspf[id]\
-                             + self.igascr[id] + i_vol
-           igasdenom += igasin[id] -igasout[id]
-
-        if bbb.ishymol == 1:  # add id=2 case again because of 2 atoms/molecule
-           igastot += igasin[1]-igasout[1]-self.igaswall[1]+self.igaspf[1]\
-                             + self.igascr[1]
-           igasdenom += (igasin[1] -igasout[1])
-
-
-        deligas = (igastot - bbb.iion_tot - bbb.irecomb_tot - bbb.icxgas_tot) / igasdenom
-        print(" ")
-        print("Particle Balance for Neutrals: Itotal/Iinput")
-        print("    {:.2e}".format(deligas))
-        #
-        print(" ")
-        print("Peak electron temperatures [eV] on divertor plates")
-        print("    Outer: {:.2e}".format(max(bbb.te[com.nx+1,1:com.ny+1])/bbb.ev))
-        print("    Inner: {:.2e}".format(max(bbb.te[0,1:com.ny+1])/bbb.ev))
-        #
-        print(" ")
-        print("Peak ion temperatures [eV] on divertor plates")
-        print("    Outer: {:.2e}".format(max(bbb.ti[com.nx+1,1:com.ny+1])/bbb.ev))
-        print("    Inner: {:.2e}".format(max(bbb.ti[0,1:com.ny+1])/bbb.ev))
-        #
-        print(" ")
-        print("Peak power flux [MW/m**2] on divertor plates")
-        print("    Outer: {:.2e}".format(1.e-6*max(self.sdtout[1:com.ny+1])))
-        print("    Inner: {:.2e}".format(1.e-6*max(self.sdtin[1:com.ny+1])))
-        #
-        print(" ")
-        print("Peak ion densities [m**(-3)] on divertor plates")
-        print("    Outer: {:.2e}".format(max(bbb.ni[com.nx+1,1:com.ny+1,0])))
-        print("    Inner: {:.2e}".format(max(bbb.ni[0,1:com.ny+1,0])))
-        #
-        print(" ")
-        print("Peak gas densities [m**(-3)] on divertor plates")
-          # note: guard cell gas density often meaningless, so use one cell in
-        print("    Outer: {:.2e}".format(max(bbb.ng[com.nx,1:com.ny+1,0])))
-        print("    Inner: {:.2e}".format(max(bbb.ng[1,1:com.ny+1,0])))
-
-
-
-    def balancee_new(self):
+    def balance_power(self, redo=True):
+        # converted into UeBalance by AH on March 25, 2025
         # balancee as of 22Dec21, now includes molecular energy fluxes to plate/walls
         # sdmin, sdmout, pwallm, and ppfm, as well as impurity ion binding energy
         # heating on plates (sbindzin, sbindzout) (GDP 11 June 2018).
@@ -1032,7 +340,7 @@ class UeBalance():
         ixineut=1
         iybegin=1
 
-        """ INITIALIZE LOCAL VARIABLE """
+        """ INITIALIZE VARIABLES """
         for var in [
             'ppfi', 'pwalle', 'ppfe', 'pwallm', 'ppfm', 'pwallbd', 'ppfbd',
             'pradhwall', 'pradzwall', 'pradhpf', 'pradzpf', 'pneutpf', 'pneutw',
@@ -1040,7 +348,7 @@ class UeBalance():
             'pbindout', 'pbindin', 'pdivnout', 'pdivnin', 'pbindzout', 
             'pbindzin', 'pneutout', 'pneutin', 'pradhout', 'pradhin',
             'pradzin', 'pradzout', 'pwalli', 'psepi', 'psepe', 'psepbd',
-            'pbcorei', 'pbcoree', 'pbcorebd', 'igastot', 'igasdenom'
+            'pbcorei', 'pbcoree', 'pbcorebd'
         ]:
             self.__dict__[var] = 0
 
@@ -1058,14 +366,6 @@ class UeBalance():
         for var in ['sdioutd', 'sdiind']:
             self.__dict__[var] = zeros((com.ny+2,com.nfsp))
 
-        for var in ['iwall', 'ipf', 'igaswall', 'igaspf', 'igascr',
-            'idivout', 'idivin'
-        ]:
-            self.__dict__[var] = zeros((com.nfsp,))
-            
-        for var in ['igasout', 'igasin']:
-            self.__dict__[var] = zeros((com.ngsp,))
-  
         #two ifs to be able to used old executables
         if(com.islimon == 1) and (com.nyomitmx != 0):
            com.nx = com.ix_lim-1
@@ -1076,21 +376,18 @@ class UeBalance():
         ixi=ixdivin
         ixo=com.nx
 
-        iycore = 1*(bbb.isguardc == 0)
+        iycore = int(bbb.isguardc == 0)
         # Determine if molecular hydrogen energy fluxes are present
         if(com.ngsp >= 2) and (bbb.ishymol*bbb.istgon[1] == 1):
            ishymoleng = 1
         else: 
            ishymoleng = 0
 
-
         # power outflow from separatrix
         try:
-           fluxfacy = fluxfacy
+           fluxfacy = bbb.fluxfacy
         except:
            fluxfacy=1.
-
-
         try:
            cenggpl = bbb.cenggpl
         except:
@@ -1099,8 +396,6 @@ class UeBalance():
            cenggw = bbb.cenggw
         except:
            cenggw = 0
-
-
 
         for ix in range(max(com.ixpt1[0]+1,0), com.ixpt2[0]+1):
            ix1 = bbb.ixm1[ix,com.iysptrx]
@@ -1125,9 +420,6 @@ class UeBalance():
            self.psepbd += fluxfacy*bbb.fniy[ix,com.iysptrx,0]*bbb.ebind*bbb.ev
 
         #
-        # particle outflow from separatrix
-        self.isephyd = bbb.qe*sum(bbb.fniy[max(com.ixpt1[0]+1,0):com.ixpt2[0]+1,com.iysptrx,0])
-
 
         #       POWER INPUT FROM BIAS SUPPLY
         self.p_bias = -sum(bbb.fqx[com.nx,1:com.ny+1]*(bbb.phi0r[1:com.ny+1]-bbb.phi0l[1:com.ny+1]))
@@ -1140,15 +432,12 @@ class UeBalance():
         self.i_sat_inner = bbb.qe*bbb.zi[0]*sum(bbb.fnix[0,1:com.ny+1,0])
 
         #       CURRENT AND POWER FROM FIXED VOLUME SOURCES
-
         self.p_e_vol = sum(bbb.pwrsore)
         self.p_i_vol = sum(bbb.pwrsori)
-        self.i_vol = bbb.qe*sum(bbb.volpsor[:,:,0])
 
         if bbb.l_parloss <= 1e9:
-          self.p_e_vol -= sum(bbb.nuvl[:,:,0]*vol*ne*bcee*te)
-          self.p_i_vol -= sum(bbb.nuvl[:,:,0]*vol*bbb.ni[:,:,0]*bcei*ti)
-          self.i_vol -= sum(bbb.nuvl[:,:,0]*vol*bbb.ni[:,:,0])*bbb.qe
+          self.p_e_vol -= sum(bbb.nuvl[:,:,0]*com.vol*bbb.ne*bbb.bcee*bbb.te)
+          self.p_i_vol -= sum(bbb.nuvl[:,:,0]*com.vol*bbb.ni[:,:,0]*bbb.bcei*bbb.ti)
 
 
         #########################################################################
@@ -1157,7 +446,8 @@ class UeBalance():
 
         self.ptotin = self.pbcoree + self.pbcorei + self.p_i_vol + self.p_e_vol
 
-        self.engbal(self.ptotin)
+        if redo:
+            self.engbal(self.ptotin)
 
         #########################################################################
 
@@ -1166,7 +456,8 @@ class UeBalance():
 
 
         # First get radiation power in pwr_plth and pwr_pltz
-        self.pradpltwl()
+        if redo:
+            self.pradpltwl()
         self.sdrin = self.pwr_plth[:,0]+self.pwr_pltz[:,0]
         self.sdrout = self.pwr_plth[:,1]+self.pwr_pltz[:,1]
 
@@ -1206,7 +497,7 @@ class UeBalance():
            self.sdiout[iy] += bbb.feix[ixo,iy]/sxo
            self.sbindout[iy] = bbb.fnix[ixo,iy,0] * bbb.ebind*bbb.ev / sxo
            if ishymoleng==1:  #mol heat flux; drift eng small,<0
-             self.sdmout[iy] += fecom.gx[ixo,iy,1]/sxo
+             self.sdmout[iy] += bbb.fegx[ixo,iy,1]/sxo
 
         #  Compute binding-energy energy fluxes for impurities
            for id in range(com.nzdf):
@@ -1227,7 +518,7 @@ class UeBalance():
                            self.sbindzout[iy] + self.pwr_plth[iy,1] + self.pwr_pltz[iy,1]
            self.sdiin[iy]  -= bbb.feix[ixi,iy]/sxi 
            if ishymoleng==1: #mol heat flux; drift eng small,<0
-             self.sdmin[iy] -= fecom.gx[ixi,iy,1]/sxo
+             self.sdmin[iy] -= bbb.fegx[ixi,iy,1]/sxo
            
            self.sbindin[iy] = - bbb.fnix[ixi,iy,1] * bbb.ebind*bbb.ev / sxi
            self.sneutin[iy] = cenggpl*2.*vxni*bbb.ng[ixineut,iy,0]*bbb.tg[ixineut,iy,0]
@@ -1267,18 +558,9 @@ class UeBalance():
         #
 
         # Fix up boundary values
-        self.sdtin[0] = self.sdtin[1]
-        self.sdtin[com.ny+1] = self.sdtin[com.ny]
-        self.sdein[0] = self.sdein[1]
-        self.sdein[com.ny+1] = self.sdein[com.ny]
-        self.sdiin[0] = self.sdiin[1]
-        self.sdiin[com.ny+1] = self.sdiin[com.ny]
-        self.sdtout[0] = self.sdtout[1]
-        self.sdtout[com.ny+1] = self.sdtout[com.ny]
-        self.sdeout[0] = self.sdeout[1]
-        self.sdeout[com.ny+1] = self.sdeout[com.ny]
-        self.sdiout[0] = self.sdiout[1]
-        self.sdiout[com.ny+1] = self.sdiout[com.ny]
+        for var in ['sdtin', 'sdein', 'sdiin', 'sdtout', 'sdeout', 'sdiout']:
+            self.__dict__[var][0] = self.__dict__[var][1]
+            self.__dict__[var][-1] = self.__dict__[var][-2]
 
 
         #
@@ -1287,32 +569,8 @@ class UeBalance():
         self.ptotpart = self.ptotpartin + self.ptotpartout  ##self.pneutout+self.pneutin
         self.ptotrad = self.pradhout + self.pradzout + self.pradhin + self.pradzin
         #
-        # ion current to divertor plate
+       
 
-        for iy in range(iybegin,com.ny+1):
-           for id in range(com.nfsp):
-              self.idivout[id] += bbb.fnix[com.nx,iy,id]
-              self.idivin[id] += bbb.fnix[ixdivin,iy,id]
-           for igsp in range(com.ngsp):
-              if bbb.isupgon[igsp] == 0:
-                 self.igasout[igsp] += bbb.fngx[com.nx,iy,igsp]
-                 self.igasin[igsp] += bbb.fngx[ixdivin,iy,igsp]
-              else:
-                 self.igasout[igsp] += bbb.fnix[com.nx,iy,1]
-                 self.igasin[igsp] += bbb.fnix[ixdivin,iy,1]
-
-        self.idivout *= bbb.qe
-        self.idivin *= bbb.qe
-        self.igasout *= bbb.qe
-        self.igasin *= bbb.qe
-        #
-        # ion current to the core
-        icore = zeros((com.nfsp,))
-        for ix in range(max(0, com.ixpt1[0]+1), com.ixpt2[0]+1):
-           for id in range(com.nfsp):
-              icore[id] += fluxfacy*bbb.fniy[ix,0,id]
-           
-        icore *= bbb.qe
         #
         iywall=com.ny       # DEFINITION
         iypf=0
@@ -1336,7 +594,7 @@ class UeBalance():
            self.sneutw[ix] = cenggw*2.*vynw*bbb.tg[ix,com.ny+1,0]*com.sx[ix,com.ny]
            self.pneutw += self.sneutw[ix]
            if ishymoleng == 1:  #molec temp eqn active
-              self.pwallm += fecom.gy[ix,iywall,1]
+              self.pwallm += bbb.fegy[ix,iywall,1]
 
 
         for ix in range(0, com.ixpt1[0]+1):
@@ -1355,7 +613,7 @@ class UeBalance():
            self.sneutpf[ix] = cenggw*2.*vynw*bbb.tg[ix,0,1]*com.sx[ix,0]
            self.pneutpf += self.sneutpf[ix]
            if ishymoleng==1:  #molec temp eqn active
-             self.ppfm -= fecom.gy[ix,iypf,1]
+             self.ppfm -= bbb.fegy[ix,iypf,1]
            
 
         for ix in range(com.ixpt2[0]+1, com.nx+2):
@@ -1370,172 +628,10 @@ class UeBalance():
            self.ppfe -= fluxfacy*bbb.feey[ix,iypf]
            self.ppfbd -= fluxfacy*bbb.fniy[ix,iypf,0] * bbb.ebind*bbb.ev
            if ishymoleng==1: #molec temp eqn active
-             self.ppfm -= fecom.gy[ix,iypf,1]
+             self.ppfm -= bbb.fegy[ix,iypf,1]
            
         #
         # ion current to vessel wallst.
-
-
-
-
-        for ix in range(0, com.nx+2):
-           for id in range(com.nfsp):
-              self.iwall[id] += fluxfacy*bbb.fniy[ix,iywall,id]
-           for igsp in range(com.ngsp):
-              self.igaswall[igsp] += fluxfacy*bbb.fngy[ix,iywall,igsp]
-
-        for ix in range(0, com.ixpt1[0]+1):
-           for id in range(0, com.nfsp):
-              self.ipf[id] += fluxfacy*bbb.fniy[ix,iypf,id]
-           for igsp in range(com.ngsp):
-              self.igaspf[igsp] += fluxfacy*bbb.fngy[ix,iypf,igsp]
-
-        for ix in range(com.ixpt2[0]+1, com.nx+2):
-           for id in range(0, com.nfsp):
-              self.ipf[id] += fluxfacy*bbb.fniy[ix,iypf,id]
-           for igsp in range(com.ngsp):
-              self.igaspf[igsp] += fluxfacy*bbb.fngy[ix,iypf,igsp]
-
-        for ix in range(max(com.ixpt1[0]+1,0), com.ixpt2[0]+1):
-           for igsp in range(com.ngsp):
-              self.igascr[igsp] =  fluxfacy*bbb.fngy[ix,iypf,igsp]
-           
-
-        self.iwall *= bbb.qe
-        self.igaswall *= bbb.qe
-        self.ipf *= bbb.qe
-        self.igaspf *= bbb.qe
-        self.igascr *= bbb.qe
-        #
-        print(" ")
-        print("Power Flow [Watts] from Core to Scrape-off Layer is:")
-        print("   Total: {:.2e}".format(self.pbcorei + self.pbcoree + self.pbcorebd))
-        print("   Ion contribution: {:.2e}".format(self.pbcorei))
-        print("   Electron contribution: {:.2e}".format(self.pbcorei))
-        print("   Binding energy contribution: {:.2e}".format(self.pbcorei))
-        print()
-        print("Power Flow [Watts] over the separatrix to Scrape-off Layer is:")
-        print("Power Flow [Watts] over the separatrix to Scrape-off Layer is:")
-        print("   Total: {:.2e}".format(self.psepi + self.psepe + self.psepbd))
-        print("   Ion contribution: {:.2e}".format(self.psepi))
-        print("   Electron contribution: {:.2e}".format(self.psepe))
-        print("   Binding energy contribution: {:.2e}".format(self.psepbd))
-        #
-        print(" ")
-        print("Power Input [Watts] from Fixed Volume Sources (Sinks):")
-        print(self.p_i_vol)
-        print(self.p_e_vol)
-        #
-        print(" ")
-        print("Power Flows [Watts] incident on Divertor Plates are:")
-        print("Inner plate:")
-        print("   Total: {:.2e}".format(self.pdiviin+self.pdivein+self.pdivmin,self.pbindin+self.pneutin+self.pradhin+self.pradzin))
-        print("   Ion contribution: {:.2e}".format(self.pdiviin))
-        print("   Electron contribution: {:.2e}".format(self.pdivein))
-        print("   Molecular contribution: {:.2e}".format(self.pdivmin))
-        print("   Neutral atom contribution: {:.2e}".format(self.pneutin))
-        print("   Binding energy contribution: {:.2e}".format(self.pbindin))
-        print("   Hydrogenic radiation contribution: {:.2e}".format(self.pradhin))
-        print("   Impurity radiation contribution: {:.2e}".format(self.pradzin))
-
-        print("Outer plate;")
-        print("   Total: {:.2e}".format(self.pdiviout+self.pdiveout+self.pdivmout,self.pbindout+self.pneutout+self.pradhout+self.pradzout))
-        print("   Ion contribution: {:.2e}".format(self.pdiviout))
-        print("   Electron contribution: {:.2e}".format(self.pdiveout))
-        print("   Molecular contribution: {:.2e}".format(self.pdivmout))
-        print("   Neutral atom contribution: {:.2e}".format(self.pneutout))
-        print("   Binding energy contribution: {:.2e}".format(self.pbindout))
-        print("   Hydrogenic radiation contribution: {:.2e}".format(self.pradhout))
-        print("   Impurity radiation contribution: {:.2e}".format(self.pradzout))
-
-        print("Totals for both plates:")
-        print("   Total: {:.2e}".format(self.ptotpart + self.ptotrad))
-        print("   Particle fluxes: {:.2e}".format(self.ptotpart))
-        print("   Radiation: {:.2e}".format(self.ptotrad))
-
-        #
-        if bbb.isupgon[0] == 1:
-           print(" ")
-           print("Est. of pdiviout and pdivin from atoms (backscatter) [Watts]:")
-           print("   Outer: {:.2e}".format(self.pdivnout))
-           print("   Inner: {:.2e}".format(self.pdivnin))
-
-
-#            'icxgas', 'iion', 'irecomb', 'pradimp',
-#            'fetx', 'fety', 'engerr', 'pmloss', 'pmrada', 'pmradm', 'pmpot',
-#            'peirad', 'pmomv', 'pradrc', 'pradiz', 'pradht', 'prdiss',
-#            'pibirth', 'pbinde', 'pbindrc', 'pradzbind', 'pradff'
-        #
-        print(" ")
-        print("Power [W] lost via ionization & recombination radiation is:")
-        print("{:.2e}".format(sum(self.pradiz + self.pradrc)))
-        #
-        print(" ")
-        print("Power [W] lost via recombination only (included in pradht above):")
-        print("{:.2e}".format(sum(self.pradrc)))
-        #
-        print(" ")
-        print("Power [W] lost at ionization but carried as ion binding-energy:")
-        print("{:.2e}".format(sum(self.pbinde)))
-        #
-        print(" ")
-        print("Power [W] gained by electrons in 3-body recombination (via binding eng):")
-        print("{:.2e}".format(sum(self.pbindrc)))
-        #
-        if bbb.isimpon != 0:
-           print(" ")
-           print("Power [W] lost via impurity radiation is:")
-           id2=com.nhsp-1
-           for id in range(com.nzdf):
-              id2 += com.nzsp[id]
-              print("  for nuclear charge = {};  Power = {}".format(bbb.znucl[id2], sum(self.pradimp, axis=(0,1,2))[id]))
-              print("  for fixed-fraction species;  Power = ", sum(self.pradff))
-           #
-           print(" ")
-           print("Electron Power [W] lost at impur. ioniz. but carried as binding-energy:")
-           print("{:.2e}".format(sum(self.pradzbind)))
-        #
-        print(" ")
-        print("Power [W] lost via dissociation of molecules is:")
-        print("{:.2e}".format(sum(self.prdiss)))
-        #
-        print(" ")
-        print("Power [W] gained by ions from initial Franck-Condon Energy:")
-        print("{:.2e}".format(sum(self.pibirth)))
-        #
-
-        print(" ")
-        print("Power [W] lost in parallel momentum exhange via charge exchange:")
-        print("{:.2e}".format(sum(self.pmomv)))
-        #
-        print(" ")
-        print("Power [W] from J.E Joule heating - goes to electrons:")
-        print("{:.2e}".format(sum(bbb.wjdote[1:-1,1:-1])))
-        #
-        print(" ")
-        print("Power Flow [Watts] incident on Vessel Wall is:")
-        ###print(self.pwalli,self.pwalle,self.pwallm,self.pwallbd,self.pradhwall,self.pradzwall,self.pneutw)
-        print("   Outerwall_sum: {:.2e}".format(self.pwalli + self.pwalle + self.pwallm + self.pwallbd + self.pradhwall + self.pradzwall + self.pneutw))
-        print("      pwalli: {:.2e}".format(self.pwalli))
-        print("      pwalle: {:.2e}".format(self.pwalle))
-        print("      pwallm: {:.2e}".format(self.pwallm))
-        print("      pwallbd: {:.2e}".format(self.pwallbd))
-        print("      pradhwall: {:.2e}".format(self.pradhwall))
-        print("      pradzwall: {:.2e}".format(self.pradzwall))
-        print("      pneutw: {:.2e}".format(self.pneutw))
-
-
-        print(" ")
-        print("Power Flow [Watts] incident on Private Flux Wall is:")
-
-
-        ###print("Total power: {:.2e}" .format(self.ppfi+self.ppfe+self.ppfm+self.ppfbd+self.pneutpf+self.ppfi+self.ppfe)
-        print("   PFwall_sum: {:.2e}".format(self.ppfi + self.ppfe + self.ppfm + self.ppfbd + self.pneutpf))
-        print("      ppfi: {:.2e}".format(self.ppfi))
-        print("      ppfe: {:.2e}".format(self.ppfe))
-        print("      ppfm: {:.2e}".format(self.ppfm))
-        print("      ppfbd: {:.2e}".format(self.ppfbd))
-        print("      pneutpf: {:.2e}".format(self.pneutpf))
 
         # Calculate power into plasma volume for normalizing factor in power balance
         self.pnormpb = 0.
@@ -1558,87 +654,107 @@ class UeBalance():
                   sum( - self.pradff - self.pradiz - self.pradrc - self.prdiss - self.pmomv + self.pibirth))/ self.pnormpb
         if abs(self.pdivein+self.pdiviin) > 10.*abs(self.ptotin + sum(bbb.wjdote[1:-1,1:-1])):   #for cases with no radial pwr input
            self.powbal *= abs(self.ptotin + sum(bbb.wjdote[1:-1,1:-1]))/abs(self.pdivein+self.pdiviin)
+
+
+
+
+    def balance_particles(self, redo=True):
+        # converted into UeBalance by AH on March 25, 2025
+        # balancee as of 22Dec21, now includes molecular energy fluxes to plate/walls
+        # sdmin, sdmout, pwallm, and ppfm, as well as impurity ion binding energy
+        # heating on plates (sbindzin, sbindzout) (GDP 11 June 2018).
+        # As before, also ncludes neutral energy fluxes to plates and walls.
+        #
+        # added sbindzin, sbindzout, pbindzin, pbindzout	11 June 2018 (GDP)
+        # TOTAL POWER AND PARTICLE FLOWS
+
+        from uedge import bbb, com
+        from numpy import sum, zeros
+        
+        if redo:
+            self.engbal()
+
+        ixdivin=0
+        iycore=0
+        ixineut=1
+        iybegin=1
+        #two ifs to be able to used old executables
+        if(com.islimon == 1) and (com.nyomitmx != 0):
+           com.nx = com.ix_lim-1
+           ixdivin = com.ix_lim+1
+           iybegin = com.iy_lims
+
+        for var in ['iwall', 'ipf', 'igaswall', 'igaspf', 'igascr',
+            'idivout', 'idivin', 'icore'
+        ]:
+            self.__dict__[var] = zeros((com.nfsp,))
            
-        ##print(" ")
-        ##print("Total power out")
-        ##print( (pbcoree+pbcorei+pcorebd+p_i_vol+p_e_vol+bbb.ptjdote - ptotpart -
-        ##          self.pwalli-self.pwalle-self.pwallm-self.pwallbd-self.ppfi-self.ppfe-self.ppfm-self.ppfbd-sum(pradimpt)-
-        ##          bbb.pradfft-bbb.pradht-bbb.prdiss-bbb.pvmomcx+bbb.pibirth))
+        for var in ['igasout', 'igasin']:
+            self.__dict__[var] = zeros((com.ngsp,))
+  
+        for var in ['igastot', 'igasdenom']:
+            self.__dict__[var] = 0
 
-        print(" ")
-        print("Power Balance: (Pin-Pout)/Pin")
-        print("    {:.2e}".format(self.powbal))
-        #
-        print("============================================================== ")
-        print(" ")
-        print("Particle Flow [Amps] from Core to Scrape-off Layer is:")
-        for id in range(com.nfsp):
-           if bbb.zi[id] > 0:
-              print("  for nuclear charge = {}; ion charge = {}".format(bbb.znucl[id],bbb.zi[id]))
-              print("  icore = ", icore[id])
-              print(" ")
+        try:
+           fluxfacy = bbb.fluxfacy
+        except:
+           fluxfacy=1.
 
-        for id in range(com.ngsp):
-           print("  for gas species = {}; igascr = {:.2e}".format(id, self.igascr[id]))
-        print("  hydrogen ion current at separatrix, isephyd = ", self.isephyd)
-        #
-        print(" ")
-        print("Current from Fixed Volume Source (Sinks) [Amps]:")
-        print("  ion current, i_vol = ", self.i_vol)
-        #
-        print(" ")
-        print("Ionization current [Amps] created by re-ionization of gas is:")
+        iywall=com.ny       # DEFINITION
+        iypf=0
+        for ix in range(0, com.nx+2):
+           for id in range(com.nfsp):
+              self.iwall[id] += fluxfacy*bbb.fniy[ix,iywall,id]
+           for igsp in range(com.ngsp):
+              self.igaswall[igsp] += fluxfacy*bbb.fngy[ix,iywall,igsp]
 
-        for id in range(com.ngsp):
-           print("  for gas species = {}; iion = {:.2e}".format(id, sum(self.iion[id])))
-        print(" ")
-        print("Recomb. current [Amps] from ions --> gas by electron-ion recombination:")
+        for ix in range(0, com.ixpt1[0]+1):
+           for id in range(0, com.nfsp):
+              self.ipf[id] += fluxfacy*bbb.fniy[ix,iypf,id]
+           for igsp in range(com.ngsp):
+              self.igaspf[igsp] += fluxfacy*bbb.fngy[ix,iypf,igsp]
 
-        for id in range(com.ngsp):
-           print("  for gas species = {}; irecomb = {:.2e}".format(id, sum(self.irecomb[id])))
+        for ix in range(com.ixpt2[0]+1, com.nx+2):
+           for id in range(0, com.nfsp):
+              self.ipf[id] += fluxfacy*bbb.fniy[ix,iypf,id]
+           for igsp in range(com.ngsp):
+              self.igaspf[igsp] += fluxfacy*bbb.fngy[ix,iypf,igsp]
 
-        print(" ")
-        print("Charge exchange current [Amps] from ions --> gas by iter-species cx:")
+        for ix in range(max(com.ixpt1[0]+1,0), com.ixpt2[0]+1):
+           for igsp in range(com.ngsp):
+              self.igascr[igsp] =  fluxfacy*bbb.fngy[ix,iypf,igsp]
 
-        for id in range(com.ngsp):
-           print("  for gas species = {}; icxgas = {:.2e}".format(id, sum(self.icxgas[id])))
+        # ion current to divertor plate
 
-        print(" ")
-        print("Particle Flow [Amps] incident on Divertor Plate is:")
+        for iy in range(iybegin,com.ny+1):
+           for id in range(com.nfsp):
+              self.idivout[id] += bbb.fnix[com.nx,iy,id]
+              self.idivin[id] += bbb.fnix[ixdivin,iy,id]
+           for igsp in range(com.ngsp):
+              if bbb.isupgon[igsp] == 0:
+                 self.igasout[igsp] += bbb.fngx[com.nx,iy,igsp]
+                 self.igasin[igsp] += bbb.fngx[ixdivin,iy,igsp]
+              else:
+                 self.igasout[igsp] += bbb.fnix[com.nx,iy,1]
+                 self.igasin[igsp] += bbb.fnix[ixdivin,iy,1]
 
-        for id in range(com.nfsp):
-           if bbb.zi[id] > 0:
-              print("  for nuclear charge = {}; ion charge = {}".format(bbb.znucl[id], bbb.zi[id]))
-              print("  idivin = {:.2e}   idivout = {:.2e}".format(self.idivin[id],self.idivout[id]))
-              print(" ")
-         
+        # ion current to the core
+        for ix in range(max(0, com.ixpt1[0]+1), com.ixpt2[0]+1):
+           for id in range(com.nfsp):
+              self.icore[id] += fluxfacy*bbb.fniy[ix,0,id]
+ 
+           
+        for var in [
+            'idivout', 'idivin', 'igasout', 'igasin', 'icore', 'iwall',
+            'igaswall', 'ipf', 'igaspf', 'igascr'
+        ]:
+            self.__dict__[var] *= bbb.qe
 
-        print("Neutral Flow [Amps] away from Divertor Plate is:")
+        self.i_vol = bbb.qe*sum(bbb.volpsor[:,:,0])
 
-        for id in range(com.ngsp):
-           print("  for gas species = {}; igasin = {:.2e},  igasout = {:.2e}".format(id,  self.igasin[id], self.igasout[id]))
+        if bbb.l_parloss <= 1e9:
+          self.i_vol -= sum(bbb.nuvl[:,:,0]*com.vol*bbb.ni[:,:,0])*bbb.qe
 
-
-        #
-        print(" ")
-        print("Particle Flow [Amps] incident on Vessel Wall is:")
-        for id in range(com.nfsp):
-           print("  for ion species = {}; iwall = {:.2e}".format(id, self.iwall[id]))
-
-        for id in range(com.ngsp):
-           print("  for gas species = {}; igaswall = {:.2e}".format(id, self.igaswall[id]))
-
-
-        print(" ")
-        print("Particle Flow [Amps] incident on Private Flux Wall is:")
-        for id in range(com.nfsp):
-           print("  for ion species = {}; ipf = {:.2e}".format(id, self.ipf[id]))
-
-        for id in range(com.ngsp):
-           print("  for gas species = {}; igaspf = {:.2e}".format(id, self.igaspf[id]))
-
-
-        #
 
         for id in range(com.ngsp):
            self.igastot += self.igasin[id]-self.igasout[id]-self.igaswall[id]+self.igaspf[id]\
@@ -1648,42 +764,250 @@ class UeBalance():
         if bbb.ishymol == 1:  # add id=2 case again because of 2 atoms/molecule
            self.igastot += self.igasin[1]-self.igasout[1]-self.igaswall[1]+self.igaspf[1]\
                              + self.igascr[1]
-           self.igasdenom += (self.igasin[1] -self.igasout[1])
-
+           self.igasdenom += (self.igasin[1] - self.igasout[1])
 
         self.deligas = (self.igastot - sum(self.iion) - sum(self.irecomb) -sum(self.icxgas)) / self.igasdenom
-        print(" ")
-        print("Particle Balance for Neutrals: (Iinput-Itotal)/Iinput")
+
+
+
+    def print_balance_power(self, redo=True):
+        from numpy import sum
+        from uedge import bbb, com
+        if redo:
+            self.balance_power()
+        print("\nPower Flow [Watts] from Core to Scrape-off Layer is:")
+        print("   Total: {:.2e}".format(self.pbcorei + self.pbcoree + self.pbcorebd))
+        print("   Ion contribution: {:.2e}".format(self.pbcorei))
+        print("   Electron contribution: {:.2e}".format(self.pbcorei))
+        print("   Binding energy contribution: {:.2e}".format(self.pbcorei))
+        print("\nPower Flow [Watts] over the separatrix to Scrape-off Layer is:")
+        print("Power Flow [Watts] over the separatrix to Scrape-off Layer is:")
+        print("   Total: {:.2e}".format(self.psepi + self.psepe + self.psepbd))
+        print("   Ion contribution: {:.2e}".format(self.psepi))
+        print("   Electron contribution: {:.2e}".format(self.psepe))
+        print("   Binding energy contribution: {:.2e}".format(self.psepbd))
+        #
+        print("\nPower Input [Watts] from Fixed Volume Sources (Sinks):")
+        print(f"   {self.p_i_vol}")
+        print(f"   {self.p_e_vol}")
+        #
+        print("\nPower Flows [Watts] incident on Divertor Plates are:")
+        print(" Inner plate:")
+        print("   Total: {:.2e}".format(self.pdiviin+self.pdivein+self.pdivmin,self.pbindin+self.pneutin+self.pradhin+self.pradzin))
+        print("   Ion contribution: {:.2e}".format(self.pdiviin))
+        print("   Electron contribution: {:.2e}".format(self.pdivein))
+        print("   Molecular contribution: {:.2e}".format(self.pdivmin))
+        print("   Neutral atom contribution: {:.2e}".format(self.pneutin))
+        print("   Binding energy contribution: {:.2e}".format(self.pbindin))
+        print("   Hydrogenic radiation contribution: {:.2e}".format(self.pradhin))
+        print("   Impurity radiation contribution: {:.2e}".format(self.pradzin))
+
+        print(" Outer plate;")
+        print("   Total: {:.2e}".format(self.pdiviout+self.pdiveout+self.pdivmout,self.pbindout+self.pneutout+self.pradhout+self.pradzout))
+        print("   Ion contribution: {:.2e}".format(self.pdiviout))
+        print("   Electron contribution: {:.2e}".format(self.pdiveout))
+        print("   Molecular contribution: {:.2e}".format(self.pdivmout))
+        print("   Neutral atom contribution: {:.2e}".format(self.pneutout))
+        print("   Binding energy contribution: {:.2e}".format(self.pbindout))
+        print("   Hydrogenic radiation contribution: {:.2e}".format(self.pradhout))
+        print("   Impurity radiation contribution: {:.2e}".format(self.pradzout))
+
+        print(" Totals for both plates:")
+        print("   Total: {:.2e}".format(self.ptotpart + self.ptotrad))
+        print("   Particle fluxes: {:.2e}".format(self.ptotpart))
+        print("   Radiation: {:.2e}".format(self.ptotrad))
+
+        #
+        if bbb.isupgon[0] == 1:
+           print("\nEst. of pdiviout and pdivin from atoms (backscatter) [Watts]:")
+           print("   Outer: {:.2e}".format(self.pdivnout))
+           print("   Inner: {:.2e}".format(self.pdivnin))
+
+
+        print("\nPower [W] lost via ionization & recombination radiation is:")
+        print("   {:.2e}".format(sum(self.pradiz + self.pradrc)))
+        
+        print("\nPower [W] lost via recombination only (included in pradht above):")
+        print("   {:.2e}".format(sum(self.pradrc)))
+
+        print("\nPower [W] lost at ionization but carried as ion binding-energy:")
+        print("   {:.2e}".format(sum(self.pbinde)))
+        
+        print("\nPower [W] gained by electrons in 3-body recombination (via binding eng):")
+        print("   {:.2e}".format(sum(self.pbindrc)))
+        
+        if bbb.isimpon != 0:
+           print("\nPower [W] lost via impurity radiation is:")
+           id2=com.nhsp-1
+           for id in range(com.nzdf):
+              id2 += com.nzsp[id]
+              print("  for nuclear charge = {};  Power = {}".format(bbb.znucl[id2], sum(self.pradimp, axis=(0,1,2))[id]))
+              print("  for fixed-fraction species;  Power = ", sum(self.pradff))
+           
+           print("\nElectron Power [W] lost at impur. ioniz. but carried as binding-energy:")
+           print("   {:.2e}".format(sum(self.pradzbind)))
+        
+        print("\nPower [W] lost via dissociation of molecules is:")
+        print("   {:.2e}".format(sum(self.prdiss)))
+        #
+        print("\nPower [W] gained by ions from initial Franck-Condon Energy:")
+        print("   {:.2e}".format(sum(self.pibirth)))
+        #
+
+        print("\nPower [W] lost in parallel momentum exhange via charge exchange:")
+        print("   {:.2e}".format(sum(self.pmomv)))
+        #
+        print("\nPower [W] from J.E Joule heating - goes to electrons:")
+        print("   {:.2e}".format(sum(bbb.wjdote[1:-1,1:-1])))
+        #
+        print("\nPower Flow [Watts] incident on Vessel Wall is:")
+        ###print(self.pwalli,self.pwalle,self.pwallm,self.pwallbd,self.pradhwall,self.pradzwall,self.pneutw)
+        print("   Outerwall_sum: {:.2e}".format(self.pwalli + self.pwalle + self.pwallm + self.pwallbd + self.pradhwall + self.pradzwall + self.pneutw))
+        print("      pwalli: {:.2e}".format(self.pwalli))
+        print("      pwalle: {:.2e}".format(self.pwalle))
+        print("      pwallm: {:.2e}".format(self.pwallm))
+        print("      pwallbd: {:.2e}".format(self.pwallbd))
+        print("      pradhwall: {:.2e}".format(self.pradhwall))
+        print("      pradzwall: {:.2e}".format(self.pradzwall))
+        print("      pneutw: {:.2e}".format(self.pneutw))
+
+
+        print("\nPower Flow [Watts] incident on Private Flux Wall is:")
+        print("   PFwall_sum: {:.2e}".format(self.ppfi + self.ppfe + self.ppfm + self.ppfbd + self.pneutpf))
+        print("      ppfi: {:.2e}".format(self.ppfi))
+        print("      ppfe: {:.2e}".format(self.ppfe))
+        print("      ppfm: {:.2e}".format(self.ppfm))
+        print("      ppfbd: {:.2e}".format(self.ppfbd))
+        print("      pneutpf: {:.2e}".format(self.pneutpf))
+
+           
+        ##print(" ")
+        ##print("Total power out")
+        ##print( (pbcoree+pbcorei+pcorebd+p_i_vol+p_e_vol+bbb.ptjdote - ptotpart -
+        ##          self.pwalli-self.pwalle-self.pwallm-self.pwallbd-self.ppfi-self.ppfe-self.ppfm-self.ppfbd-sum(pradimpt)-
+        ##          bbb.pradfft-bbb.pradht-bbb.prdiss-bbb.pvmomcx+bbb.pibirth))
+
+        print("\nPower Balance: (Pin-Pout)/Pin")
+        print("    {:.2e}".format(self.powbal))
+        print(50*"=")
+
+
+    def print_balance_particles(self, redo=True):
+        from numpy import sum
+        from uedge import bbb, com
+        if redo:
+            self.balance_particles()
+        # particle outflow from separatrix
+        self.isephyd = bbb.qe*sum(bbb.fniy[max(com.ixpt1[0]+1,0):com.ixpt2[0]+1,com.iysptrx,0])
+
+
+        print("\nParticle Flow [Amps] from Core to Scrape-off Layer is:")
+        for id in range(com.nfsp):
+           if bbb.zi[id] > 0:
+              print("  for nuclear charge = {}; ion charge = {}".format(bbb.znucl[id],bbb.zi[id]))
+              print("  icore = {}\n".format(self.icore[id]))
+
+        for id in range(com.ngsp):
+           print("  for gas species = {}; igascr = {:.2e}".format(id, self.igascr[id]))
+        print("  hydrogen ion current at separatrix, isephyd = ", self.isephyd)
+        #
+        print("\nCurrent from Fixed Volume Source (Sinks) [Amps]:")
+        print("  ion current, i_vol = ", self.i_vol)
+        #
+        print("\nIonization current [Amps] created by re-ionization of gas is:")
+
+        for id in range(com.ngsp):
+           print("  for gas species = {}; iion = {:.2e}".format(id, sum(self.iion[id])))
+        print("\nRecomb. current [Amps] from ions --> gas by electron-ion recombination:")
+
+        for id in range(com.ngsp):
+           print("  for gas species = {}; irecomb = {:.2e}".format(id, sum(self.irecomb[id])))
+
+        print("\nCharge exchange current [Amps] from ions --> gas by iter-species cx:")
+
+        for id in range(com.ngsp):
+           print("  for gas species = {}; icxgas = {:.2e}".format(id, sum(self.icxgas[id])))
+
+        print("\nParticle Flow [Amps] incident on Divertor Plate is:")
+
+        for id in range(com.nfsp):
+           if bbb.zi[id] > 0:
+              print("  for nuclear charge = {}; ion charge = {}".format(bbb.znucl[id], bbb.zi[id]))
+              print("  idivin = {:.2e}   idivout = {:.2e}\n".format(self.idivin[id],self.idivout[id]))
+         
+        print("Neutral Flow [Amps] away from Divertor Plate is:")
+
+        for id in range(com.ngsp):
+           print("  for gas species = {}; igasin = {:.2e},  igasout = {:.2e}".format(id,  self.igasin[id], self.igasout[id]))
+
+        print("\nParticle Flow [Amps] incident on Vessel Wall is:")
+        for id in range(com.nfsp):
+           print("  for ion species = {}; iwall = {:.2e}".format(id, self.iwall[id]))
+
+        for id in range(com.ngsp):
+           print("  for gas species = {}; igaswall = {:.2e}".format(id, self.igaswall[id]))
+
+
+        print("\nParticle Flow [Amps] incident on Private Flux Wall is:")
+        for id in range(com.nfsp):
+           print("  for ion species = {}; ipf = {:.2e}".format(id, self.ipf[id]))
+
+        for id in range(com.ngsp):
+           print("  for gas species = {}; igaspf = {:.2e}".format(id, self.igaspf[id]))
+
+
+        print("\nParticle Balance for Neutrals: (Iinput-Itotal)/Iinput")
         print("    {:.2e}".format(self.deligas))
+        print(50*"=")
         #
-        print(" ")
-        print("Peak electron temperatures [eV] on divertor plates")
-        print("    Outer: {:.2e}".format(max(bbb.te[com.nx+1,1:com.ny+1])/bbb.ev))
-        print("    Inner: {:.2e}".format(max(bbb.te[0,1:com.ny+1])/bbb.ev))
+
+    def print_peak_values(self, redo = True):
+        from uedge import bbb, com
+        if redo:
+            self.balance_power()
+            self.balance_particles()
+        print("\nPeak electron temperatures [eV] on divertor plates")
+        print("    Outer: {:.2e}".format(max(bbb.te[com.nx,1:com.ny+1])/bbb.ev))
+        print("    Inner: {:.2e}".format(max(bbb.te[1,1:com.ny+1])/bbb.ev))
         #
-        print(" ")
-        print("Peak ion temperatures [eV] on divertor plates")
-        print("    Outer: {:.2e}".format(max(bbb.ti[com.nx+1,1:com.ny+1])/bbb.ev))
-        print("    Inner: {:.2e}".format(max(bbb.ti[0,1:com.ny+1])/bbb.ev))
+        print("\nPeak ion temperatures [eV] on divertor plates")
+        print("    Outer: {:.2e}".format(max(bbb.ti[com.nx,1:com.ny+1])/bbb.ev))
+        print("    Inner: {:.2e}".format(max(bbb.ti[1,1:com.ny+1])/bbb.ev))
         #
-        print(" ")
-        print("Peak power flux [MW/m**2] on divertor plates")
+        print("\nPeak power flux [MW/m**2] on divertor plates")
         print("    Outer: {:.2e}".format(1.e-6*max(self.sdtout[1:com.ny+1])))
         print("    Inner: {:.2e}".format(1.e-6*max(self.sdtin[1:com.ny+1])))
         #
-        print(" ")
-        print("Peak ion densities [m**(-3)] on divertor plates")
-        print("    Outer: {:.2e}".format(max(bbb.ni[com.nx+1,1:com.ny+1,0])))
-        print("    Inner: {:.2e}".format(max(bbb.ni[0,1:com.ny+1,0])))
+        print("\nPeak ion densities [m**(-3)] on divertor plates")
+        print("    Outer: {:.2e}".format(max(bbb.ni[com.nx,1:com.ny+1,0])))
+        print("    Inner: {:.2e}".format(max(bbb.ni[1,1:com.ny+1,0])))
         #
-        print(" ")
-        print("Peak gas densities [m**(-3)] on divertor plates")
-          # note: guard cell gas density often meaningless, so use one cell in
+        print("\nPeak gas densities [m**(-3)] on divertor plates")
         print("    Outer: {:.2e}".format(max(bbb.ng[com.nx,1:com.ny+1,0])))
         print("    Inner: {:.2e}".format(max(bbb.ng[1,1:com.ny+1,0])))
+        print(50*"=")
 
     
+    def balancee_new(self):
+        self.engbal()
+        self.pradpltwl()
+        self.balance_power(redo=False)
+        self.balance_particles(redo=False)
+        self.print_balance_power(redo=False)
+        self.print_balance_particles(redo=False)
+        self.print_peak_values(redo=False)
 
+ 
+    def balancee(self):
+        self.engbal()
+        self.pradpltwl()
+        self.balance_power(redo=False)
+        self.balance_particles(redo=False)
+        self.print_balance_power(redo=False)
+        self.print_balance_particles(redo=False)
+        self.print_peak_values(redo=False)
+
+        
         '''
 
 c-------------------------------------------------------------------------c
@@ -1984,7 +1308,6 @@ def checkbal():
     new = UeBalance()
 
 
-    '''
     with open('new_balancee.txt', 'w') as f:
         with contextlib.redirect_stdout(f):
             new.balancee_new()
@@ -1994,6 +1317,7 @@ def checkbal():
             new.balancee()
     '''
     new.balancee_new()
+    '''
 
     bbb.engbal(1)
     bbb.pradpltwl()
