@@ -36,6 +36,7 @@ class UeBalance():
         expensive when done from the parser.
         """
         from uedge import bbb, com, aph
+        from copy import deepcopy
         from numpy import zeros, cos
 
         for var in ['icxgas', 'iion', 'irecomb', 'pradimp',
@@ -61,6 +62,7 @@ class UeBalance():
             """
         upi = bbb.upi
 
+        # TODO: remove nested loops and replace with indirect referencing
         # Set arrays to check energy conserv; add ion parallel drift and visc heat
         for jx in range(com.nxpt):
             for ix in range(com.ixlb[jx], com.ixrb[jx]+1):
@@ -183,6 +185,12 @@ class UeBalance():
                             )
                                 
 
+        if bbb.isimpon > 2:
+            prad = deepcopy(bbb.prad)
+            pwrze = deepcopy(bbb.pwrze)
+        else:
+            prad = zeros(bbb.ne.shape)
+            pwrze = zeros(bbb.ne.shape)
         for jx in range(com.nxpt):
             for ix in range(com.ixlb[jx], com.ixrb[jx]+1):
                 for iy in range(1,com.ny+1):
@@ -194,10 +202,8 @@ class UeBalance():
                                 for iimp in range(com.nzsp[jz]):
                                     ii = iimp + com.nhgsp + sum(com.nzsp[:jz]) - 1
                                     self.pradimp[ix,iy, ii, jz] += bbb.pradz[ix,iy,ii,jz]*com.vol[ix,iy]
-                self.pradzbind[ix,iy] = (bbb.pwrze - bbb.prad)[ix,iy]*com.vol[ix,iy]
+                self.pradzbind[ix,iy] = (pwrze - prad)[ix,iy]*com.vol[ix,iy]
                             
-                        
-
     def calc_engerr(self, pwrin=1, redo=True):
         from uedge import bbb, com
 
@@ -216,19 +222,25 @@ class UeBalance():
                     if bbb.isimpon != 0:
                         self.engerr[ix,iy] -= bbb.prad[ix,iy]*com.vol[ix,iy]/abs(pwrin)                        
 
+
     def pradpltwl(self):
         """ Calc radiation power to divertor and outer wall surfaces """
         from uedge import bbb, com
         from numpy import zeros, arctan2, pi, cos, sum
         from copy import deepcopy
         nj = com.nxomit 
-        prdu = deepcopy(bbb.prad)
+        if bbb.isimpon > 2:
+            prdu = deepcopy(bbb.prad)
+        else:
+            prdu = zeros(bbb.ne.shape)
+        
 
         # Initialize arrays for subsequent runs
         for var in ['pwr_pltz', 'pwr_plth', 'pwr_wallh', 'pwr_wallz', 
             'pwr_pfwallh', 'pwr_pfwallz']:
             self.__dict__[var] *= 0
 
+        # TODO: remove nested loops and replace with indirect referencing
         for ip in range(2*com.nxpt):
             if (ip % 2) == 0: # Even numbers
                 ixv = com.ixlb[int( ip > 1) + int(ip > 3)]
@@ -638,7 +650,8 @@ class UeBalance():
 
 
         for xsl in [slice(0,com.ixpt1[0]+1), slice(com.ixpt2[0]+1, com.nx+1)]:
-            vynpf = 0.25*sqrt(8*bbb.tg[xsl,0,1]/(pi*bbb.mg[0]))
+#           NOTE: tg species index was 1/0, assuming it should be 0
+            vynpf = 0.25*sqrt(8*bbb.tg[xsl,0,0]/(pi*bbb.mg[0]))
             self.ppfi[xsl] -= fluxfacy*( \
                     bbb.feiy[xsl,iypf] - 0.125*bbb.mi[0]*( \
                         (bbb.up[bbb.ixm1,self.yy] + bbb.up)[xsl,iypf,0] \
@@ -654,7 +667,7 @@ class UeBalance():
             self.ppfbd[xsl] -= fluxfacy*bbb.fniy[xsl,iypf,0]*bbb.ebind*bbb.ev
 #            self.pradhpf += fluxfacy*pwr_pfh[xsl]*com.sy[xsl,iywall]
 #            self.pradzpf += fluxfacy*pwr_pfz[xsl]*com.sy[xsl,iywall]
-            self.sneutpf[xsl] = cenggw*2.*vynpf*bbb.tg[xsl,0,1]*com.sx[xsl,0]
+            self.sneutpf[xsl] = cenggw*2.*vynpf*bbb.tg[xsl,0,0]*com.sx[xsl,0]
             self.pneutpf[xsl] += self.sneutpf[xsl]
             if ishymoleng==1:  #molec temp eqn active
                  self.ppfm[xsl] -= bbb.fegy[xsl,iypf,1]
