@@ -65,7 +65,7 @@ clean:
 	@echo $(NOCLEAN)
 ifeq ($(NOCLEAN),FALSE)
 	@echo Starting cleaning of build directory
-	find . -depth -name build -exec rm -rf {} \;
+	find . -depth -name build ! -ipath '*site-packages*' -exec rm -rf {} \;
 	find . -depth -name __pycache__ -exec rm -rf {} \;
 	find . -name \*.pyc -exec rm {} \;
 	find . -name \*.F -exec rm {} \;
