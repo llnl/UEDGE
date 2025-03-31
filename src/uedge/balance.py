@@ -14,7 +14,7 @@ class UeBalance():
             self.__dict__[var] = zeros((com.nx+2, com.ny+2))
         for var in ['icxgas', 'iion', 'irecomb']:
             self.__dict__[var] = zeros((com.nx+2, com.ny+2, com.ngsp))
-        self.pradimp = zeros((com.nx+2, com.ny+2, sum(com.nzsp), sum(com.nzsp)))
+        self.pradimp = zeros((com.nx+2, com.ny+2, sum(com.nzsp)+1, sum(com.nzsp)))
         self.pwr_plth = zeros((com.ny+2, 2*com.nxpt))
         self.pwr_pltz = zeros((com.ny+2, 2*com.nxpt))
         self.pwr_wallh = zeros((com.nx+2))
@@ -28,6 +28,7 @@ class UeBalance():
             yy.append(y)
         self.yy=array(yy)
         return
+
 
     def engbal(self):
         """ Calculates various components of the 2-D energy flow and the 
@@ -61,149 +62,139 @@ class UeBalance():
             enddo
             """
         upi = bbb.upi
-
-        # TODO: remove nested loops and replace with indirect referencing
-        # Set arrays to check energy conserv; add ion parallel drift and visc heat
-        for jx in range(com.nxpt):
-            for ix in range(com.ixlb[jx], com.ixrb[jx]+1):
-                for iy in range(0, com.ny+1): 
-                    ix1 = bbb.ixm1[ix, iy]
-                    ix2 = bbb.ixp1[ix, iy]
-                    for ii in range(0, com.nusp):
-                        thetaix = 0.5 * (com.angfx[ix1,iy] + com.angfx[ix,iy])
-                        thetaix2 = 0.5 * (com.angfx[ix,iy] + com.angfx[ix2,iy])
-                        eta_dup2dy = 0.25*(
-                            bbb.visy[ix, iy+1, ii]*(
-                                upi[ix1, iy+1, ii] + upi[ix, iy+1, ii]
-                            )**2 - bbb.visy[ix,iy,ii]*(
-                                upi[ix1,iy,ii] + upi[ix,iy,ii]
-                            )**2 )
-
-                        self.fety[ix,iy] += (bbb.mi[ii]/32)*(
-                                upi[ix1,iy,ii] + upi[ix,iy,ii] \
-                                + upi[ix1,iy+1,ii] + upi[ix,iy+1,ii]\
-                            )**2 * bbb.fniy[ix,iy,ii] \
-                        -bbb.cfvisy*0.5*com.sy[ix,iy]*com.gyf[ix,iy]\
-                            *eta_dup2dy
-                    
-                        self.fetx[ix,iy] += 0.5*bbb.mi[ii]*upi[ix,iy,ii]**2 \
-                            *bbb.fnix[ix,iy,ii] - bbb.cfvisx*0.25*com.sx[ix,iy]*( \
-                                bbb.visx[ix,iy,ii]*com.gx[ix,iy]*cos(thetaix)* \
-                                (upi[ix,iy,ii]**2 - upi[ix1,iy,ii]**2) +
-                                bbb.visx[ix2,iy,ii]*com.gx[ix2,iy]*cos(thetaix2)* \
-                                (upi[ix2,iy,ii]**2 - upi[ix,iy,ii]**2)
-                            ) - upi[ix,iy,ii] * bbb.fmixy[ix,iy,ii]
-                    self.fety[ix,iy] += bbb.feey[ix,iy] + bbb.feiy[ix,iy]
-                    self.fetx[ix,iy] += bbb.feex[ix,iy] + bbb.feix[ix,iy]
-
-
-    # Correct the boundary x-fluxes if non-unity ckinfl
         up = bbb.up
-        if (abs(bbb.ckinfl - 1) > 1e-10):
-            for jx in range(com.nxpt):
-                ixt = com.ixlb[jx]
-                ixt1 = ixt + 1
-                ixr = com.ixrb[jx]
-                ixr1 = ixr - 1
-                for iy in range(com.ny+1):
-                    self.fetx[ixt,iy] = 0
-                    self.fetx[ixr,iy] = 0
-                    for ii in range(com.nfsp):
-                        self.fetx[ixt,iy] += 0.5*bbb.mi[ii]*up[ixt,iy,ii]**2*bbb.fnix[ixt,iy,ii] \
-                        - bbb.ckinfl*0.5*com.sx[ixt,iy]*bbb.visx[ixt1,iy,ii]*com.gx[ixt1,iy]* \
-                        (up[ixt1, iy, ii]**2 - up[ixt, iy, ii]**2)
-
-                        self.fetx[ixr,iy] += 0.5*bbb.mi[ii]*up[ixr,iy,ii]**2*bbb.fnix[ixr,iy,ii] \
-                        - bbb.ckinfl*0.5*com.sx[ixr,iy]*bbb.visx[ixr,iy,ii]*com.gx[ixr,iy] * \
-                        (up[ixr,iy,ii]**2 - up[ixr1,iy,ii]**2)
-                self.fetx[ixt,iy] += bbb.feex[ixt,iy] + bbb.feix[ixt,iy]
-                self.fetx[ixr,iy] += bbb.feex[ixr,iy] + bbb.feix[ixr,iy]
-
-        for jx in range(com.nxpt):
-            for ix in range(com.ixlb[jx]+1, com.ixrb[jx]+1):
-                for iy in range(1,com.ny+1):
-                    ix1 = bbb.ixm1[ix,iy]
-                    ix2 = bbb.ixp1[ix,iy]
-                    self.pmloss[ix,iy] = (1-bbb.ismolcrm)*bbb.cnsor*( \
-                            bbb.ediss*bbb.ev*(0.5*bbb.psordis[ix,iy,1]) \
-                            + bbb.ceisor*bbb.eion*bbb.ev*(bbb.psordis[ix,iy,1])
-                        ) + bbb.ismolcrm*bbb.cnsor*( \
-                            bbb.cmesori*(bbb.emolia[ix,iy,0] + bbb.emolia[ix,iy,1]) \
-                            + bbb.cmesore*bbb.edisse[ix,iy]
-                        )
-                    if bbb.ishymol:
-                        self.pmpot[ix,iy] = bbb.ismolcrm*bbb.ng[ix,iy,1]*com.vol[ix,iy] \
-                            *aph.sv_crumpet(bbb.te[ix,iy], bbb.ne[ix,iy], 22)
-                        self.pmrada[ix,iy] = bbb.ismolcrm*bbb.ng[ix,iy,1]*com.vol[ix,iy] \
-                            *aph.sv_crumpet(bbb.te[ix,iy], bbb.ne[ix,iy], 23)
-                        self.pmradm[ix,iy] = bbb.ismolcrm*bbb.ng[ix,iy,1]*com.vol[ix,iy] \
-                            *aph.sv_crumpet(bbb.te[ix,iy], bbb.ne[ix,iy], 24)
-                # Here peirad includes sum of electron and ion energy losses; note that binding
-                # energy is included in eeli term, but it is carried by the ions.
-                # Note also that eion and ediss generally balance in the next line
-                # because should have ediss=2*eion - transfer from electron to ion energy
-                    self.peirad[ix,iy] = bbb.cnsor*(
-                            bbb.erliz[ix,iy] + bbb.erlrc[ix,iy]
-                            + bbb.ebind*bbb.ev*bbb.psor[ix,iy,0] \
-                            - bbb.ebind*bbb.ev*bbb.psorrg[ix,iy,0] \
-                            + self.pmloss[ix,iy]
-                        )
-
-                    if (bbb.isupgon[0] == 0):
-                        self.pmomv[ix,iy] = bbb.cngmom[0]*up[ix,iy,0]*com.sx[ix,iy] \
-                            *com.rrv[ix,iy]*(
-                                bbb.ng[ix2,iy,0]*bbb.tg[ix2,iy,0] \
-                                - bbb.ng[ix,iy,0]*bbb.tg[ix,iy,0]
-                            ) + bbb.cmwall[0]*0.125*bbb.mi[0]*(
-                                up[ix,iy,0] + up[ix1,iy,1] 
-                            )**2*bbb.ng[ix,iy,0]*bbb.nucx[ix,iy,0]*com.vol[ix,iy]
-
-        for jx in range(com.nxpt):
-            for ix in range(com.ixlb[jx]+1, com.ixrb[jx]+1):
-                for iy in range(1, com.ny+1):
-                    for ig in range(com.ngsp):
-                        if ((bbb.ishymol == 0) or (ig != 1)):
-                            self.iion[ix,iy,ig] -= bbb.cnsor*bbb.qe*bbb.psorg[ix,iy,ig]
-                            self.irecomb[ix,iy,ig] -= bbb.cnsor*bbb.qe*bbb.psorrg[ix,iy,ig]
-                            self.icxgas[ix,iy,ig] -= bbb.qe*bbb.psorcxg[ix,iy,ig]
-        
-
-                    self.pradrc[ix,iy] += bbb.cnsor*bbb.erlrc[ix,iy]
-                    self.pradiz[ix,iy] += (bbb.eeli[ix,iy] - bbb.ebind*bbb.ev) * bbb.psor[ix,iy,0]
-                    self.pbinde[ix,iy] += bbb.ebind*bbb.ev*bbb.psor[ix,iy,0]
-                    self.pbindrc[ix,iy] += bbb.ebind*bbb.ev*bbb.psorrg[ix,iy,0]
-                    self.prdiss[ix,iy] += (1-bbb.ismolcrm)*(bbb.ediss*bbb.ev*(0.5*bbb.psordis[ix,iy,1])) \
-                            + bbb.ismolcrm*bbb.cmesore*bbb.edisse[ix,iy]
-                    self.pibirth[ix, iy] += (1-bbb.ismolcrm) * (bbb.ceisor*bbb.eion*bbb.ev \
-                            *bbb.psordis[ix,iy,1] - bbb.ccoldsor*bbb.ng[ix,iy,0]*(
-                                1.5*bbb.ti[ix,iy] - bbb.eion*bbb.ev)*bbb.nucx[ix,iy,0]*com.vol[ix,iy]) \
-                            + bbb.ismolcrm*(
-                                bbb.ceisor*bbb.cmesore*(bbb.emolia[ix,iy,0] + bbb.emolia[ix,iy,1]) \
-                                - bbb.ccoldsor*bbb.ng[ix,iy,0]*(
-                                    1.5*bbb.ti[ix,iy] - bbb.eion*bbb.ev
-                                )*bbb.nucx[ix,iy,0]*com.vol[ix,iy]
-                            )
-                                
-
+        upip1 = bbb.upi[bbb.ixp1, self.yy]
+        upim1 = bbb.upi[bbb.ixm1, self.yy]
         if bbb.isimpon > 2:
             prad = deepcopy(bbb.prad)
             pwrze = deepcopy(bbb.pwrze)
         else:
             prad = zeros(bbb.ne.shape)
             pwrze = zeros(bbb.ne.shape)
-        for jx in range(com.nxpt):
-            for ix in range(com.ixlb[jx], com.ixrb[jx]+1):
-                for iy in range(1,com.ny+1):
-                    if (bbb.isimpon in [2,7]):
-                        self.pradff[ix,iy] += bbb.pradcff[ix,iy]*com.vol[ix,iy]
-                    if bbb.isimpon > 2:
-                        for ig in range(com.nhgsp+1, com.ngsp+1):
-                            for jz in range(com.ngsp - com.nhgsp):
-                                for iimp in range(com.nzsp[jz]):
-                                    ii = iimp + com.nhgsp + sum(com.nzsp[:jz]) - 1
-                                    self.pradimp[ix,iy, ii, jz] += bbb.pradz[ix,iy,ii,jz]*com.vol[ix,iy]
-                self.pradzbind[ix,iy] = (pwrze - prad)[ix,iy]*com.vol[ix,iy]
-                            
+
+        # TODO: remove nested loops and replace with indirect referencing
+        # Set arrays to check energy conserv; add ion parallel drift and visc heat
+        thetaix = 0.5*(com.angfx[bbb.ixm1, self.yy] + com.angfx)
+        thetaix2 = 0.5*(com.angfx[bbb.ixp1, self.yy] + com.angfx)
+        eta_dup2dy = 0.25*(
+            (bbb.visy[:,1:]*(upi[bbb.ixm1[:,:-1], self.yy[:,1:]] + upi[:,1:])**2) \
+#           NOTE: unsure whether the iy-indices offset causes an X-point glitch in original 
+#           implementation or not...
+#            (bbb.visy*(upim1 + upi)**2)[:,1:] \
+            - (bbb.visy*(upim1 + upi)**2)[:,:-1])
+        for ii in range(com.nusp):
+            self.fety[:,:-1] += (bbb.mi[ii]/32)*(
+                (upim1 + upi)[:,:-1,ii] + \
+                    (upi[bbb.ixm1[:,:-1], self.yy[:,1:],ii] + upi[:,1:,ii])\
+#                    (upim1 + upi)[:,1:,ii]\
+                    )**2*bbb.fniy[:,:-1,ii] \
+                - (bbb.cfvisy*0.5*com.sy[:,:-1]*com.gyf[:,:-1]*eta_dup2dy[:,:,ii])
+
+            self.fetx[:,:-1] += 0.5*bbb.mi[ii]*(upi**2*bbb.fnix)[:,:-1,ii] \
+                - bbb.cfvisx*0.25*com.sx[:,:-1]*(
+                    bbb.visx[:,:-1,ii]*com.gx[:,:-1]*cos(thetaix[:,:-1])*(\
+                        upi**2 - upim1**2)[:,:-1,ii] \
+                    + bbb.visx[bbb.ixp1,self.yy][:,:-1,ii]\
+                        *com.gx[bbb.ixp1,self.yy][:,:-1]*cos(thetaix2[:,:-1])*( \
+                        upip1**2 - upi**2)[:,:-1,ii]) \
+                - (upi[:,:-1,ii]*bbb.fmixy[:,:-1,ii])
+        self.fety[:,:-1] += (bbb.feey + bbb.feiy)[:,:-1]
+        self.fetx[:,:-1] += (bbb.feex + bbb.feix)[:,:-1]
+
+
+        # Correct the boundary x-fluxes if non-unity ckinfl
+        if (abs(bbb.ckinfl - 1) > 1e-10):
+            for jx in range(com.nxpt):
+                ixt = com.ixlb[jx]
+                ixr = com.ixrb[jx]
+                self.fetx[ixt] = 0
+                self.fetx[ixr] = 0
+                for ii in range(com.nfsp):
+                    self.fetx[ixt] +=  \
+                        0.5*bbb.mi[ii]*(bbb.fnix*up**2)[ixt,:,ii] \
+                        - bbb.ckinfl*0.5*com.sx[ixt]*bbb.visx[ixt+1,:,ii] \
+                        *com.gx[ixt+1]*( up[ixt,:,ii]**2 - up[ixt+1,:,ii]**2)
+
+                    self.fetx[ixr] +=  \
+                        0.5*bbb.mi[ii]*(bbb.fnix*up**2)[ixr,:,ii] \
+                        - bbb.ckinfl*0.5*com.sx[ixr]*bbb.visx[ixr,:,ii] \
+                        *com.gx[ixr]*( up[ixr,:,ii]**2 - up[ixr-1,:,ii]**2)
+                self.fetx[ixt] += (bbb.feex + bbb.feix)[ixt]
+                self.fetx[ixr] += (bbb.feex + bbb.feix)[ixr]
+
+
+        self.pmloss = (1-bbb.ismolcrm)*bbb.cnsor*( \
+                bbb.ediss*bbb.ev*(0.5*bbb.psordis[:,:,1]) \
+                + bbb.ceisor*bbb.eion*bbb.ev*(bbb.psordis[:,:,1])
+            ) + bbb.ismolcrm*bbb.cnsor*( \
+                bbb.cmesori*(bbb.emolia[:,:,0] + bbb.emolia[:,:,1]) \
+                + bbb.cmesore*bbb.edisse
+            )
+    
+        sv_crumpet = {
+            22: zeros(bbb.ne.shape),
+            23: zeros(bbb.ne.shape),
+            24: zeros(bbb.ne.shape),
+        }
+        for ix in range(com.nx+2):
+            for iy in range(com.ny+2):
+                for ii in [22, 23, 24]:
+                    sv_crumpet[ii][ix,iy] = \
+                        aph.sv_crumpet(bbb.te[ix,iy], bbb.ne[ix,iy], ii)
+
+        if bbb.ishymol:
+            self.pmpot = bbb.ismolcrm*bbb.ng[:,:,1]*com.vol*sv_crumpet[22]
+            self.pmrada = bbb.ismolcrm*bbb.ng[:,:,1]*com.vol*sv_crumpet[23]
+            self.pmradm = bbb.ismolcrm*bbb.ng[:,:,1]*com.vol*sv_crumpet[24]
+            # Here peirad includes sum of electron and ion energy losses; note that binding
+            # energy is included in eeli term, but it is carried by the ions.
+            # Note also that eion and ediss generally balance in the next line
+            # because should have ediss=2*eion - transfer from electron to ion energy
+
+        self.peirad = bbb.cnsor*(
+            bbb.erliz + bbb.erlrc + self.pmloss \
+            + bbb.ebind*bbb.ev*(bbb.psor[:,:,0] - bbb.psorrg[:,:,0]) 
+        )
+
+        if not bbb.isupgon[0]:
+            self.pmomv = bbb.cngmom[0]*bbb.up[:,:,0]*com.sx*com.rrv*( \
+                    (bbb.ng*bbb.tg)[bbb.ixp1,self.yy,0] - (bbb.ng*bbb.tg)[:,:,0]
+                ) + bbb.cmwall[0]*0.125*bbb.mi[0]*(
+                    up[:,:,0] + up[bbb.ixm1,self.yy,1]
+                )**2*bbb.ng[:,:,0]*bbb.nucx[:,:,0]*com.vol
+                    
+        if ((bbb.ishymol == 0) or (ig != 1)):
+            self.iion -= bbb.cnsor*bbb.qe*bbb.psorg
+            self.irecomb -= bbb.cnsor*bbb.qe*bbb.psorrg
+            self.icxgas -= bbb.qe*bbb.psorcxg
+        self.pradrc += bbb.cnsor*bbb.erlrc
+        self.pradiz += (bbb.eeli - bbb.ebind*bbb.ev) * bbb.psor[:,:,0]
+        self.pbinde += bbb.ebind*bbb.ev*bbb.psor[:,:,0]
+        self.pbindrc += bbb.ebind*bbb.ev*bbb.psorrg[:,:,0]
+        self.prdiss += (1-bbb.ismolcrm)*(bbb.ediss*bbb.ev*(0.5*bbb.psordis[:,:,1])) \
+                + bbb.ismolcrm*bbb.cmesore*bbb.edisse
+        self.pibirth += (1-bbb.ismolcrm) * ( \
+            bbb.ceisor*bbb.eion*bbb.ev*bbb.psordis[:,:,1] \
+            - bbb.ccoldsor*bbb.ng[:,:,0]*( \
+                1.5*bbb.ti - bbb.eion*bbb.ev \
+            )*bbb.nucx[ix,iy,0]*com.vol) + bbb.ismolcrm*( \
+                bbb.ceisor*bbb.cmesore*(  \
+                    bbb.emolia[:,:,0] + bbb.emolia[:,:,1]
+                ) - bbb.ccoldsor*bbb.ng[:,:,0]*(
+                    1.5*bbb.ti - bbb.eion*bbb.ev
+                )*bbb.nucx[:,:,0]*com.vol
+            )
+        if bbb.isimpon in [2,7]:
+            self.pradff += bbb.pradcff*com.vol
+        if bbb.isimpon > 2:
+            for jz in range(com.ngsp - com.nhgsp):
+                for iimp in range(com.nzsp[jz]):
+                    ii = iimp + com.nhgsp + sum(com.nzsp[:jz]) - 1
+                    self.pradimp[:,:, ii+1, jz] += bbb.pradz[:,:,ii,jz]*com.vol
+                self.pradimp[:,:,0,jz] += bbb.pradz[:,:, com.nzsp[jz], jz]*com.vol
+        self.pradzbind = (pwrze - prad)*com.vol
+
+                           
     def calc_engerr(self, pwrin=1, redo=True):
         from uedge import bbb, com
 
@@ -1358,8 +1349,8 @@ c-------------------------------------------------------------------------c
 def checkbal():
     from uedge import bbb, com
     import matplotlib.pyplot as plt
-    from numpy import sum
     from mpl_toolkits.axes_grid1 import make_axes_locatable
+    from numpy import sum
     import contextlib
 
     plt.ion()
@@ -1368,6 +1359,7 @@ def checkbal():
     new = UeBalance()
 
 
+    '''
     with open('new_balancee.txt', 'w') as f:
         with contextlib.redirect_stdout(f):
             new.balancee_new()
@@ -1375,26 +1367,8 @@ def checkbal():
     with open('old_balancee.txt', 'w') as f:
         with contextlib.redirect_stdout(f):
             new.balancee()
-    '''
     new.balancee_new()
     '''
-
-    from numpy import zeros
-    dne = zeros(bbb.ne.shape)
-    for ix in range(com.nx+2):
-        for iy in range(com.ny+2):
-            ix1 = bbb.ixm1[ix,iy]
-            dne[ix,iy] = bbb.ne[ix,iy] - bbb.ne[ix1,iy]
-    dne2 = bbb.ne - bbb.ne[bbb.ixm1, new.yy]
-    print("DNE", abs(dne-dne2).max())
-
-    dni = zeros((com.nx+2,))
-    for ix in range(com.nx+2):
-        ix1 = bbb.ixm1[ix,5]
-        dni[ix] = bbb.ni[ix1,5,0] - bbb.ni[ix,5,0]
-    dni2 = bbb.ni[bbb.ixm1,new.yy,0][:,5] - bbb.ni[:,5,0]
-    print("DNI", abs(dni-dni2).max())
-
 
     bbb.engbal(1)
     bbb.pradpltwl()
@@ -1432,11 +1406,12 @@ def checkbal():
                 denom[denom==0] = 1e-100
             else:
                 denom += 1e-100
-            dif = abs(sum(new.__dict__[var]) - sum(bbb.__getattribute__(var)))/ denom
-            if len(denom.shape)>1:
-                dif[denom==0] = 0
-            else:
-                dif -= 1e100
+            dif = abs(sum(new.__dict__[var]) - sum(bbb.__getattribute__(var)))/ abs(denom)
+#            if len(denom.shape)>1:
+#                dif[denom==0] = 0
+#            else:
+#                dif -= 1e100
+#            print(var, dif)
         if dif > 1e-6:
             print(var, dif)
     
@@ -1452,6 +1427,7 @@ def checkbal():
             colors = ['k', 'r', 'b', 'c', 'm', 'g']
             for ix in range(bbb.__getattribute__(var).shape[-1]):
                 ax.plot(dif[:, ix], color=colors[ix])
+    return new.pradimp
 
 
 
