@@ -217,7 +217,7 @@ class UeBalance():
     def pradpltwl(self):
         """ Calc radiation power to divertor and outer wall surfaces """
         from uedge import bbb, com
-        from numpy import zeros, arctan2, pi, cos, sum
+        from numpy import zeros, arctan2, pi, cos, sum, minimum
         from copy import deepcopy
         nj = com.nxomit 
         if bbb.isimpon > 2:
@@ -231,6 +231,8 @@ class UeBalance():
             'pwr_pfwallh', 'pwr_pfwallz']:
             self.__dict__[var] *= 0
 
+        thetapl1_arr = zeros((com.ny+2, com.nx+2, com.ny+2))
+        thetapl2_arr = zeros((com.ny+2, com.nx+2, com.ny+2))
         # TODO: remove nested loops and replace with indirect referencing
         for ip in range(2*com.nxpt):
             if (ip % 2) == 0: # Even numbers
@@ -238,80 +240,88 @@ class UeBalance():
             else:
                 ixv = com.ixrb[int( ip > 1) + int(ip > 3)]+1
             for iyv in range(1, com.ny+1):
-                for iy in range(1, com.ny+1):
-                    for ix in range(1,com.nx+1):
-                        thetaray1 = arctan2(
-                            com.zm[ixv+nj, iyv, 1] - com.zm[ix+nj, iy, 0],
-                            com.rm[ixv+nj, iyv, 1] - com.rm[ix+nj, iy, 0]
-                        )
-                        thetaray2 = arctan2(
-                            com.zm[ixv+nj, iyv, 3] - com.zm[ix+nj, iy, 0],
-                            com.rm[ixv+nj, iyv, 3] - com.rm[ix+nj, iy, 0]
-                        )
-                        dthgy = abs(thetaray1 - thetaray2)
-                        frth = min(dthgy, 2*pi - dthgy)/2/pi
-                        sxo = com.sx[ixv, iyv]/cos(com.angfx[ixv,iyv])
-                        self.pwr_pltz[iyv,ip] += prdu[ix,iy]*com.vol[ix,iy]*frth/sxo
-                        self.pwr_plth[iyv,ip] += ( (bbb.eeli[ix,iy] - bbb.ebind*bbb.ev) \
-                            *bbb.psor[ix,iy,0] + bbb.erlrc[ix,iy])*frth/sxo
+                thetapl1_arr[iyv, 1:-1, 1:-1] = arctan2( \
+                    com.zm[ixv+nj, iyv, 1] - com.zm[1:-1, 1:-1, 0],
+                    com.rm[ixv+nj, iyv, 1] - com.rm[1:-1, 1:-1, 0],
+                )
+                thetapl2_arr[iyv, 1:-1, 1:-1] = arctan2( \
+                    com.zm[ixv+nj, iyv, 3] - com.zm[1:-1, 1:-1, 0],
+                    com.rm[ixv+nj, iyv, 3] - com.rm[1:-1, 1:-1, 0],
+                )
+            dthgy_arr = abs(thetapl1_arr - thetapl2_arr)
+            frth = minimum(dthgy_arr, 2*pi - dthgy_arr)/2/pi
+            sxo = com.sx[ixv]/cos(com.angfx[ixv])
+            for iyv in range(1,com.ny+1):
+                self.pwr_pltz[iyv, ip] += sum(
+                    (prdu*com.vol*frth[iyv]/sxo[iyv])[nj:]
+                )
+                self.pwr_plth[iyv, ip] += sum(  
+                    ((
+                        (bbb.eeli - bbb.ebind*bbb.ev)*bbb.psor[:,:,0] \
+                        + bbb.erlrc
+                    )*frth[iyv]/sxo[iyv])[nj:]
+                )
             # Set corner values
             self.pwr_pltz[0,ip] = self.pwr_pltz[1,ip]
             self.pwr_pltz[com.ny+1,ip] = self.pwr_pltz[com.ny,ip]
             self.pwr_plth[0,ip] = self.pwr_plth[1,ip]
             self.pwr_plth[com.ny+1,ip] = self.pwr_plth[com.ny,ip]
+    
 
 
-        """ OUTER WALL """
-        iyv = com.ny + 1
+        thetapf1_arr = zeros((com.nx+2, com.nx+2, com.ny+2))
+        thetapf2_arr = zeros((com.nx+2, com.nx+2, com.ny+2))
+        thetaw1_arr = zeros((com.nx+2, com.nx+2, com.ny+2))
+        thetaw2_arr = zeros((com.nx+2, com.nx+2, com.ny+2))
         for ixv in range(1, com.nx+1):
-            for iy in range(1, com.ny+1):
-                for ix in range(1, com.nx+1):
-                    thetaray1 = arctan2(
-                        com.zm[ixv+nj, iyv, 1] - com.zm[ix+nj, iy, 0],
-                        com.rm[ixv+nj, iyv, 1] - com.rm[ix+nj, iy, 0],
-                    )
-                    thetaray2 = arctan2(
-                        com.zm[ixv+nj, iyv, 2] - com.zm[ix+nj, iy, 0],
-                        com.rm[ixv+nj, iyv, 2] - com.rm[ix+nj, iy, 0],
-                    )
-                    dthgz = abs(thetaray1 - thetaray2)
-                    frth = min(dthgz, 2*pi - dthgz)/2/pi
-                    self.pwr_wallz[ixv] += prdu[ix,iy]*com.vol[ix,iy]*frth/com.sy[ixv,iyv]
-                    self.pwr_wallh[ixv] += ( (bbb.eeli[ix,iy] - bbb.ebind*bbb.ev)*bbb.psor[ix,iy,0] \
-                        +bbb.erlrc[ix,iy])*frth/com.sy[ixv,iyv]
+            thetapf1_arr[ixv, 1:-1, 1:-1] = arctan2( \
+                com.zm[ixv+nj, 0, 1] - com.zm[1:-1, 1:-1, 0],
+                com.rm[ixv+nj, 0, 1] - com.rm[1:-1, 1:-1, 0],
+            )
+            thetapf2_arr[ixv, 1:-1, 1:-1] = arctan2( \
+                com.zm[ixv+nj, 0, 2] - com.zm[1:-1, 1:-1, 0],
+                com.rm[ixv+nj, 0, 2] - com.rm[1:-1, 1:-1, 0],
+            )
+            thetaw1_arr[ixv, 1:-1, 1:-1] = arctan2( \
+                com.zm[ixv+nj, -1, 1] - com.zm[1:-1, 1:-1, 0],
+                com.rm[ixv+nj, -1, 1] - com.rm[1:-1, 1:-1, 0],
+            )
+            thetaw2_arr[ixv, 1:-1, 1:-1] = arctan2( \
+                com.zm[ixv+nj, -1, 2] - com.zm[1:-1, 1:-1, 0],
+                com.rm[ixv+nj, -1, 2] - com.rm[1:-1, 1:-1, 0],
+            )
+        dthgz = abs(thetaw1_arr - thetaw2_arr)
+        dthgx = abs(thetapf1_arr - thetapf2_arr)
+        frthw = minimum(dthgz, 2*pi - dthgz)/2/pi
+        frthpf = minimum(dthgx, 2*pi - dthgx)/2/pi
+        for ixv in range(1, com.nx+2):
+            self.pwr_wallz[ixv] += sum(
+                (prdu*com.vol)*frthw[ixv]/com.sy[ixv,-1]
+            )
+            self.pwr_wallh[ixv] += sum( ( \
+                (bbb.eeli - bbb.ebind*bbb.ev)*bbb.psor[:,:,0] \
+                +bbb.erlrc)*frthw[ixv]/com.sy[ixv,-1])
+            self.pwr_pfwallz[ixv] += sum(
+                (prdu*com.vol)*frthpf[ixv]/com.sy[ixv,0]
+            )
+            self.pwr_pfwallh[ixv] += sum( ( \
+                (bbb.eeli - bbb.ebind*bbb.ev)*bbb.psor[:,:,0] \
+                +bbb.erlrc)*frthpf[ixv]/com.sy[ixv,0])
+
         self.pwr_wallz[0] = self.pwr_wallz[1]	# Because prad(0,) is not calculated
         self.pwr_wallz[com.nx+1] = self.pwr_wallz[com.nx]
         self.pwr_wallh[0] = self.pwr_wallh[1]
         self.pwr_wallh[com.nx+1] = self.pwr_wallh[com.nx]
-    
-
-        """ PFR WALL """
-        iyv = 0
         for ip in range(com.nxpt):
-            for ixv in range(1, com.nx+1):
-                for iy in range(1, com.ny+1):
-                    for ix in range(1, com.nx+1):
-                        thetaray1 = arctan2(
-                            com.zm[ixv+nj, iyv, 1] - com.zm[ix+nj,iy,0],
-                            com.rm[ixv+nj, iyv, 1] - com.rm[ix+nj,iy,0],
-                        )
-                        thetaray2 = arctan2(
-                            com.zm[ixv+nj, iyv, 2] - com.zm[ix+nj,iy,0],
-                            com.rm[ixv+nj, iyv, 2] - com.rm[ix+nj,iy,0],
-                        )
-                        dthgx = abs(thetaray1 - thetaray2)
-                        frth = min(dthgx, 2*pi - dthgx)/2/pi
-                        self.pwr_pfwallz[ixv,ip] += prdu[ix,iy]*com.vol[ix,iy]*frth/com.sy[ixv,iyv]
-                        self.pwr_pfwallh[ixv,ip] += (
-                            (bbb.eeli[ix,iy] - bbb.ebind*bbb.ev)*bbb.psor[ix,iy,0] \
-                            + bbb.erlrc[ix,iy])*frth/com.sy[ixv,iyv]
-                if ((ixv>com.ixpt1[ip]) and (ixv<com.ixpt2[ip]+1)):
-                    self.pwr_pfwallh[ixv,ip] = 0
-                    self.pwr_pfwallz[ixv,ip] = 0
-            self.pwr_pfwallz[0,ip] = self.pwr_pfwallz[1,ip]
-            self.pwr_pfwallz[com.nx+1,ip] = self.pwr_pfwallz[com.nx,ip]
-            self.pwr_pfwallh[0,ip] = self.pwr_pfwallh[1,ip]
-            self.pwr_pfwallh[com.nx+1,ip] = self.pwr_pfwallh[com.nx,ip]
+            ixc = slice(com.ixpt1[ip]+1, com.ixpt2[ip]+1)
+            self.pwr_pfwallh[ixc] = 0
+            self.pwr_pfwallz[ixc] = 0
+            self.pwr_pfwallh[com.ixlb[ip]] = self.pwr_pfwallh[com.ixlb[ip]+1]
+            self.pwr_pfwallh[com.ixrb[ip]+1] = self.pwr_pfwallh[com.ixrb[ip]]
+            self.pwr_pfwallz[com.ixlb[ip]] = self.pwr_pfwallz[com.ixlb[ip]+1]
+            self.pwr_pfwallz[com.ixrb[ip]+1] = self.pwr_pfwallz[com.ixrb[ip]]
+
+
 
     def platedist(self):
         from numpy import sum, cos, zeros, cumsum, concatenate
@@ -1415,7 +1425,7 @@ def checkbal():
         if dif > 1e-6:
             print(var, dif)
     
-    for var in ['pwr_plth', 'pwr_pltz', 'pwr_wallh', 'pwr_wallz', 'pwr_pfwallh', 'pwr_pfwallz' 
+    for var in ['pwr_plth', 'pwr_pltz', 'pwr_wallz', 'pwr_wallh', 'pwr_pfwallh', 'pwr_pfwallz' 
     ]:
         denom = bbb.__getattribute__(var)
         denom[denom==0] = 1e-100
@@ -1426,8 +1436,11 @@ def checkbal():
             f, ax = plt.subplots()
             colors = ['k', 'r', 'b', 'c', 'm', 'g']
             for ix in range(bbb.__getattribute__(var).shape[-1]):
-                ax.plot(dif[:, ix], color=colors[ix])
-    return new.pradimp
+                try:
+                    ax.plot(dif[:, ix], color=colors[ix])
+                except:
+                    ax.plot(dif, color=colors[ix])
+    return new.pwr_pfwallh
 
 
 
