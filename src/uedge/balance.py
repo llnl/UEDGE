@@ -6,21 +6,6 @@ class UeBalance():
     def __init__(self):
         from numpy import zeros, array
         from uedge import com
-        for var in [
-            'fetx', 'fety', 'engerr', 'pmloss', 'pmrada', 'pmradm', 'pmpot',
-            'peirad', 'pmomv', 'pradrc', 'pradiz', 'prdiss',
-            'pibirth', 'pbinde', 'pbindrc', 'pradzbind', 'pradff'
-        ]:
-            self.__dict__[var] = zeros((com.nx+2, com.ny+2))
-        for var in ['icxgas', 'iion', 'irecomb']:
-            self.__dict__[var] = zeros((com.nx+2, com.ny+2, com.ngsp))
-        self.pradimp = zeros((com.nx+2, com.ny+2, sum(com.nzsp)+1, sum(com.nzsp)))
-        self.pwr_plth = zeros((com.ny+2, 2*com.nxpt))
-        self.pwr_pltz = zeros((com.ny+2, 2*com.nxpt))
-        self.pwr_wallh = zeros((com.nx+2))
-        self.pwr_wallz = zeros((com.nx+2))
-        self.pwr_pfwallh = zeros((com.nx+2, com.nxpt))
-        self.pwr_pfwallz = zeros((com.nx+2, com.nxpt))
 
         yy = []
         y = list(range(com.ny+2))
@@ -40,12 +25,15 @@ class UeBalance():
         from copy import deepcopy
         from numpy import zeros, cos
 
-        for var in ['icxgas', 'iion', 'irecomb', 'pradimp',
+        for var in [
             'fetx', 'fety', 'engerr', 'pmloss', 'pmrada', 'pmradm', 'pmpot',
-            'peirad', 'pmomv', 'pradrc', 'pradiz', 'prdiss', 'pradzbind',
-            'pibirth', 'pbinde', 'pbindrc', 'pradzbind', 'pradff']:
-            self.__dict__[var] *= 0
-
+            'peirad', 'pmomv', 'pradrc', 'pradiz', 'prdiss',
+            'pibirth', 'pbinde', 'pbindrc', 'pradzbind', 'pradff'
+        ]:
+            self.__dict__[var] = zeros((com.nx+2, com.ny+2))
+        for var in ['icxgas', 'iion', 'irecomb']:
+            self.__dict__[var] = zeros((com.nx+2, com.ny+2, com.ngsp))
+        self.pradimp = zeros((com.nx+2, com.ny+2, sum(com.nzsp)+1, sum(com.nzsp)))
 
         if bbb.ishosor != 0:
             raise NotImplementedError("Option ishosor>0 not implemented")
@@ -220,16 +208,19 @@ class UeBalance():
         from numpy import zeros, arctan2, pi, cos, sum, minimum
         from copy import deepcopy
         nj = com.nxomit 
-        if bbb.isimpon > 2:
-            prdu = deepcopy(bbb.prad)
-        else:
-            prdu = zeros(bbb.ne.shape)
+#        if bbb.isimpon > 2:
+        prdu = deepcopy(bbb.prad)
+#        else:
+#            prdu = zeros(bbb.ne.shape)
         
 
         # Initialize arrays for subsequent runs
-        for var in ['pwr_pltz', 'pwr_plth', 'pwr_wallh', 'pwr_wallz', 
-            'pwr_pfwallh', 'pwr_pfwallz']:
-            self.__dict__[var] *= 0
+        self.pwr_plth = zeros((com.ny+2, 2*com.nxpt))
+        self.pwr_pltz = zeros((com.ny+2, 2*com.nxpt))
+        self.pwr_wallh = zeros((com.nx+2))
+        self.pwr_wallz = zeros((com.nx+2))
+        self.pwr_pfwallh = zeros((com.nx+2))
+        self.pwr_pfwallz = zeros((com.nx+2))
 
         thetapl1_arr = zeros((com.ny+2, com.nx+2, com.ny+2))
         thetapl2_arr = zeros((com.ny+2, com.nx+2, com.ny+2))
@@ -1377,8 +1368,8 @@ def checkbal():
     with open('old_balancee.txt', 'w') as f:
         with contextlib.redirect_stdout(f):
             new.balancee()
-    new.balancee_new()
     '''
+    new.balancee_new()
 
     bbb.engbal(1)
     bbb.pradpltwl()
@@ -1425,22 +1416,40 @@ def checkbal():
         if dif > 1e-6:
             print(var, dif)
     
+    colors = ['k', 'r', 'b', 'c', 'm', 'g']
     for var in ['pwr_plth', 'pwr_pltz', 'pwr_wallz', 'pwr_wallh', 'pwr_pfwallh', 'pwr_pfwallz' 
     ]:
-        denom = bbb.__getattribute__(var)
-        denom[denom==0] = 1e-100
-        dif = abs( (new.__dict__[var] - bbb.__getattribute__(var))/ denom)
-        dif[denom == 1e-100] = 0
-        if dif.max() > 1e-6:
-            print(var,  dif.max())
-            f, ax = plt.subplots()
-            colors = ['k', 'r', 'b', 'c', 'm', 'g']
-            for ix in range(bbb.__getattribute__(var).shape[-1]):
+        vardim = bbb.__getattribute__(var).shape
+        if len(vardim)>1:
+            for ix in range(vardim[-1]):
+                denom = bbb.__getattribute__(var)[:,ix]
+                denom[denom==0] = 1e-100
                 try:
-                    ax.plot(dif[:, ix], color=colors[ix])
+                    dif = abs( (new.__dict__[var][:,ix] - bbb.__getattribute__(var)[:,ix])/ denom)
                 except:
+                    dif = abs( (new.__dict__[var] - bbb.__getattribute__(var)[:,ix])/ denom)
+                if '_pf' in var:
+                    for nx in range(com.nxpt):
+                        nxsl = slice(com.ixpt1[nx]+1, com.ixpt2[nx]+1)
+                        dif[com.ixlb[nx]] = 0
+                        dif[com.ixrb[nx]+1]=0
+                        dif[nxsl] = 0
+                dif[denom == 1e-100] = 0
+                if dif.max() > 1e-6:
+                    f, ax = plt.subplots()
                     ax.plot(dif, color=colors[ix])
-    return new.pwr_pfwallh
+                    ax.set_title(f"{var}: {ix}")
+        else:
+            denom = bbb.__getattribute__(var)
+            denom[denom==0] = 1e-100
+            dif = abs( (new.__dict__[var] - bbb.__getattribute__(var))/ denom)
+            dif[denom == 1e-100] = 0
+            if dif.max() > 1e-6:
+                print(var,  dif.max())
+                f, ax = plt.subplots()
+                ax.plot(dif, color='k')
+                ax.set_title(var)
+    return new.pwr_pfwallz
 
 
 
