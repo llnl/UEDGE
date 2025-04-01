@@ -33,7 +33,7 @@ class UeBalance():
             self.__dict__[var] = zeros((com.nx+2, com.ny+2))
         for var in ['icxgas', 'iion', 'irecomb']:
             self.__dict__[var] = zeros((com.nx+2, com.ny+2, com.ngsp))
-        self.pradimp = zeros((com.nx+2, com.ny+2, sum(com.nzsp)+1, sum(com.nzsp)))
+        self.pradimp = zeros((com.nx+2, com.ny+2, sum(com.nzsp)+1, max(sum(com.nzsp),1)))
 
         if bbb.ishosor != 0:
             raise NotImplementedError("Option ishosor>0 not implemented")
@@ -442,9 +442,13 @@ class UeBalance():
             self.__dict__[var] = sum(self.__dict__[var]) 
 
         """ POWER INPUT FROM BIAS SUPPLY """
-        self.p_bias = -sum(bbb.fqx[com.nx,1:com.ny+1]*(\
-                    bbb.phi0r[1:com.ny+1] - bbb.phi0l[1:com.ny+1]
-        ))
+        # NOTE: Generalization to dnull by AH 25/04/01
+        self.p_bias = 0
+        for nx in range(com.nxpt):
+            self.p_bias -= sum(
+                bbb.fqx[com.ixrb[nx],1:com.ny+1]*(\
+                        bbb.phi0r[1:com.ny+1, nx] - bbb.phi0l[1:com.ny+1, nx]
+            ))
 
         """ TOTAL BIAS CURRENT """
         self.i_bias = sum(bbb.fqx[com.nx,1:com.ny+1])
@@ -753,13 +757,16 @@ class UeBalance():
             self.__dict__[var] = zeros((com.nx+2,com.nfsp))
 
         for var in['idivout', 'idivin']:
-            self.__dict__[var] = zeros((com.ny+2,com.nfsp))
+            self.__dict__[var] = zeros((com.ny+2,com.nfsp, com.nxpt))
            
         for var in ['igasout', 'igasin']:
-            self.__dict__[var] = zeros((com.ny+2,com.ngsp))
+            self.__dict__[var] = zeros((com.ny+2,com.ngsp, com.nxpt))
   
-        for var in ['igastot', 'igasdenom']:
+        for var in ['igastot', 'igasdenom', 'isephyd']:
             self.__dict__[var] = 0
+
+        for var in ['i_sat_outer', 'i_sat_inner']:
+            self.__dict__[var] = zeros((com.nxpt))
 
         try:
            fluxfacy = bbb.fluxfacy
@@ -771,34 +778,39 @@ class UeBalance():
         self.iwall += fluxfacy*bbb.fniy[:,com.ny]
         self.igaswall += fluxfacy*bbb.fngy[:,com.ny]
 
-        self.ipf[:com.ixpt1[0]+1] += fluxfacy*bbb.fniy[:com.ixpt1[0]+1,0]
-        self.igaspf[:com.ixpt1[0]+1] += fluxfacy*bbb.fngy[:com.ixpt1[0]+1,0]
-        self.ipf[com.ixpt2[0]+1:] += fluxfacy*bbb.fniy[com.ixpt2[0]+1:,0]
-        self.igaspf[com.ixpt2[0]+1:] += fluxfacy*bbb.fngy[com.ixpt2[0]+1:,0]
+        for ixp in range(com.nxpt):
+            self.ipf[:com.ixpt1[ixp]+1] += \
+                fluxfacy*bbb.fniy[:com.ixpt1[ixp]+1,0]
+            self.igaspf[:com.ixpt1[ixp]+1] += \
+                fluxfacy*bbb.fngy[:com.ixpt1[ixp]+1,0]
+            self.ipf[com.ixpt2[ixp]+1:] += \
+                fluxfacy*bbb.fniy[com.ixpt2[ixp]+1:,0]
+            self.igaspf[com.ixpt2[ixp]+1:] += \
+                fluxfacy*bbb.fngy[com.ixpt2[ixp]+1:,0]
 
-        self.igascr[max(com.ixpt1[0]+1,0):com.ixpt2[0]+1] = \
-            fluxfacy*bbb.fngy[max(com.ixpt1[0]+1,0):com.ixpt2[0]+1,0]
+            self.igascr[max(com.ixpt1[ixp]+1,0):com.ixpt2[ixp]+1] = \
+                fluxfacy*bbb.fngy[max(com.ixpt1[ixp]+1,0):com.ixpt2[ixp]+1,0]
+            self.icore[max(0,com.ixpt1[ixp]+1):com.ixpt2[ixp]+1] += \
+                fluxfacy*bbb.fniy[max(0,com.ixpt1[ixp]+1):com.ixpt2[ixp]+1,0]
+            self.isephyd = bbb.qe*sum(\
+                bbb.fniy[max(com.ixpt1[ixp]+1,0):com.ixpt2[ixp]+1,com.iysptrx,0])
 
-        """ ION SATURATION CURRENT """
-        self.i_sat_outer = bbb.qe*bbb.zi[0]\
-                            *sum(bbb.fnix[com.nx,1:com.ny+1,0])
-        self.i_sat_inner = bbb.qe*bbb.zi[0]\
-                            *sum(bbb.fnix[0,1:com.ny+1,0])
-
-
-
-        # ion current to divertor plate
-        self.idivout[1:-1] += bbb.fnix[com.nx,1:com.ny+1]
-        self.idivin[1:-1] += bbb.fnix[0,1:com.ny+1]
-        self.igasout[1:-1] += bbb.fngx[com.nx,1:com.ny+1]
-        self.igasin[1:-1] += bbb.fngx[0,1:com.ny+1]
-        if bbb.isupgon[1] == 0:
-             self.igasout[1:-1,0] = bbb.fnix[com.nx,1:com.ny+1,1]
-             self.igasin[1:-1,0] = bbb.fnix[0,1:com.ny+1,1]
+            """ ION SATURATION CURRENT """
+            for ixp in range(com.nxpt): 
+                self.i_sat_outer[ixp] += bbb.qe*bbb.zi[0]\
+                                    *sum(bbb.fnix[com.ixrb[ixp],1:com.ny+1,0])
+                self.i_sat_inner[ixp] += bbb.qe*bbb.zi[0]\
+                                    *sum(bbb.fnix[com.ixlb[ixp],1:com.ny+1,0])
+            # ion current to divertor plate
+            self.idivout[1:-1,:,ixp] += bbb.fnix[com.ixrb[ixp],1:com.ny+1]
+            self.idivin[1:-1,:,ixp] += bbb.fnix[com.ixlb[ixp],1:com.ny+1]
+            self.igasout[1:-1,:,ixp] += bbb.fngx[com.ixrb[ixp],1:com.ny+1]
+            self.igasin[1:-1,:,ixp] += bbb.fngx[com.ixlb[ixp],1:com.ny+1]
+            if bbb.isupgon[1] == 0:
+                 self.igasout[1:-1,0,ixp] = bbb.fnix[com.ixrb[ixp],1:com.ny+1,1]
+                 self.igasin[1:-1,0,ixp] = bbb.fnix[com.ixlb[ixp],1:com.ny+1,1]
 
         # ion current to the core
-        self.icore[max(0,com.ixpt1[0]+1):com.ixpt2[0]+1] += \
-                fluxfacy*bbb.fniy[max(0,com.ixpt1[0]+1):com.ixpt2[0]+1,0]
 
         for var in [
             'idivout', 'idivin', 'igasout', 'igasin', 'icore', 'iwall',
@@ -823,7 +835,6 @@ class UeBalance():
                 -sum(self.icxgas)) / self.igasdenom
 
         # particle outflow from separatrix
-        self.isephyd = bbb.qe*sum(bbb.fniy[max(com.ixpt1[0]+1,0):com.ixpt2[0]+1,com.iysptrx,0])
 
 
 
@@ -892,6 +903,7 @@ class UeBalance():
         print("\nPower [W] gained by electrons in 3-body recombination (via binding eng):")
         print("   {:.2e}".format(sum(self.pbindrc)))
         
+        print(self.pradimp.shape)
         if bbb.isimpon != 0:
            print("\nPower [W] lost via impurity radiation is:")
            id2=com.nhsp-1
@@ -978,8 +990,8 @@ class UeBalance():
 
         print("\nParticle Flow [Amps] incident on Divertor Plate is:")
 
-        idivin = sum(self.idivin, axis=(0))
-        idivout = sum(self.idivout, axis=(0))
+        idivin = sum(self.idivin, axis=(0,2))
+        idivout = sum(self.idivout, axis=(0,2))
         for id in range(com.nfsp):
            if bbb.zi[id] > 0:
               print("  for nuclear charge = {}; ion charge = {}".format(bbb.znucl[id], bbb.zi[id]))
@@ -987,8 +999,8 @@ class UeBalance():
          
         print("Neutral Flow [Amps] away from Divertor Plate is:")
 
-        igasin = sum(self.igasin, axis=(0))
-        igasout = sum(self.igasout, axis=(0))
+        igasin = sum(self.igasin, axis=(0,2))
+        igasout = sum(self.igasout, axis=(0,2))
         for id in range(com.ngsp):
            print("  for gas species = {}; igasin = {:.2e},  igasout = {:.2e}".format(id,  igasin[id], igasout[id]))
 
