@@ -1958,6 +1958,16 @@ fngyx(0:nx+1,0:ny+1,1:ngsp) _real [1/s]  +threadprivate #nonorthog gas rad. cur.
 fnixtot(0:nx+1,0:ny+1)      _real [1/s]  +threadprivate #total poloidal ion cur.
 fniytot(0:nx+1,0:ny+1)      _real [1/s]  +threadprivate #total radial ion cur.
 
+newfngrb(0:ny+1,1:ngsp)     _real [1/s]  +threadprivate #new rb boundcon
+newfngrbth(0:ny+1,1:ngsp)     _real [1/s]  +threadprivate #new rb boundcon
+newfnglb(0:ny+1,1:ngsp)     _real [1/s]  +threadprivate #new lb boundcon
+newfnglbth(0:ny+1,1:ngsp)     _real [1/s]  +threadprivate #new lb boundcon
+newfngw(0:nx+1,1:ngsp)     _real [1/s]  +threadprivate #new wall boundcon
+newfngwth(0:nx+1,1:ngsp)     _real [1/s]  +threadprivate #new wall boundcon
+newfngpf(0:nx+1,1:ngsp)     _real [1/s]  +threadprivate #new pf boundcon
+newfngpfth(0:nx+1,1:ngsp)     _real [1/s]  +threadprivate #new pf boundcon
+
+
 ***** Indexes:
 #Indices that help the calculation
 idxn(0:nx+1,0:ny+1,1:nisp)	_integer  # index of yl vector for ni(ix,iy)
