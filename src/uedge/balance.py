@@ -185,8 +185,9 @@ class UeBalance():
                            
     def calc_engerr(self, pwrin=1, redo=True):
         from uedge import bbb, com
+        from numpy import zeros
 
-        self.engerr *= 0
+        self.engerr = zeros((com.nx+2, com.ny+2))
         if redo:
             self.engbal()
 
