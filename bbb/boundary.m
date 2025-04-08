@@ -740,18 +740,24 @@ c ... Include gas BC from sputtering by ions
      .                                   fng_chem + sputflxpf(ix,igsp) ) / 
      .                                        (vyn*sy(ix,0)*n0g(igsp))
                if(matwalli(ix) .gt. 0) then
+                if ((ishymol .eq. 1) .and. (igsp .eq. 2)) then # Test for mollys
+                    if (isupgon(1) .eq. 1) then
+                        fniy_recy = 0.5*( fniy(ix,0,1) + fniy(ix,0,2) )
+                    else
+                        fniy_recy = 0.5*( fniy(ix,0,1) + fngy(ix,0,1) )
+                    endif
+                    if(isrefluxclip==1) fniy_recy=min(fniy_recy,0.)
+                    yldot(iv) = -nurlxg*( fngy(ix,0,igsp) + fniy_recy*
+     .                          recycwit(ix,igsp,1) - fngyi_use(ix,igsp) -
+     .                                        fngysi(ix,igsp) + fng_alb -
+     .                             fng_chem + sputflxpf(ix,igsp) ) / 
+     .                                        (vyn*n0g(igsp)*sy(ix,0))
+
+                else # no mollys
                  if (recycwit(ix,igsp,1) .gt. 0.) then
                    fniy_recy = fac2sp*fniy(ix,0,1)
                    if(isrefluxclip==1) fniy_recy=min(fniy_recy,0.)
                    if (igsp .gt. nhgsp) fniy_recy = zflux
-                   if (ishymol.eq.1 .and. igsp.eq.2) then # 2 atoms per molecule
-                     if (isupgon(1) .eq. 1) then
-		       fniy_recy = 0.5*( fniy(ix,0,1) + fniy(ix,0,2) )
-                     else
-                       fniy_recy = 0.5*( fniy(ix,0,1) + fngy(ix,0,1) )
-                     endif
-                     if(isrefluxclip==1) fniy_recy=min(fniy_recy,0.)
-                   endif
                    yldot(iv) = -nurlxg*( fngy(ix,0,igsp) + fniy_recy*
      .                          recycwit(ix,igsp,1) - fngyi_use(ix,igsp) -
      .                                        fngysi(ix,igsp) + fng_alb -
@@ -767,6 +773,7 @@ c ... Include gas BC from sputtering by ions
      .                     (1+recycwit(ix,igsp,1))*nharmave*vyn*
      .                            sy(ix,0) )/(vyn*n0g(igsp)*sy(ix,0))
                  endif 
+                endif # end if-test on mollys
                endif
                if(fngysi(ix,igsp)+fngyi_use(ix,igsp) .ne.0. 
      .                                            .and. matwalli(ix).eq.0.) 
@@ -1447,6 +1454,21 @@ c ... add ion sputtering to gas BC
      .                                             sputflxw(ix,igsp) )
      .                                      /(vyn*sy(ix,ny)*n0g(igsp))
             if(matwallo(ix) .gt. 0) then
+                if ((ishymol .eq. 1) .and. (igsp .eq. 2)) then # Mollys present
+                  if (isupgon(1) .eq. 1) then
+                    fniy_recy = 0.5*( fniy(ix,ny,1) + fniy(ix,ny,2) )
+                  else
+                    fniy_recy = 0.5*( fniy(ix,ny,1) + fngy(ix,ny,1) )
+                  endif
+                  if(isrefluxclip==1) fniy_recy=max(fniy_recy,0.)
+                yldot(iv) = nurlxg*( fngy(ix,ny,igsp) + fniy_recy*
+     .                        recycwot(ix,igsp) + fngyso(ix,igsp) +
+     .                        fngyo_use(ix,igsp) - fng_alb +
+     .                        fng_chem + sputflxw(ix,igsp) ) / 
+     .                             (vyn*n0g(igsp)*sy(ix,ny))
+            
+                else # No mollys present
+
               if (recycwot(ix,igsp) .gt. 0.) then
 ccc
 ccc   MER 01 Apr 2002: need to correct fniy below when drifts are included
@@ -1454,14 +1476,6 @@ ccc
                 fniy_recy = fac2sp*fniy(ix,ny,1)
                 if(isrefluxclip==1) fniy_recy=max(fniy_recy,0.)
                 if (igsp .gt. nhgsp) fniy_recy = zflux
-                if (ishymol.eq.1 .and. igsp.eq.2) then # 2 atoms per molecule
-                  if (isupgon(1) .eq. 1) then
-                    fniy_recy = 0.5*( fniy(ix,ny,1) + fniy(ix,ny,2) )
-                  else
-                    fniy_recy = 0.5*( fniy(ix,ny,1) + fngy(ix,ny,1) )
-                  endif
-                  if(isrefluxclip==1) fniy_recy=max(fniy_recy,0.)
-                endif
                 yldot(iv) = nurlxg*( fngy(ix,ny,igsp) + fniy_recy*
      .                        recycwot(ix,igsp) + fngyso(ix,igsp) +
      .                        fngyo_use(ix,igsp) - fng_alb +
@@ -1477,6 +1491,7 @@ ccc
      .                  (1+recycwot(ix,igsp))*nharmave*vyn*sy(ix,ny) )/
      .                                    (vyn*n0g(igsp)*sy(ix,ny))
               endif 
+             endif # end if-test on mollys
             endif
             if(fngyso(ix,igsp)+fngyo_use(ix,igsp).ne.0. 
      .                                          .and. matwallo(ix).eq.0) 
@@ -2846,9 +2861,7 @@ c       Next, the hydrogenic gas equations --
         do igsp = 1, nhgsp  # imp gas below
            if (isngonxy(ixt,iy,igsp) .eq. 1) then
              iv = idxg(ixt,iy,igsp)
-             if (recyrb(iy,igsp,jx) .gt. 0.) then  # normal recycling
-               flux_inc = fac2sp*fnix(ixt1,iy,1)
-               if (ishymol.eq.1 .and. igsp.eq.2) then
+             if (ishymol.eq.1 .and. igsp.eq.2) then # Mollys
                 ta0 = max(tg(ixt1,iy,1), temin*ev)
                 vxa = 0.25 * sqrt( 8*ta0/(pi*mg(1)) )
                 flxa= ismolcrm*(1-albrb(iy,1,jx))*ng(ixt1,iy,1)*vxa*sx(ixt1,iy)
@@ -2857,7 +2870,17 @@ c       Next, the hydrogenic gas equations --
                  else
                    flux_inc = 0.5*( fnix(ixt1,iy,1) + fngx(ixt1,iy,1) - flxa) 
                  endif
-               endif
+               t0 = max(tg(ixt1,iy,igsp), tgmin*ev)
+               vxn = 0.25 * sqrt( 8*t0/(pi*mg(igsp)) )
+               areapl = isoldalbarea*sx(ixt1,iy) + (1-isoldalbarea)*sxnp(ixt1,iy) 
+               yldot(iv) = nurlxg *  ( fngx(ixt1,iy,igsp) +
+     .                                          fngxrb_use(iy,igsp,jx) -
+     .               fngxsrb(iy,igsp,jx) + recyrb(iy,igsp,jx)*flux_inc -
+     .               (1-albrb(iy,igsp,jx))*ng(ixt1,iy,igsp)*vxn*areapl )
+     .                                  / (vpnorm*n0g(igsp)*sx(ixt1,iy))
+            else # Not mollys
+             if (recyrb(iy,igsp,jx) .gt. 0.) then  # normal recycling
+               flux_inc = fac2sp*fnix(ixt1,iy,1)
                t0 = max(tg(ixt1,iy,igsp), tgmin*ev)
                vxn = 0.25 * sqrt( 8*t0/(pi*mg(igsp)) )
                areapl = isoldalbarea*sx(ixt1,iy) + (1-isoldalbarea)*sxnp(ixt1,iy) 
@@ -2880,6 +2903,7 @@ c       Next, the hydrogenic gas equations --
                yldot(iv) = nurlxg*(ng(ixt1,iy,igsp) -
      .                                      ng(ixt,iy,igsp))/n0g(igsp)
              endif
+            endif # end if-test on mollys
              if (is1D_gbx.eq.1) yldot(iv) = nurlxg*(ng(ixt1,iy,igsp) -
      .                                      ng(ixt,iy,igsp))/n0g(igsp)
 c   Special coding for Maxim
