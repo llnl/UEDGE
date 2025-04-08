@@ -182,6 +182,16 @@ cc                  if (fng_chem .ne. 0.) yldot(iv1) = -nurlxg*(
 cc     .               fniy(ix,0,ifld) - fng_chem )/(vyn*sy(ix,0)*n0(ifld))
 c...   Caution: the wall source models assume gas species 1 only is inertial
                   if(matwalli(ix) .gt. 0) then
+                    if (ishymol .eq. 1) then # test if mollys
+                      yldot(iv1)=-nurlxg*( fniy(ix,0,ifld) + ( 
+     .                      min(recycwit(ix,1,1)*albedoi(ix,1)*fac2sp*fniy(ix,0,1), 0.)
+     .                      + (1-albedoi(ix,1)*recycwit(ix,1,1))*(
+     .                          nharmave*vyn*sy(ix,0) - min(fniy(ix,0,2), 0.)
+     .                      )
+     .                  ) - fngyi_use(ix,1) - fngysi(ix,1) 
+     .                  - fng_chem ) / (vyn*n0(ifld)*sy(ix,0))
+
+                    else
                     if (recycwit(ix,1,1) .gt. 0.) then  
                       fniy_recy = recycwit(ix,1,1)*fac2sp*fniy(ix,0,1)
                       if (isrefluxclip==1) fniy_recy=min(fniy_recy,0.)
@@ -196,7 +206,8 @@ c...   Caution: the wall source models assume gas species 1 only is inertial
                       yldot(iv1) = -nurlxg*( fniy(ix,0,ifld) +
      .                   (1+recycwit(ix,1,1))*nharmave*vyn*sy(ix,0) )/
      .                                             (vyn*n0(ifld)*sy(ix,0))
-                    endif                  
+                    endif         
+                    endif # end if-test for mollys         
                   endif
                   if(fngysi(ix,1)+fngyi_use(ix,1) .ne. 0. 
      .                                           .and. matwalli(ix)==0.)
@@ -1157,6 +1168,17 @@ c ---  typically hydrogen only, so DIVIMP chem sputt not used here
 
 c...   Caution: the wall source models assume gas species 1 only is inertial
                 if(matwallo(ix) .gt. 0) then
+                  if (ishymol .eq. 1) then # test if mollys 
+                    if(isrefluxclip==1) fniy_recy=max(fniy_recy,0.)
+                    yldot(iv1) = nurlxg*( fniy(ix,ny,ifld) + (
+     .                  max(recycwot(ix,1)*albedoo(ix,1)*fac2sp*fniy(ix,ny,1), 0.)
+     .                  - (1-albedoo(ix,1)*recycwot(ix,1))*(
+     .                          nharmave*vyn*sy(ix,ny) + max(fniy(ix,ny,2), 0.)
+     .                  )
+     .              ) + fngyo_use(ix,1)+fngyso(ix,1) + fng_chem ) / 
+     .              (vyn*n0(ifld)*sy(ix,ny))
+
+                  else # no mollys present
                   if (recycwot(ix,1) .gt. 0.) then
                     fniy_recy = recycwot(ix,1)*fac2sp*fniy(ix,ny,1)
                     if(isrefluxclip==1) fniy_recy=max(fniy_recy,0.)
@@ -1171,6 +1193,7 @@ c...   Caution: the wall source models assume gas species 1 only is inertial
      .                     (1+recycwot(ix,1))*ni(ix,ny+1,ifld)*vyn*sy(ix,ny) )/
      .                                            (vyn*n0(ifld)*sy(ix,ny))
                   endif 
+                  endif # end if-test for mollys
                 endif
                 if(fngyso(ix,1)+fngyo_use(ix,1).ne.0. .and. matwallo(ix)==0.)
      .                        yldot(iv1) = nurlxg*( fniy(ix,ny,ifld) + 
@@ -2518,6 +2541,20 @@ c     First, the density equations --
 	    if (isnionxy(ixt,iy,ifld)==1) then
               iv1 = idxn(ixt,iy,ifld)
               if (isupgon(1)==1 .and. zi(ifld)==0.0) then   ## neutrals
+                if (ishymol .eq. 1) then # if mollys
+                  t0 = max(tg(ixt1,iy,1),tgmin*ev) 
+                  vxn = 0.25 * sqrt( 8*t0/(pi*mi(ifld)) )
+                  areapl = isoldalbarea*sx(ixt1,iy) + (1-isoldalbarea)*sxnp(ixt1,iy)
+                  yldot(iv1) = nurlxg * (fnix(ixt1,iy,ifld) 
+     .              + (
+     .                  recyrb(iy,1,jx)*albrb(iy,1,jx)*fnix(ixt1,iy,1)
+     .                  - (1-albrb(iy,1,jx)*recyrb(iy,1,jx))*(
+     .                          ni(ixt1,iy,ifld)*vxn*areapl
+     .                          + max(fnix(ixt1,iy,1),0.)
+     .                  )
+     .              ) + fngxrb_use(iy,1,jx) - fngxsrb(iy,1,jx) 
+     .          ) / (vpnorm*n0(ifld)*sx(ixt1,iy))
+                else # no mollys
                 if (recyrb(iy,1,jx) .gt. 0.) then           # recycling
                   t0 = max(tg(ixt1,iy,1),tgmin*ev) 
                   vxn = 0.25 * sqrt( 8*t0/(pi*mi(ifld)) )
@@ -2541,6 +2578,7 @@ c     First, the density equations --
                   yldot(iv1) = nurlxn*(ni(ixt1,iy,ifld)-ni(ixt,iy,ifld))/
      .                                                          n0(ifld)
                 endif # end if-test on recyrb
+                endif # end if-test on mollys
               else                                     ## ions
                 if (isextrnp==0) then                  # zero x-gradient
                   yldot(iv1) = nurlxn*(ni(ixt1,iy,ifld)-ni(ixt,iy,ifld))/
