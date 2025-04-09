@@ -2173,9 +2173,9 @@ c       Do hydrogenic gas equations --
            if (isngonxy(ixt,iy,igsp) .eq. 1) then
              iv = idxg(ixt,iy,igsp)
                if (ishymol.eq.1 .and. igsp.eq.2) then # Check molys
+                 areapl = isoldalbarea*sx(ixt,iy) + (1-isoldalbarea)*sxnp(ixt,iy)
                  ta0 = max(tg(ixt1,iy,1), temin*ev)
                  vxa = 0.25 * sqrt( 8*ta0/(pi*mg(1)) )
-                 areapl = isoldalbarea*sx(ixt,iy) + (1-isoldalbarea)*sxnp(ixt,iy)
                  flxa = ng(ixt1,iy,1)*vxa*areapl
                  t0 = max(tg(ixt1,iy,igsp), tgmin*ev)
                  vxn = 0.25 * sqrt( 8*t0/(pi*mg(igsp)) )
@@ -2889,12 +2889,13 @@ c       Next, the hydrogenic gas equations --
            if (isngonxy(ixt,iy,igsp) .eq. 1) then
              iv = idxg(ixt,iy,igsp)
              if (ishymol.eq.1 .and. igsp.eq.2) then # Mollys
+                areapl = isoldalbarea*sx(ixt1,iy) + (1-isoldalbarea)*sxnp(ixt1,iy)
                 ta0 = max(tg(ixt1,iy,1), temin*ev)
                 vxa = 0.25 * sqrt( 8*ta0/(pi*mg(1)) )
-                flxa= (1-albrb(iy,1,jx))*ng(ixt1,iy,1)*vxa*sx(ixt1,iy)
+                flxa= (1-albrb(iy,1,jx))*ng(ixt1,iy,1)*vxa*areapl
                 ta0 = max(tg(ixt1,iy,igsp), temin*ev)
                 vxn = 0.25 * sqrt( 8*ta0/(pi*mg(igsp)) )
-                flxm= (1-albrb(iy,igsp,jx))*ng(ixt1,iy,igsp)*vxn*sx(ixt1,iy)
+                flxm= (1-albrb(iy,igsp,jx))*ng(ixt1,iy,igsp)*vxn*areapl
 
                 yldot(iv) = nurlxg *  ( fngx(ixt1,iy,igsp) + (
      .                  0.5*recyrb(iy,igsp,jx)*(1-recyrb(iy,1,jx))*albrb(iy,1,jx)*(
