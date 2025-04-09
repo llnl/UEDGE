@@ -755,8 +755,7 @@ c ... Include gas BC from sputtering by ions
                     yldot(iv) = -nurlxg*( fngy(ix,0,igsp) + (
      .                      0.5*recycwit(ix,igsp,1)*(1-recycwit(ix,1,1))
      .                      *albedoi(ix,1)*(
-     .                          min(fniy(ix,0,1)+fniy(ix,0,2),0.)
-     .                          + flxa*0
+     .                          min(fniy(ix,0,1)+fniy(ix,0,2)- flxa*tha2molfrac, 0.)
      .                      )
      .                      + (1-albedoi(ix,igsp))*flxm
      .                  ) - fngyi_use(ix,igsp) - fngysi(ix,igsp)
@@ -1491,8 +1490,7 @@ c ... add ion sputtering to gas BC
 
                 yldot(iv) = nurlxg*( fngy(ix,ny,igsp) + (
      .              0.5*recycwot(ix,igsp)*(1-recycwot(ix,1))*albedoo(ix,1)*(
-     .                  max(fniy(ix,ny,1)+fniy(ix,ny,2), 0.)
-     .                  + flxa*0
+     .                  max(fniy(ix,ny,1)+fniy(ix,ny,2)+ flxa*tha2molfrac, 0.)
      .              )
      .              - (1-albedoo(ix,igsp))*flxm
      .              ) + fngyso(ix,igsp) + fngyo_use(ix,igsp) 
@@ -2185,8 +2183,9 @@ c       Do hydrogenic gas equations --
 
                yldot(iv) = -nurlxg * ( fngx(ixt,iy,igsp) + (
      .                  0.5*recylb(iy,igsp,jx)*(1-recylb(iy,1,jx))*alblb(iy,1,jx)*(
-     .                      min(fnix(ixt,iy,1)+fnix(ixt,iy,2),0.)
-     .                      + flxa*0
+     .                      min(
+     .                          fnix(ixt,iy,1)+fnix(ixt,iy,2)- flxa*tha2molfrac, 0.
+     .                      )
      .                  ) + (1-alblb(iy,igsp,jx))*flxm
      .              ) - fngxslb(iy,igsp,jx) - fngxlb_use(iy,igsp,jx) 
      .          ) / (vpnorm*n0g(igsp)*sx(ixt,iy))
@@ -2899,8 +2898,7 @@ c       Next, the hydrogenic gas equations --
 
                 yldot(iv) = nurlxg *  ( fngx(ixt1,iy,igsp) + (
      .                  0.5*recyrb(iy,igsp,jx)*(1-recyrb(iy,1,jx))*albrb(iy,1,jx)*(
-     .                      max(fnix(ixt1,iy,1) + fnix(ixt1,iy,2), 0.)
-     .                      + flxa*0
+     .                      max(fnix(ixt1,iy,1) + fnix(ixt1,iy,2)+ flxa*tha2molfrac,0.)
      .                  )
      .                  - (1-albrb(iy,igsp,jx))*flxm
      .              )

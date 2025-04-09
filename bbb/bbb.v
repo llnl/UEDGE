@@ -655,6 +655,7 @@ wgasi(10)  real [m] /10*100./+input
                              #total cosine widths of inner wall gas sources
 wgaso(10)  real [m] /10*100./+input 
                              #total cosine widths of outer wall gas sources
+tha2molfrac  real   /0./     +input # fraction of thermal atoms converted into mols
 albdsi(10) real [m] /10*1.0/ +input #albedos at inner gas source locations
 albdso(10) real [m] /10*1.0/ +input #albedos at outer gas source locations
 chemsputi(10,10)   /100*0/   +input #chem sputt coeff, priv flux surface, flux(i)=
@@ -966,8 +967,8 @@ fngxrlim_use(0:ny+1,ngspmx)      _real [1/s] +input #user external right limiter
 adatlb(ngspmx,50,nxptmx) _real    /1./   +maybeinput #inner albdedo data for each ydati
 adatrb(ngspmx,50,nxptmx) _real    /1./   +maybeinput #outer albdedo data for each ydati
 recycw(ngspmx)   real     /ngspmx*1e-10/ +input #recycling coef. at side walls
-recypf_use(0:nx+1,ngspmx,nxptmx) _real   +maybeinput #priv flux recycling coef; user input
-recywall_use(0:nx+1,ngspmx)      _real   +maybeinput #outer wall recycling coef; user input
+recypf_use(0:nx+1,ngspmx,nxptmx) _real   +input #priv flux recycling coef; user input
+recywall_use(0:nx+1,ngspmx)      _real   +input #outer wall recycling coef; user input
 recycwit(0:nx+1,ngspmx,nxptmx)   _real   #tot recyc coeff on PF wall
 recycwot(0:nx+1,ngspmx)         _real    #tot recyc coeff on outer wall
 isrefluxclip     integer       /1/       +input #=1 prohib outward gas for inward ion
