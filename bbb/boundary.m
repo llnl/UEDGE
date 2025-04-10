@@ -184,10 +184,8 @@ c...   Caution: the wall source models assume gas species 1 only is inertial
                   if(matwalli(ix) .gt. 0) then
                     if (ishymol .eq. 1) then # test if mollys
                       yldot(iv1)=-nurlxg*( fniy(ix,0,ifld) + ( 
-     .                      min(recycwit(ix,1,1)*albedoi(ix,1)*fac2sp*fniy(ix,0,1), 0.)
-     .                      + (1-albedoi(ix,1)*recycwit(ix,1,1))*(
-     .                          nharmave*vyn*sy(ix,0) - min(fniy(ix,0,2), 0.)
-     .                      )
+     .                      min(recycwit(ix,1,1)*fac2sp*fniy(ix,0,1), 0.)
+     .                      + (1-albedoi(ix,1))*nharmave*vyn*sy(ix,0) 
      .                  ) - fngyi_use(ix,1) - fngysi(ix,1) 
      .                  - fng_chem ) / (vyn*n0(ifld)*sy(ix,0))
 
@@ -753,9 +751,9 @@ c ... Include gas BC from sputtering by ions
      .                       (ng(ix,0,1)+ng(ix,1,1))
                     flxa = nharmave*vyn*sy(ix,0)
                     yldot(iv) = -nurlxg*( fngy(ix,0,igsp) + (
-     .                      0.5*recycwit(ix,igsp,1)*(1-recycwit(ix,1,1)
-     .                      *albedoi(ix,1))*(
-     .                          min(fniy(ix,0,1)+fniy(ix,0,2)- flxa*tha2molfrac, 0.)
+     .                      0.5*recycwit(ix,igsp,1)*(1-recycwit(ix,1,1))*(
+     .                          min(fniy(ix,0,1)+fniy(ix,0,2),0.)
+     .                          - albedoi(ix,1)*flxa*tha2molfrac
      .                      )
      .                      + (1-albedoi(ix,igsp))*flxm
      .                  ) - fngyi_use(ix,igsp) - fngysi(ix,igsp)
@@ -1199,10 +1197,8 @@ c...   Caution: the wall source models assume gas species 1 only is inertial
                   if (ishymol .eq. 1) then # test if mollys 
                     if(isrefluxclip==1) fniy_recy=max(fniy_recy,0.)
                     yldot(iv1) = nurlxg*( fniy(ix,ny,ifld) + (
-     .                  max(recycwot(ix,1)*albedoo(ix,1)*fac2sp*fniy(ix,ny,1), 0.)
-     .                  - (1-albedoo(ix,1)*recycwot(ix,1))*(
-     .                          nharmave*vyn*sy(ix,ny) + max(fniy(ix,ny,2), 0.)
-     .                  )
+     .                  max(recycwot(ix,1)*fac2sp*fniy(ix,ny,1), 0.)
+     .                  - (1-albedoo(ix,1))*nharmave*vyn*sy(ix,ny)
      .              ) + fngyo_use(ix,1)+fngyso(ix,1) + fng_chem ) / 
      .              (vyn*n0(ifld)*sy(ix,ny))
 
@@ -1489,8 +1485,9 @@ c ... add ion sputtering to gas BC
                 flxa = nharmave*vyn*sy(ix,ny)
 
                 yldot(iv) = nurlxg*( fngy(ix,ny,igsp) + (
-     .              0.5*recycwot(ix,igsp)*(1-recycwot(ix,1)*albedoo(ix,1))*(
-     .                  max(fniy(ix,ny,1)+fniy(ix,ny,2)+ flxa*tha2molfrac, 0.)
+     .              0.5*recycwot(ix,igsp)*(1-recycwot(ix,1))*(
+     .                  max(fniy(ix,ny,1)+fniy(ix,ny,2), 0.)
+     .                  + albedoo(ix,1)*flxa*tha2molfrac
      .              )
      .              - (1-albedoo(ix,igsp))*flxm
      .              ) + fngyso(ix,igsp) + fngyo_use(ix,igsp) 
@@ -1895,8 +1892,8 @@ c     First, the density equations --
                   areapl = isoldalbarea*sx(ixt,iy) + (1-isoldalbarea)*sxnp(ixt,iy)
                   yldot(iv1) = -nurlxg *
      .              (fnix(ixt,iy,ifld) + (
-     .                      recylb(iy,1,jx)*alblb(iy,1,jx)*fnix(ixt,iy,1) 
-     .                      + (1-alblb(iy,1,jx)*recylb(iy,1,jx))*(ni(ixt1,iy,ifld)*vxn*areapl - min(fnix(ixt,iy,2),0.))
+     .                      recylb(iy,1,jx)*fnix(ixt,iy,1) 
+     .                      + (1-alblb(iy,1,jx))*ni(ixt1,iy,ifld)*vxn*areapl 
      .                  ) - fngxlb_use(iy,1,jx) - fngxslb(iy,1,jx) 
      .              ) / (vpnorm*n0(ifld)*sx(ixt,iy))
                 else
@@ -2182,10 +2179,9 @@ c       Do hydrogenic gas equations --
                  flxm = ng(ixt1,iy,igsp)*vxn*areapl
 
                yldot(iv) = -nurlxg * ( fngx(ixt,iy,igsp) + (
-     .                  0.5*recylb(iy,igsp,jx)*(1-recylb(iy,1,jx)*alblb(iy,1,jx))*(
-     .                      min(
-     .                          fnix(ixt,iy,1)+fnix(ixt,iy,2)- flxa*tha2molfrac, 0.
-     .                      )
+     .                  0.5*recylb(iy,igsp,jx)*(1-recylb(iy,1,jx))*(
+     .                      min(fnix(ixt,iy,1)+fnix(ixt,iy,2), 0.)
+     .                      - alblb(iy,1,jx)*flxa*tha2molfrac
      .                  ) + (1-alblb(iy,igsp,jx))*flxm
      .              ) - fngxslb(iy,igsp,jx) - fngxlb_use(iy,igsp,jx) 
      .          ) / (vpnorm*n0g(igsp)*sx(ixt,iy))
@@ -2589,10 +2585,9 @@ c     First, the density equations --
                   areapl = isoldalbarea*sx(ixt1,iy) + (1-isoldalbarea)*sxnp(ixt1,iy)
                   yldot(iv1) = nurlxg * (fnix(ixt1,iy,ifld) 
      .              + (
-     .                  recyrb(iy,1,jx)*albrb(iy,1,jx)*fnix(ixt1,iy,1)
-     .                  - (1-albrb(iy,1,jx)*recyrb(iy,1,jx))*(
+     .                  recyrb(iy,1,jx)*fnix(ixt1,iy,1)
+     .                  - (1-albrb(iy,1,jx))*(
      .                          ni(ixt1,iy,ifld)*vxn*areapl
-     .                          + max(fnix(ixt1,iy,1),0.)
      .                  )
      .              ) + fngxrb_use(iy,1,jx) - fngxsrb(iy,1,jx) 
      .          ) / (vpnorm*n0(ifld)*sx(ixt1,iy))
@@ -2898,12 +2893,12 @@ c       Next, the hydrogenic gas equations --
                 flxm= ng(ixt1,iy,igsp)*vxn*areapl
 
                 yldot(iv) = nurlxg *  ( fngx(ixt1,iy,igsp) + (
-     .                  0.5*recyrb(iy,igsp,jx)*(1-recyrb(iy,1,jx)*albrb(iy,1,jx))*(
-     .                      max(fnix(ixt1,iy,1) + fnix(ixt1,iy,2)+ flxa*tha2molfrac,0.)
+     .                  0.5*recyrb(iy,igsp,jx)*(1-recyrb(iy,1,jx))*(
+     .                      max(fnix(ixt1,iy,1) + fnix(ixt1,iy,2), 0.)
+     .                      + albrb(iy,1,jx)*flxa*tha2molfrac
      .                  )
      .                  - (1-albrb(iy,igsp,jx))*flxm
-     .              )
-     .              + fngxrb_use(iy,igsp,jx) - fngxsrb(iy,igsp,jx) 
+     .              ) + fngxrb_use(iy,igsp,jx) - fngxsrb(iy,igsp,jx) 
      .          ) / (vpnorm*n0g(igsp)*sx(ixt1,iy))
 
             else # No mollys included

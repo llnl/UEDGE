@@ -254,7 +254,7 @@ fdttixy(0:nx+1,0:ny+1)      _real /0./ +input #user:=1 for ti eqn off; =0 for eq
 fdtngxy(0:nx+1,0:ny+1,ngsp) _real /0./ +input #user:=1 for ng eqn off; =0 for eqn on
 fdttgxy(0:nx+1,0:ny+1,ngsp) _real /0./ +input #user:=1 for tg eqn off; =0 for eqn on
 fdtphixy(0:nx+1,0:ny+1)     _real /0./ +input #user:=1 for phi eqn off; =0 for eqn on
-ismolcrm                  real  /0/ +input # =1 uses CRUMPET rates, =0 uses old model
+ismolcrm                  real  /1./ +input # =1 uses CRUMPET rates, =0 uses old model
 isugfm1side               integer /0/   +input 
                                         #=0, use pol ave gas vels in par up eqn
                                         #=1, use 1-sided vals for domain decomp
@@ -655,7 +655,7 @@ wgasi(10)  real [m] /10*100./+input
                              #total cosine widths of inner wall gas sources
 wgaso(10)  real [m] /10*100./+input 
                              #total cosine widths of outer wall gas sources
-tha2molfrac  real   /0./     +input # fraction of thermal atoms converted into mols
+tha2molfrac  real   /1./     +input # fraction of thermal atoms converted into mols
 albdsi(10) real [m] /10*1.0/ +input #albedos at inner gas source locations
 albdso(10) real [m] /10*1.0/ +input #albedos at outer gas source locations
 chemsputi(10,10)   /100*0/   +input #chem sputt coeff, priv flux surface, flux(i)=
