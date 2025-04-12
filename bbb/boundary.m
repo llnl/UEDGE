@@ -2428,11 +2428,12 @@ c...  now do the gas and temperatures
                     flux_inc = 0.5*( 
      .                  fnix(nx,iy,1) 
      .                  + fnix(nx,iy,2)*isupgon(1) + fngx(nx,iy,1)*(1-isupgon(1))
-     .                  + ( 
-     .                      - (1-albrb(iy,1,jx)) 
-     .                      + (1-recyrb(iy,1,jx))*albrb(iy,1,jx)*tha2molfrac
-     .                  )*flxa
+     .                      + ( 
+     .                          - (1-albrb(iy,1,jx)) 
+     .                          + (1-recyrb(iy,1,jx))*albrb(iy,1,jx)*tha2molfrac
+     .                      )*flxa
      .              ) 
+
                   endif
                   yldot(iv) = -nurlxg * ( fngx(nx,iy,igsp) +
      .                                            fngxrb_use(iy,igsp,1) -
@@ -2800,7 +2801,7 @@ c       Next, the hydrogenic gas equations --
                if (ishymol.eq.1 .and. igsp.eq.2) then
                 ta0 = max(tg(ixt1,iy,1), temin*ev)
                 vxa = 0.25 * sqrt( 8*ta0/(pi*mg(1)) )
-                flxa= ismolcrm*(1-albrb(iy,1,jx))*ng(ixt1,iy,1)*vxa*areapl
+                flxa= ismolcrm*ng(ixt1,iy,1)*vxa*areapl
                 flux_inc = 0.5*( 
      .              fnix(ixt1,iy,1) 
      .              + fnix(ixt1,iy,2)*isupgon(1) + fngx(ixt1,iy,1)*(1-isupgon(1))
