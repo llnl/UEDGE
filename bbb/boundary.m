@@ -1747,13 +1747,13 @@ c...  now do the gas and temperatures
                     ta0 = engbsr * max(tg(1,iy,1),temin*ev)
                     vxa = 0.25 * sqrt( 8*ta0/(pi*mg(1)) )
                     flxa = ismolcrm*ng(1,iy,1)*vxa*sx(0,iy)
-                     flux_inc = 0.5*( 
-     .                  fnix(0,iy,1) 
+                    flux_inc = 0.5*( 
+     .                  fnix(ixt,iy,1) 
      .                  + fnix(0,iy,2)*isupgon(1) + fngx(0,iy,1)*(1-isupgon(1))
-     .                  - ( 
-     .                      - (1-alblb(iy,1,jx)) 
-     .                      + (1-recylb(iy,1,jx))*alblb(iy,1,jx)*tha2molfrac
-     .                  )*flxa
+     .                      - ( 
+     .                          - (1-alblb(iy,1,jx)) 
+     .                          + (1-recylb(iy,1,jx))*alblb(iy,1,jx)*tha2molfrac
+     .                      )*flxa
      .              ) 
                   endif
                   areapl = isoldalbarea*sx(0,iy) + (1-isoldalbarea)*sxnp(0,iy)
