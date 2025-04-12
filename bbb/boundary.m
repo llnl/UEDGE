@@ -739,7 +739,7 @@ c ... Include gas BC from sputtering by ions
                     t0 = max(tg(ix,0,1), tgmin*ev)
                     vyn = 0.25 * sqrt( 8*t0/(pi*mg(1)) )
                     flxa = nharmave*vyn*sy(ix,0)
-                    flux_inc = 0.5*( 
+                    fniy_recy = 0.5*( 
      .                  fniy(ix,0,1) 
      .                  + fniy(ix,0,2)*isupgon(1) + fngy(ix,0,1)*(1-isupgon(1))
      .                  - ( 
@@ -1445,7 +1445,7 @@ ccc
                     t0 = max(tg(ix,ny+1,1), tgmin*ev)
                     vyn = 0.25 * sqrt( 8*t0/(pi*mg(1)) )
                     flxa = nharmave*vyn*sy(ix,ny)
-                    flux_inc = 0.5*( 
+                    fniy_recy = 0.5*( 
      .                  fniy(ix,ny,1) 
      .                  + fniy(ix,ny,2)*isupgon(1) + fngy(ix,ny,1)*(1-isupgon(1))
      .                  + ( 
