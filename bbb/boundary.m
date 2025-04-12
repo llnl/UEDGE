@@ -2105,14 +2105,14 @@ c       Do hydrogenic gas equations --
                  ta0 = max(tg(ixt1,iy,1), temin*ev)
                  vxa = 0.25 * sqrt( 8*ta0/(pi*mg(1)) )
                  flxa = ismolcrm*ng(ixt1,iy,1)*vxa*areapl
-                 flux_inc = 0.5*( 
-     .              fnix(ixt,iy,1) 
-     .              + fnix(ixt,iy,2)*isupgon(1) + fngx(ixt,iy,1)*(1-isupgon(1))
-     .                  - ( 
-     .                      - (1-alblb(iy,1,jx))
-     .                      + (1-recylb(iy,1,jx))*alblb(iy,1,jx)*tha2molfrac
-     .                  )*flxa
-     .           ) 
+                    flux_inc = 0.5*( 
+     .                  fnix(ixt,iy,1) 
+     .                  + fnix(ixt,iy,2)*isupgon(1) + fngx(ixt,iy,1)*(1-isupgon(1))
+     .                      - ( 
+     .                          - (1-alblb(iy,1,jx)) 
+     .                          + (1-recylb(iy,1,jx))*alblb(iy,1,jx)*tha2molfrac
+     .                      )*flxa
+     .              ) 
                endif
                t0 = max(tg(ixt1,iy,igsp), tgmin*ev)
                vxn = 0.25 * sqrt( 8*t0/(pi*mg(igsp)) )
