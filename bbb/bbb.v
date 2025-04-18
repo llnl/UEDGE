@@ -655,7 +655,6 @@ wgasi(10)  real [m] /10*100./+input
                              #total cosine widths of inner wall gas sources
 wgaso(10)  real [m] /10*100./+input 
                              #total cosine widths of outer wall gas sources
-tha2molfrac  real   /1./     +input # fraction of thermal atoms converted into mols
 albdsi(10) real [m] /10*1.0/ +input #albedos at inner gas source locations
 albdso(10) real [m] /10*1.0/ +input #albedos at outer gas source locations
 chemsputi(10,10)   /100*0/   +input #chem sputt coeff, priv flux surface, flux(i)=

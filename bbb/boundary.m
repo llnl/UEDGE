@@ -72,7 +72,7 @@ c...  local scalars
      .     totfnex, totfnix, fqpsate, qpfac, aq, expkmx, arglgphi, faceel,
      .     faceel2, csfac, lambdae, uztotc, uztotc1, uztotc2,
      .     fngytotc, fmiytotc, sytotc, f_cgpld, vparn, sfeeytotc, sfeiytotc,
-     .     vxa, ta0, flxa, flxm
+     .     vxa, ta0
       integer ii,isphion2, nzsp_rt, jz
       real hflux, zflux
       integer ifld, ihyd, iimp, ix_fl_bc, ixc1, igsp2
@@ -186,10 +186,12 @@ c...   Caution: the wall source models assume gas species 1 only is inertial
                       fniy_recy = recycwit(ix,1,1)*fac2sp*fniy(ix,0,1)
                       if (isrefluxclip==1) fniy_recy=min(fniy_recy,0.)
                         if (ishymol .eq. 1) then
-                            flxm = (1-recycwit(ix,1,1))*albedoi(ix,1) 
-                      fng_alb = (1-albedoi(ix,1) + flxm)*nharmave*vyn*sy(ix,0)
                       yldot(iv1)=-nurlxg*( fniy(ix,0,ifld) + fniy_recy 
-     .                            - fngyi_use(ix,1) - fngysi(ix,1) + fng_alb 
+     .                            - fngyi_use(ix,1) - fngysi(ix,1) 
+     .                            + (
+     .                              1-albedoi(ix,1) 
+     .                              + (1-recycwit(ix,1,1))*albedoi(ix,1) 
+     .                          )*nharmave*vyn*sy(ix,0)
      .                            - (1-recycwit(ix,2,1))*fniy(ix,0,2)
      .                            - fng_chem ) / (vyn*n0(ifld)*sy(ix,0))
                         else
@@ -747,11 +749,10 @@ c ... Include gas BC from sputtering by ions
      .                    (ng(ix,0,1)+ng(ix,0,1))
                     t0 = max(tg(ix,0,1), tgmin*ev)
                     vyn = 0.25 * sqrt( 8*t0/(pi*mg(1)) )
-                    flxa = nharmave*vyn*sy(ix,0)
                     fniy_recy = 0.5*( 
      .                  fniy(ix,0,1) 
      .                  + fniy(ix,0,2)*isupgon(1) + fngy(ix,0,1)*(1-isupgon(1))
-     .                  - albedoi(ix,1)*flxa
+     .                  - albedoi(ix,1)*nharmave*vyn*sy(ix,0)
      .              )*(1-recycwit(ix,1,1)) 
                      if(isrefluxclip==1) fniy_recy=min(fniy_recy,0.)
                    endif
@@ -1175,10 +1176,11 @@ c...   Caution: the wall source models assume gas species 1 only is inertial
                     fniy_recy = recycwot(ix,1)*fac2sp*fniy(ix,ny,1)
                     if(isrefluxclip==1) fniy_recy=max(fniy_recy,0.)
                         if (ishymol .eq. 1) then
-                            flxm = (1-recycwot(ix,1))*albedoo(ix,1) 
-                      fng_alb = (1-albedoo(ix,1) + flxm)*nharmave*vyn*sy(ix,0)
                     yldot(iv1) = nurlxg*( fniy(ix,ny,ifld) + fniy_recy +
-     .                 fngyo_use(ix,1)+fngyso(ix,1)-fng_alb 
+     .                 fngyo_use(ix,1)+fngyso(ix,1) - (
+     .                          1-albedoo(ix,1) 
+     .                          + (1-recycwot(ix,1))*albedoo(ix,1) 
+     .                      )*nharmave*vyn*sy(ix,0)
      .                      - (1-recycwot(ix,1))*fniy(ix,ny,2)+ fng_chem ) / 
      .                                          (vyn*n0(ifld)*sy(ix,ny))
                         else
@@ -1459,11 +1461,10 @@ ccc
      .                    (ng(ix,ny,1)+ng(ix,ny+1,1))
                     t0 = max(tg(ix,ny+1,1), tgmin*ev)
                     vyn = 0.25 * sqrt( 8*t0/(pi*mg(1)) )
-                    flxa = nharmave*vyn*sy(ix,ny)
                     fniy_recy = 0.5*( 
      .                  fniy(ix,ny,1) 
      .                  + fniy(ix,ny,2)*isupgon(1) + fngy(ix,ny,1)*(1-isupgon(1))
-     .                  + albedoo(ix,1)*flxa
+     .                  + albedoo(ix,1)*nharmave*vyn*sy(ix,ny)
      .              )*(1-recycwot(ix,1)) 
                   if(isrefluxclip==1) fniy_recy=max(fniy_recy,0.)
                 endif
@@ -1758,11 +1759,10 @@ c...  now do the gas and temperatures
                   if (ishymol.eq.1 .and. igsp.eq.2) then
                     ta0 = engbsr * max(tg(1,iy,1),temin*ev)
                     vxa = 0.25 * sqrt( 8*ta0/(pi*mg(1)) )
-                    flxa = ismolcrm*ng(1,iy,1)*vxa*sx(0,iy)
                     flux_inc = 0.5*( 
      .                  fnix(ixt,iy,1) 
      .                  + fnix(0,iy,2)*isupgon(1) + fngx(0,iy,1)*(1-isupgon(1))
-     .                      - alblb(iy,1,jx)*flxa
+     .                      - alblb(iy,1,jx)*ng(1,iy,1)*vxa*sx(0,iy)
      .              )*(1-recylb(iy,1,1)) 
                   endif
                   areapl = isoldalbarea*sx(0,iy) + (1-isoldalbarea)*sxnp(0,iy)
@@ -1841,18 +1841,18 @@ c     First, the density equations --
                   vxn = 0.25 * sqrt( 8*t0/(pi*mi(ifld)) )
                   areapl = isoldalbarea*sx(ixt,iy) + (1-isoldalbarea)*sxnp(ixt,iy)
                   if (ishymol .eq. 1) then
-                    flxm = (1-recylb(iy,1,jx))*alblb(iy,1,jx) 
                   yldot(iv1) = -nurlxg *
      .             (fnix(ixt,iy,ifld) + recylb(iy,1,jx)*fnix(ixt,iy,1) 
      .              - fngxlb_use(iy,1,jx) - (1-recylb(iy,1,jx))*fnix(ixt,iy,2)
-     .              + (1-alblb(iy,1,jx) + flxm)*ni(ixt1,iy,ifld)*vxn*areapl -
+     .              + (1-alblb(iy,1,jx) 
+     .                  + (1-recylb(iy,1,jx))*alblb(iy,1,jx) 
+     .                  )*ni(ixt1,iy,ifld)*vxn*areapl -
      .                 fngxslb(iy,1,jx) ) / (vpnorm*n0(ifld)*sx(ixt,iy))
                   else
-                    flxm = 0
                   yldot(iv1) = -nurlxg *
      .             (fnix(ixt,iy,ifld) + recylb(iy,1,jx)*fnix(ixt,iy,1) -
      .                                               fngxlb_use(iy,1,jx) +
-     .              (1-alblb(iy,1,jx) + flxm)*ni(ixt1,iy,ifld)*vxn*areapl -
+     .              (1-alblb(iy,1,jx))*ni(ixt1,iy,ifld)*vxn*areapl -
      .                 fngxslb(iy,1,jx) ) / (vpnorm*n0(ifld)*sx(ixt,iy))
                   endif
                 elseif (recylb(iy,1,jx) <=  0. .and. 
@@ -2123,11 +2123,10 @@ c       Do hydrogenic gas equations --
                if (ishymol.eq.1 .and. igsp.eq.2) then
                  ta0 = max(tg(ixt1,iy,1), temin*ev)
                  vxa = 0.25 * sqrt( 8*ta0/(pi*mg(1)) )
-                 flxa = ismolcrm*ng(ixt1,iy,1)*vxa*areapl
                     flux_inc = 0.5*( 
      .                  fnix(ixt,iy,1) 
      .                  + fnix(ixt,iy,2)*isupgon(1) + fngx(ixt,iy,1)*(1-isupgon(1))
-     .                      - alblb(iy,1,jx)*flxa
+     .                      - alblb(iy,1,jx)*ng(ixt1,iy,1)*vxa*areapl
      .              )*(1-recylb(iy,1,jx)) 
                endif
                t0 = max(tg(ixt1,iy,igsp), tgmin*ev)
@@ -2440,11 +2439,10 @@ c...  now do the gas and temperatures
                   if (ishymol.eq.1 .and. igsp.eq.2) then
                     ta0 = engbsr * max(tg(nx,iy,1),temin*ev)
                     vxa = 0.25 * sqrt( 8*ta0/(pi*mg(1)) )
-                    flxa= ismolcrm*ng(nx,iy,1)*vxa*sx(nx,iy)
                     flux_inc = 0.5*( 
      .                  fnix(nx,iy,1) 
      .                  + fnix(nx,iy,2)*isupgon(1) + fngx(nx,iy,1)*(1-isupgon(1))
-     .                      + albrb(iy,1,1)*flxa
+     .                      + albrb(iy,1,1)*ng(nx,iy,1)*vxa*sx(nx,iy)
      .              )*(1-recyrb(iy,1,1)) 
 
                   endif
@@ -2523,18 +2521,17 @@ c     First, the density equations --
                   vxn = 0.25 * sqrt( 8*t0/(pi*mi(ifld)) )
                   areapl = isoldalbarea*sx(ixt1,iy) + (1-isoldalbarea)*sxnp(ixt1,iy)
                   if (ishymol .eq. 1) then
-                    flxm = (1-recyrb(iy,1,jx))*albrb(iy,1,jx) 
                   yldot(iv1) = nurlxg *
      .               (fnix(ixt1,iy,ifld) + recyrb(iy,1,jx)*fnix(ixt1,iy,1) 
      .                  + fngxrb_use(iy,1,jx) - (1-recyrb(iy,1,jx))*fnix(ixt1,iy,2)
-     .                - (1-albrb(iy,1,jx) + flxm)*ni(ixt1,iy,ifld)*vxn*areapl
+     .                - (1-albrb(iy,1,jx) + (1-recyrb(iy,1,jx))*albrb(iy,1,jx) )
+     .                *ni(ixt1,iy,ifld)*vxn*areapl
      .                - fngxsrb(iy,1,jx) ) / (vpnorm*n0(ifld)*sx(ixt1,iy))
                   else
-                    flxm = 0
                   yldot(iv1) = nurlxg *
      .               (fnix(ixt1,iy,ifld) + recyrb(iy,1,jx)*fnix(ixt1,iy,1) +
      .                                      fngxrb_use(iy,1,jx)  -
-     .                (1-albrb(iy,1,jx) + flxm)*ni(ixt1,iy,ifld)*vxn*areapl
+     .                (1-albrb(iy,1,jx))*ni(ixt1,iy,ifld)*vxn*areapl
      .                - fngxsrb(iy,1,jx) ) / (vpnorm*n0(ifld)*sx(ixt1,iy))
                   endif
                   
@@ -2825,11 +2822,10 @@ c       Next, the hydrogenic gas equations --
                if (ishymol.eq.1 .and. igsp.eq.2) then
                 ta0 = max(tg(ixt1,iy,1), temin*ev)
                 vxa = 0.25 * sqrt( 8*ta0/(pi*mg(1)) )
-                flxa= ng(ixt1,iy,1)*vxa*areapl
                 flux_inc = 0.5*( 
      .              fnix(ixt1,iy,1) 
      .              + fnix(ixt1,iy,2)*isupgon(1) + fngx(ixt1,iy,1)*(1-isupgon(1))
-     .                  + albrb(iy,1,jx)*flxa
+     .                  + albrb(iy,1,jx)*ng(ixt1,iy,1)*vxa*areapl
      .          )*(1-recyrb(iy,1,jx)) 
                endif
                t0 = max(tg(ixt1,iy,igsp), tgmin*ev)
