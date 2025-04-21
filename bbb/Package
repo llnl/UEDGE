@@ -5,7 +5,7 @@ VDF = bbb.v
 
 NVDF = ../com/com.v
 
-SM = boundary.m convert.m geometry.m griddubl.m \
+SM = boundary.m convert.m geometry.m griddubl.m pandf.m \
      oderhs.m odesetup.m odesolve.m potencur.m turbulence.m \
      ext_neutrals.m
 
