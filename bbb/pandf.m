@@ -195,6 +195,7 @@ ccc      save
      .                                (gx(ix,iy)+gx(ixp1(ix,iy),iy))
       cutlo3 = cutlo**0.3
 
+c   TODO: Move checks to initialization to avoid checking every loop
 c  Check array sizes
       if (ngsp > nigmx .or. nisp > nigmx) then
          call xerrab("***PANDF in oderhs.m: increase nigmx, recompile")
@@ -660,14 +661,14 @@ c ... Calculate collis. factors eta1 and rtaue for the simple Braginski model
 
 *  -- loop over species number --
 
-      do 100 ifld = 1, nfsp
+      do ifld = 1, nfsp
 c --- If this is the neutral species (zi(ifld).eq.0)) we dont want velocities
         if(zi(ifld) > 1.e-10) then  # if not, skip to end of 100 loop
          qion = zi(ifld)*qe
-         do 18 iy = j1, j5
+         do iy = j1, j5
             iyp1 = min(iy+1,ny+1)
             iym1 = max(iy-1,0)
-            do 17 ix = i1, i6
+            do ix = i1, i6
               ix3 = ixm1(ix,iy)
               ix4 = ixm1(ix,iy+1)
               temp1 = 
@@ -754,8 +755,8 @@ c ...   Note that the density grad. term for vydd added below
            endif
 
               diffusivwrk(ix,iy)=fcdif*difni(ifld)+dif_use(ix,iy,ifld)
-  17       continue
-  18     continue
+          end do
+        end do
 
 c
 c ... Compute diffusive part of radial velocity.
@@ -812,8 +813,8 @@ c ... Compute radial vel v_grad_P eng eqn terms;cfydd+cfybf=1 or 0
             enddo  #loop over iy
          enddo     #loop over ix
 
-	 do 20 iy = j1, j6
-	    do 19 ix = i1, i6
+	    do iy = j1, j6
+	      do ix = i1, i6
 	      iy1 = max(0,iy-1)            # does iy=0 properly
               iy2 = min(ny+1,iy+1) # use ex*fqx since phi(0,) may be large 
 	      ix2 = ixp1(ix,iy)
@@ -953,15 +954,14 @@ c             non-physical interface between upper target plates for dnull
             endif
          endif
 
- 19        continue
- 20     continue
-
-         do 21 ix = i1, i6
+         end do
+        end do
+         do ix = i1, i6
             vy(ix,ny+1,ifld) = 0.0   
- 21      continue
+         end do
         else    # test on zi > 1.e-10 to skip whole loop
         endif
-  100 continue  # Giant loop over ifld (species)
+        end do  # Giant loop over ifld (species)
 
 c ... Save values returned by Hirshman mombal for Jacobian calc. to
 c ... minimize calls - restore the "m" or ix-1 values at the end of pandf
@@ -1219,14 +1219,14 @@ ccc      if(isphion+isphiofft .eq. 1)  call calc_currents
 ************************************************************************
 *     Calculate the electron velocities, vex, upe, ve2, vey
 ************************************************************************
-      do 25 iy = j1, j6
-	 do 24 ix = i1, i6
+       do iy = j1, j6
+	    do ix = i1, i6
 	    vex(ix,iy) = 0.
 	    vey(ix,iy) = 0.
-   24    continue
-   25 continue
+        end do
+        end do
 
-      if (isimpon.eq.5) goto 29    # have upe from mombal
+      if (isimpon.ne.5) then    # have upe from mombal
 
       do iy = j1, j6    #iys1, iyf6
          do ix = i1, i6
@@ -1234,7 +1234,7 @@ ccc      if(isphion+isphiofft .eq. 1)  call calc_currents
          enddo
       enddo
 
-      do 27 ifld = 1, nfsp
+      do ifld = 1, nfsp
          do iy = j1, j6    #iys1, iyf6
 	    do ix = i1, i6
                ix1 = ixp1(ix,iy)
@@ -1242,7 +1242,7 @@ ccc      if(isphion+isphiofft .eq. 1)  call calc_currents
      .                      ( ni(ix,iy,ifld)+ni(ix1,iy,ifld) )
             enddo
          enddo
-   27 continue
+        end do
       afqp = 1.
       if (isimpon.eq.6 .or. isimpon.eq.7) afqp = fupe_cur  #allows gradual fix for old cases
       do iy = j1, j6    #iys1, iyf6
@@ -1254,10 +1254,10 @@ ccc      if(isphion+isphiofft .eq. 1)  call calc_currents
          enddo
       enddo
 
-  29  continue
+      end if
 
-      do 731 iy = j1, j6   # ExB same all species;if cf2dd=1, no imp yet
-	 do 730 ix = i1, i6
+      do iy = j1, j6   # ExB same all species;if cf2dd=1, no imp yet
+	    do ix = i1, i6
             ix1 = ixp1(ix,iy)
             vex(ix,iy) = upe(ix,iy)*rrv(ix,iy) + 
      .                   (cf2ef*v2ce(ix,iy,1) + cf2bf*ve2cb(ix,iy) + 
@@ -1265,24 +1265,24 @@ ccc      if(isphion+isphiofft .eq. 1)  call calc_currents
      .                           0.5*(rbfbt(ix,iy) + rbfbt(ix1,iy)) -
      .                                               vytan(ix,iy,1) 
      
-  730    continue
-  731 continue
+        end do
+       end do
 
-      do 734 ifld = 1, nfsp
-	 do 733 iy = j1, j5
-	    do 732 ix = i1, i6   # grad_B will be ok as next fqy is subtr.
+      do ifld = 1, nfsp
+	 do iy = j1, j5
+	    do  ix = i1, i6   # grad_B will be ok as next fqy is subtr.
 	       vey(ix,iy) = vey(ix,iy) + vy(ix,iy,ifld)*zi(ifld)*0.5*
      .                      ( niy0(ix,iy,ifld)+niy1(ix,iy,ifld) )
-  732       continue
-  733    continue
-  734 continue
+          end do
+         end do
+        end do
 
-      do 36 iy = j1, j5
-	 do 35 ix = i1, i6
-	    vey(ix,iy) = (vey(ix,iy)-cfjve*fqy(ix,iy)/(sy(ix,iy)*qe))/
+        do iy = j1, j5
+	     do ix = i1, i6
+	      vey(ix,iy) = (vey(ix,iy)-cfjve*fqy(ix,iy)/(sy(ix,iy)*qe))/
      .                    (0.5*( ney0(ix,iy)+ney1(ix,iy) ))
-   35    continue
-   36 continue
+         end do
+        end do
 	 
 c ... if isnewpot=0, vey(,0) needs to be redone since fqy(,0)=0
       if (isnewpot==1) then
@@ -1308,8 +1308,8 @@ c ... If isybdrywd = 1, make vey diffusive, just like vy
 *  Coefficients for the source terms.
 *  ---------------------------------------------------------------------
 
-      do 702 iy = j2, j5
-         do 701 ix = i2, i5
+      do iy = j2, j5
+         do ix = i2, i5
             do ifld = 1, nfsp
                snic(ix,iy,ifld) = 0.0
                sniv(ix,iy,ifld) = 0.0
@@ -1327,8 +1327,8 @@ c ... If isybdrywd = 1, make vey diffusive, just like vy
             seid(ix,iy) = 0.0
             seidh(ix,iy) = 0.0
 	    psorbgz(ix,iy) = 0.    # diagnostic only
-  701    continue
-  702 continue
+         end do
+        end do
 
 ************************************************************************
 *  -- steady sources
@@ -1585,8 +1585,8 @@ c     psorxr = -n_z[ne K^r_z+ng K^cx_z]              # cx/r loss from z to z-1
 c              +n_(z+1)[ne K^r_(z+1)+ng K^cx_(z+1)]  # cx/r gain to z from z+1
 
         if (isimpon .ge. 5 .and. nzspt .gt. 0) then
-          do 604 iy = iys1, iyf6
-             do 603 ix = ixs1, ixf6
+          do iy = iys1, iyf6
+             do ix = ixs1, ixf6
 
                   if (istimingon .eq. 1) tsimp = tick()
                   nevol = ne(ix,iy) * vol(ix,iy)
@@ -1792,8 +1792,8 @@ c   contributions just calculated for multispecies
                  psorxr(ix,iy,iigsp)= -psorxr(ix,iy,1)
               endif
 c
-  603        continue
-  604     continue
+            end do
+           end do
         endif            # end of if (isimpon .ge. 5 .and. nzspt .gt. 0)
 
 c ... Add volume particle loss terms for quasi 1-D radial model
@@ -1905,8 +1905,8 @@ c *** Now do the gas
 *-----------------------------------------------------------------------
 
       if (ifixsrc .ne. 0) then
-         do 920 iy = j2, j5
-            do 910 ix = i2, i5
+         do iy = j2, j5
+            do ix = i2, i5
                snic(ix,iy,1) = snic(ix,iy,1) + vol(ix,iy) * a1n *
      .                          exp(-b1n*(xcs(ix)-xxsrc)**2) *
      .                          exp(-c1n*(yyc(iy)-yysrc)**2)
@@ -1916,8 +1916,8 @@ c *** Now do the gas
                seec(ix,iy) = seec(ix,iy) + vol(ix,iy) * a1e * ev *
      .                          exp(-b1e*(xcs(ix)-xxsrc)**2) *
      .                          exp(-c1e*(yyc(iy)-yysrc)**2)
- 910        continue
- 920     continue
+            end do
+        end do
       endif
 
 
@@ -2009,14 +2009,14 @@ c...  Force fluxes and gradients on cuts to be zero for half-space problems
 
 *  -- Now loop over all ion species for seec, seic, and smoc --
 
-      do 101 ifld = 1, nusp  #not nfsp; up only for ifld<=nusp
+      do ifld = 1, nusp  #not nfsp; up only for ifld<=nusp
 * ------ *
         if(zi(ifld) > 1.e-20) then  #only ions here; atoms follow
 * ------ *
 *     -- coupling in the x-direction --
 *     -- (note sign change in pondomfpari_use term starting 031722)
-           do 31 iy = j2, j5
-             do 30 ix = i2, i5
+           do iy = j2, j5
+             do ix = i2, i5
                ix1 = ixm1(ix,iy)
                ix2 = ixp1(ix,iy)
                tv = gpix(ix ,iy,ifld)/gxf(ix,iy)
@@ -2045,12 +2045,12 @@ c...  Add friction part of Q_e here
                seec(ix,iy) = seec(ix,iy) - zi(ifld)**2*ni(ix,iy,ifld)*
      .                                        tv*vol(ix,iy)/nz2(ix,iy)
                
-   30        continue
-   31      continue
+            end do
+        end do
 
 *     -- coupling in the x & y-directions --
-           do 34 iy = j2, j5
-            do 33 ix = i2, i5
+           do iy = j2, j5
+            do ix = i2, i5
              if (isgpye == 0) then
                ix1 = ixm1(ix,iy)
                ix2 = ixp1(ix,iy)
@@ -2080,11 +2080,11 @@ c...  Add friction part of Q_e here
              seec(ix,iy) = seec(ix,iy) - fluxfacy*t1 * vol(ix,iy)
              seic(ix,iy) = seic(ix,iy) + fluxfacy*cfvgpy(ifld)*t2*
      .                                                     vol(ix,iy)
-   33       continue
-   34      continue
+            end do
+        end do
 
         endif  #test on zi(ifld) > 0, so only ion terms
-  101 continue  #ifld loop over ion species
+        end do  #ifld loop over ion species
 
 c ... Now include seic contribution from hydrogen atoms if isupgon=1
 c ... Then "ion" species 2 (redundant as gas species 1) is hydr atom
@@ -2129,7 +2129,7 @@ c ... Then "ion" species 2 (redundant as gas species 1) is hydr atom
 
 * -- loop over species number --
 
-      do 102 ifld = 1, nfsp
+      do ifld = 1, nfsp
 
 c
 c     neutral viscosity for isupgon=1
@@ -2137,9 +2137,9 @@ c
 c  Logic here is specialized; only ifld=2 (igsp=1) has viscosity calc.
 c  If more neutral species have full parallel mom eqn, need to redo loops
          if(isupgon(1) .eq. 1 .and. zi(ifld) .eq. 0)then
-            do 936 iy = j1,j6
+            do iy = j1,j6
                iyp1 = min(iy+1,ny+1)
-               do 937 ix = i1,i6
+               do ix = i1,i6
 c
                   ix1 = ixm1(ix,iy)
                   vtn = sqrt(max(tg(ix,iy,1),tgmin*ev)/mi(ifld))
@@ -2218,29 +2218,29 @@ c    Now do y-direction; use ni on up y-face
      .               (1 + (abs(qsh/(qfl+cutlo))**flgamvg))**(1./flgamvg)
      .               + cfanomvisyg*travis(ifld)*nmxface
 c
- 937           continue
- 936        continue
+            end do
+        end do
          endif
 c
 c
        if(zi(ifld) > 1.e-20) then
-         do 39 iy = j1, j6
-            do 38 ix = i1, i6
+         do iy = j1, j6
+            do ix = i1, i6
                w(ix,iy) = 0.0e0
- 38         continue
- 39      continue
+            end do
+        end do
 
-         do 42 jfld = 1, nisp
+         do jfld = 1, nisp
             tv = zi(jfld)**2 / sqrt((mi(ifld)+mi(jfld))/(2*mp))
-            do 41 iy = j1, j6
-               do 40 ix = i1, i6
+            do iy = j1, j6
+               do ix = i1, i6
                   w(ix,iy) = w(ix,iy) + tv*ni(ix,iy,jfld)
-   40          continue
-   41       continue
-   42    continue
+            end do
+          end do
+        end do
 
-         do 44 iy = j1, j6
-            do 43 ix = i1, i6
+         do iy = j1, j6
+            do ix = i1, i6
 	       ctaui(ix,iy,ifld) = 2.1e13/(loglambda(ix,iy)*zi(ifld)**2) # mass fac?
                tv2 = ctaui(ix,iy,ifld)/(ev*sqrt(ev))
                if (convis .eq. 0) then
@@ -2291,10 +2291,10 @@ ccc
      .               / (1 + (msh/(mfl+1.e-20*msh))**flgamv )**(1/flgamv)
                visy(ix,iy,ifld)=(fcdif*travis(ifld)+ tray_use(ix,iy,ifld))*
      .                              nm(ix,iy,ifld) +  4*eta1(ix,iy)
-   43       continue
-   44    continue
+            end do
+        end do
        endif      # test if zi(ifld) > 1.e-20
-  102 continue    # large loop for ifld = 1, nfsp
+        end do    # large loop for ifld = 1, nfsp
 
 *****************************************************************
 *****************************************************************
@@ -2306,8 +2306,8 @@ ccc
 
 *  -- initialize to 0 --
 
-      do 706 iy = j1, j6
-         do 705 ix = i1, i6
+      do iy = j1, j6
+         do ix = i1, i6
             hcxe(ix,iy) = 0.0e0
             hcxi(ix,iy) = 0.0e0
             hcxineo(ix,iy) = 0.0e0
@@ -2317,33 +2317,33 @@ ccc
                hcxij(ix,iy,ifld) = 0.0e0
                hcyij(ix,iy,ifld) = 0.0e0
             enddo
-  705    continue
-  706 continue
+        end do
+      end do
 
 *  -- loop over species number --
 
-      do 103 ifld = 1, nisp
+      do ifld = 1, nisp
 c -- Skip this if these are the neutrals (zi(ifld).eq.0)
-         if (zi(ifld) .eq. 0.0e0) goto 103
+         if (zi(ifld) .ne. 0.0e0) then
 
 c...  Initialize w1 and w2 for each species
-         do 49 iy = j1, j6
-            do 48 ix = i1, i6
+         do iy = j1, j6
+            do ix = i1, i6
                w1(ix,iy) = 0.0e0
                w2(ix,iy) = 0.0e0
- 48         continue
- 49      continue
+            end do
+         end do
 
 *     -- conductivities --
 *        The poloidal conductivities  are initially computed without
 *        the factor rr**2 * tv**2.5)
 
-         do 52 jfld = 1, nisp
+         do jfld = 1, nisp
             tv = zi(jfld)**2
             a = zi(jfld)**2 *
      .            sqrt(2*mi(ifld)*mi(jfld)/(mi(ifld)+mi(jfld)))
-            do 51 iy = j1, j6
-               do 50 ix = i1, i6
+            do  iy = j1, j6
+               do ix = i1, i6
                   ix1 = ixp1(ix,iy)
                   w1(ix,iy) = w1(ix,iy) + tv*(ni(ix,iy,jfld)*gx(ix,iy) +
      .                                     ni(ix1,iy,jfld)*gx(ix1,iy)) / 
@@ -2351,12 +2351,12 @@ c...  Initialize w1 and w2 for each species
                   w2(ix,iy) = w2(ix,iy) + a*(ni(ix,iy,jfld)*gx(ix,iy) +
      .                                     ni(ix1,iy,jfld)*gx(ix1,iy)) / 
      .                                        (gx(ix,iy) + gx(ix1,iy))
-   50          continue       
-   51       continue
-   52    continue
+                end do
+            end do
+        end do
 
-         do 59 iy = j1, j6
-            do 58 ix = i1, i6
+         do iy = j1, j6
+            do ix = i1, i6
                ix1 = ixp1(ix,iy)
                iyp1 = min(ny+1, iy+1)
                ctaue(ix,iy,ifld) = 3.5e11*zi(ifld)/loglambda(ix,iy)
@@ -2405,14 +2405,15 @@ ccc          iysptrx is the last closed flux surface (see S.R. nphygeo)
                hcyij(ix,iy,ifld) = hcyij(ix,iy,ifld) + ( kyimix +
      .                           (dclass_i(ix,iy)+dclass_i(ix,iyp1)) )*
      .                                                         niavey
-   58       continue
-   59    continue
+              end do  
+            end do
+          end if 
+        end do
 
-  103 continue
   
 c ... Add ion temp. dep. for pol. terms, flux limit, & build total ion hcx,yi
-      do 595 ifld = 1, nisp
-         if (zi(ifld) .eq. 0.e0) goto 595
+        do ifld = 1, nisp
+         if (zi(ifld) .ne. 0.e0) then
          do iy = j1, j6
             do ix = i1, i6
                ix1 = ixp1(ix,iy)
@@ -2470,11 +2471,12 @@ c ... Flux limit individ. hcxij in poloidal direction if isflxldi=2
      .                                (ti(ix,iy)-ti(ix1,iy))/rrv(ix,iy)
             enddo
          enddo
- 595  continue 
+        end if
+        end do
 
 c...  Now include elec. temp and other dep. in poloidal terms + diff. neut.
-      do 61 iy = j1, j6
-         do 60 ix = i1, i6
+      do iy = j1, j6
+         do ix = i1, i6
             ix1 = ixp1(ix,iy)
             iyp1 = min(ny+1, iy+1)
             if (concap .eq. 0) then
@@ -2520,9 +2522,9 @@ c IJ 2016/10/10	add cfneutsor_ei multiplier to control fraction of neutral energ
      .                              +ngy1(ix,iy,1)*tiy1(ix,iy) ) /
      .                  (mi(1)*(nucx(ix,iy,1) + nucx(ix,iyp1,1)))
             endif
+          end do
+        end do
 
-   60    continue
- 61   continue
 c
 c
       if (isupgon(1).eq.1) then
@@ -2530,9 +2532,9 @@ c
 c ----- Section for the inertial neutral fluid; we need to do different
 c ----- things than for the ions. Note third index=iigsp is neutral species
 c ----- The inertial neutrals coeff. are flux-limited and add to total here
-         do 62 iy = j1, j6
+         do iy = j1, j6
             iy1 = min(iy,ny)   #dont use j5 because hcx also in loop (not imp.)
-            do 63 ix = i1, i6
+            do ix = i1, i6
                ix1 = ixp1(ix,iy)
                tgavex = max(0.5*(tg(ix,iy,1) + tg(ix1,iy,1)), temin*ev)
                tgavey= max(0.5*(tgy0(ix,iy,1)+tgy1(ix,iy,1)), temin*ev)
@@ -2568,8 +2570,8 @@ c          Now for the radial flux limit - good for nonorthog grid too
                hcyi(ix,iy) = hcyi(ix,iy) + 
      .                          cftiexclg*cfneut*cfneutsor_ei*hcyn(ix,iy)
 c     
-  63        continue
-  62     continue
+          end do
+        end do
       endif
 
 *  Equipartition (old PHYEQP)
@@ -2579,25 +2581,25 @@ c
 *  ---------------------------------------------------------------------
 
 *     -- initialize w3 --
-      do 69 iy = j1, j6
-         do 68 ix = i1, i6
+      do iy = j1, j6
+         do ix = i1, i6
             w3(ix,iy) = 0.0e0
- 68      continue
- 69   continue
+          end do
+        end do
 
-      do 72 ifld = 1, nisp
+      do ifld = 1, nisp
          tv = zi(ifld)**2/mi(ifld)
-         do 71 iy = j2, j5
-            do 70 ix = i2, i5
+         do iy = j2, j5
+            do ix = i2, i5
                w3(ix,iy) = w3(ix,iy) + tv*ni(ix,iy,ifld)
-   70       continue
-   71    continue
-   72 continue
+          end do
+        end do
+      end do
 
 *  -- compute equipartition --
 ccc In detail, coef1 = qe**4*sqrt(me)*lnlam / ((2*pi)**1.5*eps0**2)
-      do 74 iy = j2, j5
-         do 73 ix = i2, i5
+      do iy = j2, j5
+         do ix = i2, i5
             ix2 = ixm1(ix,iy)
             a = max (te(ix,iy), temin*ev)
             loglmcc = 0.5*(loglambda(ix,iy)+loglambda(ix2,iy))
@@ -2606,8 +2608,8 @@ ccc In detail, coef1 = qe**4*sqrt(me)*lnlam / ((2*pi)**1.5*eps0**2)
 c...       reduce eqp when (te-ti)/(te+ti) << 1
             eqp(ix,iy) = eqp(ix,iy) * (a-ti(ix,iy))**2 / ( cutlo +
      .                (a-ti(ix,iy))**2 + (alfeqp*(a+ti(ix,iy)))**2 )
-   73    continue
-   74 continue
+        end do
+      end do
 
 *********************************************************
 c ... Gas thermal coefficients, initially for molecules *
@@ -2676,7 +2678,7 @@ c ... Call routine to evaluate gas energy fluxes
 *****************************************************************
 *  Here starts the old routine PARBAL
 *****************************************************************
-      do 104 ifld = 1, nfsp
+      do ifld = 1, nfsp
 *  ---------------------------------------------------------------------
 *     compute flux, residual
 *     The residual is: res := snic + sniv * ni - outflow(ni).
@@ -2686,8 +2688,8 @@ c ... Call routine to evaluate gas energy fluxes
 
          methnx = mod(methn, 10)
          methny = methn/10
-         do 81 iy = j4, j8
-            do 80 ix = i1, i5
+         do iy = j4, j8
+            do ix = i1, i5
               if ( zi(ifld).eq.0. .and. ineudif.ne.0 .and.
      .                                   1.-rrv(ix,iy) > 1.e-4 ) then
                  fnix(ix,iy,ifld) = fngx(ix,iy,1)
@@ -2733,7 +2735,7 @@ c ... Call routine to evaluate gas energy fluxes
      .              (nlimix(ifld)*ni(ix ,iy,ifld)/ni(ix2,iy,ifld))**2 +
      .              (nlimix(ifld)*ni(ix2,iy,ifld)/ni(ix ,iy,ifld))**2 )
               endif
-   80      continue
+            end do
            if ((isudsym==1.or.geometry.eq.'dnXtarget') .and. nxc > 1) then
               fnix(nxc-1,iy,ifld)=0.
               fnix(nxc,  iy,ifld)=0.
@@ -2748,13 +2750,12 @@ c ... Call routine to evaluate gas energy fluxes
            endif
            if (islimon.ne.0 .and. iy.ge.iy_lims) fnix(ix_lim,iy,ifld)=0.
            if (nxpt==2 .and. ixmxbcl==1) fnix(ixrb(1)+1,iy,ifld)=0.
-   81    continue
-
+        end do
 
 *  -- compute fniy  --
 
-         do 83 iy = j1, j5
-            do 82 ix = i4, i8
+         do iy = j1, j5
+            do ix = i4, i8
                if (zi(ifld).eq.0.) then #inertial gas must follow ion index
                   fniy(ix,iy,ifld) = fngy(ix,iy,ifld-1)
                else
@@ -2800,15 +2801,15 @@ c ... Call routine to evaluate gas energy fluxes
                   endif
 c...  Note: nonorthogonality comes in through calc. of vy
                endif
- 82         continue
- 83      continue
+            end do
+        end do
 
 c ... cosmetic setting of fniy - not used         
          do ix = i4, i8
             fniy(ix,ny+1,ifld) = 0.0e0
          enddo
 
- 104  continue
+        end do
 
 c ... Add rad flux of 4th order diff operator; damp grid-scale oscillations
       do ifld = 1, nfsp
@@ -2897,8 +2898,8 @@ c----------------------------------------------------------------------c
 *  -- compute the residual if isnion = 1 --
 
       do ifld = 1, nfsp
-       do 86 iy = j2, j5
-         do 85 ix = i2, i5
+       do iy = j2, j5
+         do ix = i2, i5
 	   if(isnionxy(ix,iy,ifld) == 1) then
               resco(ix,iy,ifld) = 
      .           snic(ix,iy,ifld)+sniv(ix,iy,ifld)*ni(ix,iy,ifld) +
@@ -2915,11 +2916,11 @@ c           if (ifld .ne. iigsp) then
            else # IJ 2016 zi==0, assume neutral->ifld and ion->ifld-1
               resco(ix,iy,ifld) = resco(ix,iy,ifld) - cmneut * uesor_ni(ix,iy,ifld-1)
            endif
-   85    continue
-   86  continue
+          end do
+        end do
 
-       do 302 iy = j2, j5
-         do 301 ix = i2, i5
+       do iy = j2, j5
+         do ix = i2, i5
 	       if(isnionxy(ix,iy,ifld) == 1) then
               ix1 = ixm1(ix,iy)
 	        if(zi(ifld) .ne. 0) then # IJ 2016 skip if neutral  zi(ifld)=0
@@ -2943,8 +2944,8 @@ c                   if (ix .eq. 1 .and. iy .eq. 1) write(*,*) 'sng_ue', ifld, jf
                  endif
               endif
            endif
- 301     continue
- 302   continue
+          end do
+        end do
        enddo       # end of ifld loop
 
 *********************************************************************
@@ -2964,18 +2965,18 @@ ccc         if(isngon .eq. 1) call neudif
 *  loop over all species.
 *  ---------------------------------------------------------------------
 
-      do 105 ifld = 1, nusp
-      if(isupon(ifld) .eq. 0) goto 105
+      if(isupon(ifld) .ne. 0) then
+      do ifld = 1, nusp
 *     ------------------------------------------------------------------
 *     compute the residual.
 *     ------------------------------------------------------------------
 
 *  -- evaluate flox and conx --
 
-         do 91 iy = j4, j8
+         do iy = j4, j8
             flox(0,iy) = 0.0e0
             conx(0,iy) = 0.0e0
-            do 90 ix = i2, i6
+            do ix = i2, i6
                ix1 = ixm1(ix,iy)
                if (isimpon.ge.5 .and. ifld.eq.1) then
                    #up(,,1) is total mass vel, whereas uu(,,i) for each ion
@@ -2996,12 +2997,12 @@ ccc Distance between veloc. cell centers:
                  conx(ix,iy) = visx(ix,iy,ifld) * vol(ix,iy) * gx(ix,iy)
      .               * 2*gxf(ix,iy)*gxf(ix1,iy)/(gxf(ix,iy)+gxf(ix1,iy))
                endif
-   90       continue
-   91    continue
+            end do
+         end do
 
 *  -- evaluate floy and cony without averaging over two ix cells --
 
-         do 93 iy = j1, j5
+         do  iy = j1, j5
             if (nxpt == 1 .or. iy <= iysptrx1(1)) then
               iysepu = iysptrx1(1)
               if (ndomain > 1) iysepu = iysptrxg(mype+1)  # and ixpt1,2u??
@@ -3012,7 +3013,7 @@ ccc Distance between veloc. cell centers:
               ixpt1u = ixpt1(2)
               ixpt2u = ixpt2(2)
             endif
-            do 92 ix = i4, i8
+            do ix = i4, i8
                ix2 = ixp1(ix,iy)
                ix4 = ixp1(ix,iy+1)
                cony(ix,iy) = .5 * syv(ix,iy) *
@@ -3063,8 +3064,8 @@ ccc Distance between veloc. cell centers:
      .                         visy(ix4,iy+1,ifld)*gy(ix4,iy+1) )
              endif
 
-   92       continue
-   93    continue
+            end do
+        end do
 
 *  -- compute the momentum transport --
 
@@ -3078,9 +3079,9 @@ c     Compute y-component fmixy of nonorthogonal diffusive momentum flux.
 c     The convective component is already already added through uu(ix,iy).
 c     Average fym, etc in ix to get staggered velocity-grid values fymv, etc.
 c     The density-stencil dxnog has to be averaged as well.
-         do 96 iy = j2, j5
+         do iy = j2, j5
             iy1 = max(iy-1,0)
-            do 97 ix = i2, i5+1    # ixp1(i5,iy)
+            do ix = i2, i5+1    # ixp1(i5,iy)
                ix1 = ixm1(ix,iy)
                ix3 = ixm1(ix,iy1)
                ix5 = ixm1(ix,iy+1)
@@ -3119,8 +3120,8 @@ c...  Now flux limit with flalfvgxy if ifld=2
      .                             sqrt(1+(fmixy(ix,iy,ifld)/qfl)**2)
                endif
 
- 97         continue
- 96      continue
+            end do
+        end do
       endif
 
 c...  Compute viscous drag from nonuniform B-field, then add to smoc
@@ -3235,8 +3236,8 @@ cccMER erroneous multiplicative factor -1/2 (from original code) ???
 
 *  -- source term and pressure gradient --
 
-         do 99 iy = j2, j5
-            do 98 ix = i2, i5
+         do iy = j2, j5
+            do ix = i2, i5
                ix2 = ixp1(ix,iy)
                if (zi(ifld) .ne. 0) then  # additions only for charged ions
                   dp1 =  cngmom(ifld)*(1/fac2sp)*
@@ -3310,14 +3311,14 @@ c     The neutral species, momentum coupling AND other source terms:
      .                       (nm(ix,iy,1)+nm(ix2,iy,1))*up(ix,iy,1) )
                   endif
                endif
- 98         continue
- 99      continue
+            end do
+        end do
 
 *  -- divergence of momentum flow --
 
          if (isnonog.eq.1) then
-            do 3051 iy = j2, j5
-               do 3061 ix = i2, i5
+            do iy = j2, j5
+               do ix = i2, i5
                   ix2 = ixp1(ix,iy)
 c ... IJ 2016/10/10 use cfneutdiv_fmg multiplier for neutrals 
 c                 if (ifld .ne. iigsp) then
@@ -3329,12 +3330,12 @@ c                 if (ifld .ne. iigsp) then
      .                 + cfneutdiv*cfneutdiv_fmg*(fmixy(ix2,iy,ifld) - fmixy(ix,iy,ifld))
 c***	IJ 2017/09/21: Need to add similar fmgxy calculation for MC neutrals on nonorthogonal mesh *** 
                   endif
- 3061          continue
- 3051       continue
+                end do
+            end do
          endif
 
-         do 305 iy = j2, j5
-            do 306 ix = i2, i5
+         do iy = j2, j5
+            do ix = i2, i5
                ix2 = ixp1(ix,iy)
 c IJ 2016/10/10 add cfneutdiv_fmg multiplier for neutrals to control fraction of momentum to add 
 c               if (ifld .ne. iigsp) then
@@ -3355,8 +3356,8 @@ c ... IJ 2016 resmo contrib changes if ion or neut
      .                        * (ni(ix,iy,ifld)*ti(ix,iy))/(ni(ix,iy,ifld)*ti(ix,iy))
                  endif
               endif
-  306       continue
-  305    continue
+            end do
+        end do
 
 c  -- Include frictional drag in parallel flow here if isofric=1; otherwise
 c  -- it is included in frici from mombal or mombalni
@@ -3399,8 +3400,9 @@ c  -- it is included in frici from mombal or mombalni
            endif
          enddo
         endif   # if test on isofric.eq.1
+        end do
+        end if
 
- 105  continue
 
 
 *****************************************************************
@@ -3412,8 +3414,8 @@ c  -- it is included in frici from mombal or mombalni
 *  ---------------------------------------------------------------------
 *  -- initialize to 0 --
 
-      do 708 iy = j1, j6
-         do 707 ix = i1, i6
+      do iy = j1, j6
+         do ix = i1, i6
             floxe(ix,iy) = 0.0e0
             floxi(ix,iy) = 0.0e0
             floye(ix,iy) = 0.0e0
@@ -3422,16 +3424,16 @@ c  -- it is included in frici from mombal or mombalni
             feeycbo(ix) = 0.0e0
             w0(ix,iy) = 0.0e0
             w1(ix,iy) = 0.0e0
-  707    continue
-  708 continue
+        end do
+      end do
       wvh = 0.0e0    #wvh is 3D vector (ix,iy,nusp)
 
 *  -- compute conxe and conxi --
 
 *     (The computation of conxe involves a flux limit)
 
-      do 121 iy = j4, j8
-         do 120 ix = i1, i5
+      do iy = j4, j8
+         do ix = i1, i5
             ix2 = ixp1(ix,iy)
             t0 = max (te(ix,iy), temin*ev)
             t1 = max (te(ix2,iy), temin*ev)
@@ -3483,24 +3485,24 @@ c.... Now do the ions (hcxi is flux-limited previously when it is built)
           else
             conxi(ix,iy) = sx(ix,iy) * hcxi(ix,iy) * gxf(ix,iy)
           endif
-  120    continue
+        end do
          conxe(nx+1,iy) = 0
          conxi(nx+1,iy) = 0
-  121 continue
+        end do
 
 *  -- compute conye and conyi --
 
-      do 123 iy = j1, j5
-         do 122 ix = i4, i8
+      do iy = j1, j5
+         do ix = i4, i8
             conye(ix,iy) = sy(ix,iy) * hcye(ix,iy) / dynog(ix,iy)
             conyi(ix,iy) = sy(ix,iy) * hcyi(ix,iy) / dynog(ix,iy)
-  122    continue
-  123 continue
+          end do
+      end do
 
-      do 124 ix = i1, i6
+      do ix = i1, i6
          conye(ix,ny+1) = 0.0e0
          conyi(ix,ny+1) = 0.0e0
-  124 continue
+      end do
 
 *  ---------------------------------------------------------------------
 *  compute the strength of convection for te and ti.
@@ -3513,8 +3515,8 @@ c.... Now do the ions (hcxi is flux-limited previously when it is built)
 *                        JLM      5/3/90
 *  ---------------------------------------------------------------------
 
-      do 126 iy = j4, j8
-         do 125 ix = i1, i5  
+      do iy = j4, j8
+         do ix = i1, i5  
             ix1 = ixp1(ix,iy)
             ltmax = min( abs(te(ix,iy)/(rrv(ix,iy)*gtex(ix,iy) + cutlo)),
      .                   lcone(ix,iy) )
@@ -3523,18 +3525,18 @@ c.... Now do the ions (hcxi is flux-limited previously when it is built)
             floxe(ix,iy) = floxe(ix,iy) + cfcvte*1.25*
      .                  (ne(ix,iy)+ne(ix1,iy))*vex(ix,iy)*sx(ix,iy)
      .                   - cthe*flxlimf*cfjhf*fqp(ix,iy)/ev
-  125    continue
+         end do
          floxe(nx+1,iy) = 0.0e0
-  126 continue
+        end do
 
 c IJ 2016/10/10	add cfneutsor_ei multiplier to control fraction of neutral energy to add 
-      do 729 ifld = 1, nfsp
+      do ifld = 1, nfsp
          if ((isupgon(1) .eq. 1) .and. (ifld .eq. iigsp)) then  #neutrals
-            do 726 iy = j4, j8
-               do 725 ix = i1, i5
+            do iy = j4, j8
+               do ix = i1, i5
                   floxi(ix,iy) = floxi(ix,iy) +
      .                 cftiexclg*cfcvti*2.5*cfneut*cfneutsor_ei*fnix(ix,iy,ifld) 
- 725           continue   # next correct for incoming neut pwr = 0
+               end do # next correct for incoming neut pwr = 0
                do jx = 1, nxpt  #if at plate, sub (1-cfloxiplt)*neut-contrib
                  if(ixmnbcl==1) then  #real plate-need for parallel UEDGE
                    iixt = ixlb(jx) #left plate
@@ -3552,23 +3554,22 @@ c IJ 2016/10/10	add cfneutsor_ei multiplier to control fraction of neutral energ
                    floxi(ixrb(jx)+1,iy) = 0.0e0  #cosmetic
                  endif
                enddo
- 726        continue
+            end do
          else  #ions
-            do 728 iy = j4, j8
-               do 727 ix = i1, i5
+            do iy = j4, j8
+               do ix = i1, i5
                   floxi(ix,iy) = floxi(ix,iy) +
      .                           cfcvti*2.5*fnix(ix,iy,ifld)
- 727           continue
+                end do 
                floxi(nx+1,iy) = 0.0e0
- 728        continue
-
+            end do
          endif
- 729  continue 
+        end do
 
 *  -- compute floye and floyi --
 
-      do 129 iy = j1, j5    # note: cfloye usually = 2.5 or 1.5 (ExB turb)
-         do 128 ix = i4, i8
+      do iy = j1, j5    # note: cfloye usually = 2.5 or 1.5 (ExB turb)
+         do ix = i4, i8
             floye(ix,iy) = floye(ix,iy) + (cfloye/2.)*
      .                    (ney0(ix,iy)+ney1(ix,iy))*vey(ix,iy)*sy(ix,iy)
      .                + (vyte_use(ix,iy)+vyte_cft(ix,iy))*0.5*sy(ix,iy)*
@@ -3579,10 +3580,10 @@ c IJ 2016/10/10	add cfneutsor_ei multiplier to control fraction of neutral energ
      .                         ( (1-cfeeybbo)*cfybf*veycb(ix,0) -
      .                             cfeeydbo*(1-cfydd)*veycp(ix,0) )
             endif
-  128    continue
-  129 continue
+        end do
+      end do
 
-      do 629 ifld = 1, nfsp
+      do ifld = 1, nfsp
          if ((isupgon(1) .eq. 1) .and. (ifld .eq. iigsp)) then
             do iy = j1, j5
                do ix = i4, i8
@@ -3605,8 +3606,8 @@ c ...       Make correction at walls to prevent recyc neutrals injecting pwr
             enddo 
 
          else
-            do 628 iy = j1, j5 # note: cfloyi usually = 2.5 or 1.5 (ExB turb)
-               do 627 ix = i4, i8
+            do iy = j1, j5 # note: cfloyi usually = 2.5 or 1.5 (ExB turb)
+               do ix = i4, i8
                   floyi(ix,iy) = floyi(ix,iy)
      .                            + cfloyi * fniy(ix,iy,ifld)
      .                            + (vyti_use(ix,iy)+vyti_cft(ix,iy))*
@@ -3616,21 +3617,21 @@ c ...       Make correction at walls to prevent recyc neutrals injecting pwr
                      feiycbo(ix) = feiycbo(ix) + cfloyi*fniycbo(ix,ifld)*
      .                                                  ti(ix,0)
                   endif
- 627           continue
- 628        continue
+               end do
+             end do
          endif
- 629  continue
+        end do
 
 c...  Next B x grad(T), first for the ions
       if(abs(cfbgt) .gt. 0 .or. cfeexdbo+cfeixdbo > 0.) then
 
-      do 133 ifld = 1, nfsp
-        do 132 iy = j4, j8
-           do 131 ix = i1, i5
+      do ifld = 1, nfsp
+        do iy = j4, j8
+           do ix = i1, i5
 	     iy1 = max(0,iy-1)
              ix1 = ixp1(ix,iy)
              ix5 = ixp1(ix,iy1)
-	     if (iy.eq.0 .or. iy.eq.ny+1) goto 131
+	     if (iy.ne.0 .or. iy.ne.ny+1) then
 c... sknam: grad T from tiv
              temp1 = 4.0*(tiv(ix,iy) - tiv(ix,iy1))*gyc(ix,iy)
 cccMER For full double-null configuration, iysptrx is last closed flux surface.
@@ -3644,19 +3645,19 @@ cccMER For full double-null configuration, iysptrx is last closed flux surface.
      .                            temp1
              endif
              floxi(ix,iy) = floxi(ix,iy) + cfbgt*floxibgt(ix,iy,ifld)
-  131      continue
-  132  continue
-  133 continue
+            endif
+            end do
+          end do
+        end do
  
-      do 136 ifld = 1, nfsp
-        do 135 iy = j1, j5
-           do 134 ix = i4, i8
+      do ifld = 1, nfsp
+        do iy = j1, j5
+           do ix = i4, i8
              ix3 = ixm1(ix,iy)
              ix4 = ixm1(ix,iy+1)
              do jx = 1, nxpt
-                if ( (ix==ixlb(jx).and.ixmnbcl==1) .or.
-     .               (ix==ixrb(jx)+1.and.ixmxbcl==1) ) goto 134
-             enddo
+                if ( (ix.ne.ixlb(jx).and.ixmnbcl.ne.1) .or.
+     .               (ix.ne.ixrb(jx)+1.and.ixmxbcl.ne.1) ) then
 c... sknam: grad T from tiv
              temp1 = 4.0*(tiv(ix,iy) - tiv(ix3,iy))*gxc(ix,iy)
 cccMER For full double-null configuration, iysptrx is last closed flux surface.
@@ -3669,18 +3670,20 @@ cccMER For full double-null configuration, iysptrx is last closed flux surface.
      .                          ( rbfbt2(ix,iy) + rbfbt2(ix,iy+1) ) *
      .                           temp1
              endif
- 134      continue
- 135   continue
- 136  continue
+             endif
+             enddo
+            end do
+          end do
+        end do
 
 c...  Now B x grad(T) for the electrons
 
-      do 138 iy = j4, j8
-         do 137 ix = i1, i5
+      do iy = j4, j8
+         do ix = i1, i5
 	     iy1 = max(0,iy-1)
              ix1 = ixp1(ix,iy)
              ix5 = ixp1(ix,iy1)
-	     if (iy.eq.0 .or. iy.eq.ny+1) goto 137
+	     if (iy.ne.0 .or. iy.ne.ny+1) then
 c             temp1 = (gtey(ix,iy ) + gtey(ix1,iy ) +
 c     .                gtey(ix,iy1) + gtey(ix5,iy1))
 c... sknam: grad T from tev
@@ -3693,17 +3696,17 @@ cccMER For full double-null configuration, iysptrx is last closed flux surface.
      .                          ( rbfbt2(ix,iy) + rbfbt2(ix1,iy) ) *
      .                           temp1
              floxe(ix,iy) = floxe(ix,iy) - cfbgt*floxebgt(ix,iy)
-  137    continue
-  138 continue
+            endif
+          end do
+        end do
  
-      do 140 iy = j1, j5
-	 do 139 ix = i4, i8
+      do iy = j1, j5
+	   do ix = i4, i8
 	    ix3 = ixm1(ix,iy)
 	    ix4 = ixm1(ix,iy+1)
             do jx = 1, nxpt
-               if ( (ix==ixlb(jx).and.ixmnbcl==1) .or.
-     .              (ix==ixrb(jx)+1.and.ixmxbcl==1) ) goto 139
-            enddo
+               if ( (ix.ne.ixlb(jx).and.ixmnbcl.ne.1) .or.
+     .              (ix.ne.ixrb(jx)+1.and.ixmxbcl.ne.1) ) then
 c... sknam: grad T from tev
             temp1 = 4.0*(tev(ix,iy) - tev(ix3,iy))*gxc(ix,iy)
 cccMER For full double-null configuration, iysptrx is last closed flux surface.
@@ -3714,31 +3717,30 @@ cccMER For full double-null configuration, iysptrx is last closed flux surface.
      .                         ( ne(ix,iy) + ne(ix,iy+1) ) *
      .                         ( rbfbt2(ix,iy) + rbfbt2(ix,iy+1) ) *
      .                          temp1
-
-  139    continue
-  140 continue
-
+            endif
+            enddo
+          end do
+        end do
       endif
 
 c...Add the charge-exhange neutral contributions to ion+neutral temp eq.
 
 
-         do 141 iy = j4, j8
-            do 142 ix = i1, i5
+         do iy = j4, j8
+            do ix = i1, i5
                floxi(ix,iy) = floxi(ix,iy) +
      .          cftiexclg*cfneut*cfneutsor_ei*cngtgx(1)*cfcvti*2.5*fngx(ix,iy,1)
- 142        continue
+            end do
             floxi(nx+1,iy) = 0.0e0
- 141        continue
-
+        end do
 *  --Adds to floyi --
 
-         do 145 iy = j1, j5
-            do 144 ix = i4, i8
+         do iy = j1, j5
+            do ix = i4, i8
                floyi(ix,iy) = floyi(ix,iy)
      .             + cftiexclg*cfneut*cfneutsor_ei*cngtgy(1)*2.5*fngy(ix,iy,1)
- 144        continue
- 145     continue
+            end do
+        end do
 
 *  ---------------------------------------------------------------------
 *  compute the electron and the ion energy flow.
@@ -3789,8 +3791,8 @@ c  -- Add rad flux of 4th order diff operator; damp grid-scale oscillations
 
 *  -- source terms --
 
-      do 150 iy = j2, j5
-         do 149 ix = i2, i5
+      do iy = j2, j5
+         do ix = i2, i5
             resee(ix,iy) = 
      .             seec(ix,iy) + seev(ix,iy) * te(ix,iy)
      .           + pwrsore(ix,iy)
@@ -3801,8 +3803,8 @@ c  -- Add rad flux of 4th order diff operator; damp grid-scale oscillations
      .           + pwrsori(ix,iy)
      .           + cmneut * cmneutsor_ei * uesor_ti(ix,iy)
      .           - nuvl(ix,iy,1)*vol(ix,iy)*bcei*ne(ix,iy)*ti(ix,iy) 
-  149    continue
-  150 continue
+        end do 
+      end do  
 
 *  -- divergence of electron and ion energy flows --
 
@@ -3810,10 +3812,10 @@ c...  Add y-component of nonorthogonal diffusive flux; convective component
 c...  already added to uu(ix,iy)
       if (isnonog .eq. 1) then
 
-         do 3094 iy = j1, j6
-            if (iy .gt. ny) goto 3094
+         do iy = j1, j6
+            if (iy .le. ny) then 
             iy1 = max(iy-1,0)
-            do 3093 ix = i1, i6
+            do ix = i1, i6
 c...  First do the Te equation
                ix1 = ixm1(ix,iy)
                ix2 = ixp1(ix,iy)
@@ -3879,8 +3881,9 @@ c...  Flux limit with flalftxt even though hcys have parallel FL built in
                feixy(ix,iy) = feixy(ix,iy) /
      .                              sqrt(1. + (feixy(ix,iy)/qfl)**2)
 
- 3093      continue
- 3094    continue
+            end do
+          endif
+        end do
 
 c...  Fix the fluxes with the same indice range as in fd2tra
          do iy = j4, j8
@@ -3928,7 +3931,7 @@ c ... Demand that net feex cannot be out of the plates
         enddo
       endif
 
-      do 310 iy = j2, j5
+      do iy = j2, j5
 	    if((isudsym==1.or.geometry.eq.'dnXtarget') .and. nxc > 1) then
             feex(nxc-1,iy) = 0.
             feix(nxc-1,iy) = 0.
@@ -3945,7 +3948,7 @@ c ... Demand that net feex cannot be out of the plates
             feex(ixrb(1)+1,iy) = 0.
             feix(ixrb(1)+1,iy) = 0.
          endif
-         do 309 ix = i2, i5
+         do ix = i2, i5
             ix1 = ixm1(ix,iy)
             resee(ix,iy) = resee(ix,iy)
      .                  - ( feex(ix,iy) - feex(ix1,iy)
@@ -3966,15 +3969,14 @@ c ... ## IJ 2016/10/19 add MC neutral flux
               reseg(ix,iy,1) = reseg(ix,iy,1) +
      .                             cmneutdiv*cmneutdiv_feg*seg_ue(ix,iy,jfld)
             endif
-  309    continue
-  310 continue
-
+        end do
+      end do
 
 *  -- total energy residual and equipartition --
 
 c...  Electron radiation loss -- ionization and recombination
-            do 316 iy = iys1, iyf6  #iys,iyf
-               do 315 ix = ixs1, ixf6  #iys, iyf
+            do iy = iys1, iyf6  #iys,iyf
+               do ix = ixs1, ixf6  #iys, iyf
                   erlizold = erliz(ix,iy)
                   erlrcold = erlrc(ix,iy)
                   ne_sgvi = ne(ix,iy)
@@ -4009,8 +4011,8 @@ c...  Electron radiation loss -- ionization and recombination
 
                   pradhyd(ix,iy)= ( (eeli(ix,iy)-ebind*ev)*psor(ix,iy,1)+
      .                                         erlrc(ix,iy) )/vol(ix,iy)
- 315           continue
- 316        continue
+          end do    
+        end do
 
       do iy = iys1, iyf6  #j2, j5
         do ix = ixs1, ixf6  #i2, i5
@@ -4082,8 +4084,8 @@ c*************************************************************
          endif    # end of integrating over sources and iseesorave test
 
 
-      do 152 iy = j2, j5
-         do 151 ix = i2, i5
+      do iy = j2, j5
+         do ix = i2, i5
             ix1 = ixm1(ix,iy)
             w0(ix,iy) = vol(ix,iy) * eqp(ix,iy) * (te(ix,iy)-ti(ix,iy))
             resee(ix,iy) = resee(ix,iy) - w0(ix,iy) + vsoree(ix,iy)
@@ -4196,8 +4198,8 @@ c                   Ion energy source from mol. drift heating
      .                     - 0.125*mi(1)*(upi(ix,iy,1)+upi(ix1,iy,1))**2
      .                     - eion*ev  ) * vol(ix,iy)
             endif
-  151    continue
-  152 continue
+          end do
+        end do
 
 
 *  -- Energy transfer to impurity neutrals at tg(,,igsp)
@@ -4218,8 +4220,8 @@ c                   Ion energy source from mol. drift heating
       if (isimpon .ge. 2) then
          if (istimingon .eq. 1) tsimp = tick()
 
-         do 533 iy = iys1, iyf6  #if Jacobian, only 1 cell done - local sor
-            do 532 ix = ixs1, ixf6
+         do iy = iys1, iyf6  #if Jacobian, only 1 cell done - local sor
+            do ix = ixs1, ixf6
                ntau(ix,iy) = atau(ix,iy) * ne(ix,iy)
                nratio(ix,iy) = ng(ix,iy,1)/ne(ix,iy)
                pradold = pwrzec(ix,iy)
@@ -4279,8 +4281,8 @@ c                   Ion energy source from mol. drift heating
                   endif
 
                endif
- 532        continue
- 533     continue
+            end do
+        end do
 
 c*************************************************************
 c   Perform 5pt average of source terms as volume integral
@@ -4364,13 +4366,13 @@ c******************************************************************
 c******************************************************************
 c...  Update resee over whole "box" because initially set to zero 
 c******************************************************************
-         do 536 iy = j2, j5
-            do 535 ix = i2, i5               
+         do iy = j2, j5
+            do ix = i2, i5               
                resee(ix,iy) = resee(ix,iy) -
      .                            cnimp*pwrze(ix,iy)*vol(ix,iy) +
      .                                pwrebkg(ix,iy)*vol(ix,iy)
- 535        continue
- 536     continue
+            end do
+        end do
 
          if (istimingon .eq. 1) call timimpfj (tsimp, xc)
       endif  #loop for isimpon==2
@@ -4422,9 +4424,9 @@ c******************************************************************
 *  -- Now we introduce the viscous heating; one-side derviatives are used
 *  -- on either side of the x-point where isxpty = 0
 
-      do 157 iy = j2, j5
-         do 156 ix = i2, i5
-            do 155 ifld = 1, nusp  # if nusp --> nfsp, problems from y-term
+      do iy = j2, j5
+         do ix = i2, i5
+            do ifld = 1, nusp  # if nusp --> nfsp, problems from y-term
                ix1 = ixm1(ix,iy)
                ix2 = ixm1(ix,iy+1)
                ix3 = ixm1(ix,iy-1)
@@ -4471,9 +4473,10 @@ c******************************************************************
             else
               resei(ix,iy) = resei(ix,iy) + wvh(ix,iy,ifld)*vol(ix,iy)
             endif
-  155       continue   # loop over up species ifld
-  156    continue
- 157  continue
+            end do   # loop over up species ifld
+          end do
+        end do
+        
 
 
 c*******************************************************************
@@ -4496,16 +4499,16 @@ c******************************************************************
 **********************************************************************
 *  --  Equations to be solved --
 **********************************************************************
-      do 270 iy = j2, j5
-         do 260 ix = i2, i5
-            do 254 ifld = 1, nisp
+      do iy = j2, j5
+         do ix = i2, i5
+            do ifld = 1, nisp
 	       if(isnionxy(ix,iy,ifld) .eq. 1) then
                   iv = idxn(ix,iy,ifld)
                   yldot(iv) = (1-iseqalg(iv)) *
      .                        resco(ix,iy,ifld)/(vol(ix,iy)*n0(ifld))
                endif
- 254        continue
-            do 255 ifld = 1, nusp
+            end do
+            do ifld = 1, nusp
 	       if(isuponxy(ix,iy,ifld) .eq. 1) then
                   iv = idxu(ix,iy,ifld)
                   yldot(iv) = (1-iseqalg(iv)) *
@@ -4515,7 +4518,7 @@ c******************************************************************
      .                        resmo(ix,iy,ifld)/(volv(ix,iy)*fnorm(ifld))
                   enddo
                endif
- 255        continue
+            end do
             if(isteonxy(ix,iy) == 1) then
               iv =  idxte(ix,iy)
 	      yldot(iv) = (1-iseqalg(iv)) *
@@ -4526,7 +4529,7 @@ c******************************************************************
 	      yldot(iv1) = (1-iseqalg(iv1)) *
      .                                 resei(ix,iy)/(vol(ix,iy)*ennorm)
             endif
-            do 256 igsp = 1, ngsp
+            do igsp = 1, ngsp
 	      if(isngonxy(ix,iy,igsp).eq.1) then
                 iv2 = idxg(ix,iy,igsp)
                 yldot(iv2) = (1-iseqalg(iv2)) *
@@ -4537,9 +4540,9 @@ c******************************************************************
                 yldot(iv2) = (1-iseqalg(iv2)) *
      .                      reseg(ix,iy,igsp)/(vol(ix,iy)*ennorm)
               endif
- 256        continue
- 260     continue
- 270  continue
+            end do
+          end do
+        end do
 c ... The factor (1-iseqalg(iv)) above forces yldot=0 for algebraic
 c ... equations, except up(nx,,); these yldot are subsequently set in
 c ... subroutine bouncon.
@@ -5169,12 +5172,12 @@ c ------------------
       methgx = mod(methg, 10)
       methgy = methg/10
 	  
-      do 895 igsp = 1, ngsp
+      do igsp = 1, ngsp
 
 c.... First the flux in the x-direction
 
-      do 888 iy = j4, j8
-         do 887 ix = i1, i5
+      do iy = j4, j8
+         do ix = i1, i5
             iy1 = max(0,iy-1)
             iy2 = min(ny+1,iy+1)
             ix2 = ixp1(ix,iy)
@@ -5261,14 +5264,14 @@ c...  now add the convective velocity for charge-exchange neutrals
          if(igsp .eq. 1) floxg(ix,iy) = 
      .              floxg(ix,iy) + cngflox(1)*sx(ix,iy)*uu(ix,iy,1)
 
-  887    continue
+        end do
          conxg(nx+1,iy) = 0
-  888 continue
+      end do
 
 c.... Now the flux in the y-direction
 
-      do 890 iy = j1, j5
-         do 889 ix = i4, i8
+      do iy = j1, j5
+         do ix = i4, i8
 	    t0 = max(tg(ix,iy,igsp),temin*ev)
 	    t1 = max(tg(ix,iy+1,igsp),temin*ev)
             vtn = sqrt( t0/mg(igsp) )
@@ -5340,8 +5343,8 @@ c...  now add the convective velocity for the charge-exchange species
          if(igsp .eq. 1) floyg(ix,iy) =  
      .             floyg(ix,iy)+cngfloy(1)*sy(ix,iy)*vy(ix,iy,1)
 
-  889    continue
-  890 continue
+        end do
+      end do
 
 *  --------------------------------------------------------------------
 *  compute the neutral particle flow
@@ -5354,9 +5357,9 @@ c...  now add the convective velocity for the charge-exchange species
 c...  Addition for nonorthogonal mesh
       if (isnonog .eq. 1) then
 
-         do 8905 iy = j1, min(j6, ny)
+         do iy = j1, min(j6, ny)
             iy1 = max(iy-1,0)
-            do 8904 ix = i1, min(i6, nx)
+            do ix = i1, min(i6, nx)
                ix1 = ixm1(ix,iy)
                ix2 = ixp1(ix,iy)
                ix3 = ixm1(ix,iy1)
@@ -5440,8 +5443,8 @@ ccc   MER NOTE:  no xy flux limit for ix=0 or ix=nx in original code
                   fngxy(ix,iy,igsp) = fngxy(ix,iy,igsp) /
      .                           sqrt( 1 + (fngxy(ix,iy,igsp)/qfl)**2 )
                endif
- 8904       continue
- 8905    continue
+            end do
+        end do
 
 c...  Fix the total fluxes; note the loop indices same as fd2tra
 c...  Flux-limit the total poloidal flux here
@@ -5524,7 +5527,7 @@ c **- loop for uu just as in the previous version - needed for correct Jac?
 c.... Calculate the residual for the gas equation for diffusive neutral case
 
       if (isupgon(igsp).eq.0) then
-         do 892 iy = j2, j5
+         do iy = j2, j5
 	      if ((isudsym==1.or.geometry.eq.'dnXtarget') .and. nxc > 1) then
 	      fngx(nxc-1,iy,igsp) = 0.
 	      fngx(nxc,  iy,igsp) = 0.
@@ -5532,7 +5535,7 @@ c.... Calculate the residual for the gas equation for diffusive neutral case
 	    endif
             if (islimon.ne.0.and.iy.ge.iy_lims) fngx(ix_lim,iy,igsp)=0.
             if (nxpt==2) fngx(ixrb(1)+1,iy,igsp)=0.
-       	    do 891 ix = i2, i5
+       	    do ix = i2, i5
                ix1 = ixm1(ix,iy)
                resng(ix,iy,igsp) = cngsor * (psorg(ix,iy,igsp) +
      .                         psorcxg(ix,iy,igsp) + psorrg(ix,iy,igsp))
@@ -5542,11 +5545,11 @@ c.... Calculate the residual for the gas equation for diffusive neutral case
      .                       + psgov_use(ix,iy,igsp)*vol(ix,iy)
                if (igsp.eq.1 .and. ishymol.eq.1) resng(ix,iy,igsp) =
      .                  resng(ix,iy,igsp)+psordis(ix,iy,2)
- 891        continue
- 892     continue
+            end do
+        end do
       endif
 
- 895  continue   # end of igsp loop from the beginning of subroutine
+       end do   # end of igsp loop from the beginning of subroutine
 
 c...  Special coding for the 1-D gas-box model
       if (is1D_gbx.eq.1) then
@@ -5659,7 +5662,7 @@ c ------------------
       methgy = methg/10
 	  
 c      write (*,*) "neudifpg"
-      do 895 igsp = 1, ngsp
+      do igsp = 1, ngsp
 
 c *********************************************
 c.... First the flux in the x-direction
@@ -5781,8 +5784,8 @@ c *******************************************************
 c ..Timing; initiate time for y-direction calc
       if(istimingon==1) tsngylog = tick()
 
-      do 890 iy = j1, j5
-         do 889 ix = i4, i8
+      do iy = j1, j5
+         do ix = i4, i8
             ngyface = 0.5*(ng(ix,iy,igsp)+ng(ix,iy+1,igsp))
 	    t0 = max(tg(ix,iy,igsp),tgmin*ev)
 	    t1 = max(tg(ix,iy+1,igsp),tgmin*ev)
@@ -5869,9 +5872,8 @@ c...  For impurities, add convect vel for elastic scattering with ions
      .                cngnifloy(ifld,igsp)*sy(ix,iy)*vy(ix,iy,ifld)/tgf
            enddo
          endif
-
-  889    continue
-  890 continue
+        end do
+      end do
 
 c ..Timing; add increment if timing is on
       if(istimingon==1) ttngylog = ttngylog + tock(tsngylog)
@@ -5893,9 +5895,9 @@ c...  Addition for nonorthogonal mesh
 c ..Timing
       if(istimingon==1) tsngfxy = tick()
 
-         do 8905 iy = j1, min(j6, ny)
+         do iy = j1, min(j6, ny)
             iy1 = max(iy-1,0)
-            do 8904 ix = i1, min(i6, nx)
+            do ix = i1, min(i6, nx)
                ix1 = ixm1(ix,iy)
                ix2 = ixp1(ix,iy)
                ix3 = ixm1(ix,iy1)
@@ -5982,8 +5984,8 @@ ccc   MER NOTE:  no xy flux limit for ix=0 or ix=nx in original code
                   fngxy(ix,iy,igsp) = fngxy(ix,iy,igsp) /
      .                           sqrt( 1 + (fngxy(ix,iy,igsp)/qfl)**2 )
                endif
- 8904       continue
- 8905    continue
+            end do
+        end do
 c ..Timing
       if(istimingon==1) ttngfxy = ttngfxy + tock(tsngfxy)
 
@@ -6116,7 +6118,7 @@ c **- loop for uu just as in the previous version - needed for correct Jac?
 c.... Calculate the residual for the gas equation for diffusive neutral case
 
       if (isupgon(igsp).eq.0) then
-        do 892 iy = j2, j5
+        do iy = j2, j5
           if ((isudsym==1.or.geometry.eq.'dnXtarget') .and. nxc > 1) then 
 	     fngx(nxc-1,iy,igsp) = 0.
 	     fngx(nxc,  iy,igsp) = 0.
@@ -6124,7 +6126,7 @@ c.... Calculate the residual for the gas equation for diffusive neutral case
 	  endif
           if (islimon.ne.0.and.iy.ge.iy_lims) fngx(ix_lim,iy,igsp)=0.
           if (nxpt==2.and.ixmxbcl==1) fngx(ixrb(1)+1,iy,igsp)=0.
-          do 891 ix = i2, i5
+          do ix = i2, i5
             ix1 = ixm1(ix,iy)
 
 c ... 2016/09/16 IJ: coding to blend MC neutral flux !!! here ***
@@ -6151,11 +6153,11 @@ c ... IJ 2016/10/19 add MC neut flux if flags set
      .                     cmneutdiv*cmneutdiv_fng*sng_ue(ix,iy,igsp)
              endif
 
- 891      continue
- 892    continue
+            end do 
+        end do
       endif
 
- 895  continue   # end of igsp loop from the beginning of subroutine
+      end do   # end of igsp loop from the beginning of subroutine
 
 c...  Special coding for the 1-D gas-box model
       if (is1D_gbx.eq.1) then
@@ -6247,12 +6249,12 @@ c ------------------
       methgx = mod(methg, 10)
       methgy = methg/10
 	  
-      do 895 igsp = 1, ngsp
+      do igsp = 1, ngsp
 
 c.... First the flux in the x-direction
 
-      do 888 iy = j4, j8
-         do 887 ix = i1, i5
+      do iy = j4, j8
+         do ix = i1, i5
             iy1 = max(0,iy-1)
             iy2 = min(ny+1,iy+1)
             ix2 = ixp1(ix,iy)
@@ -6331,14 +6333,14 @@ c...  now add the convective velocity for charge-exchange neutrals
      .              floxg(ix,iy) + cngflox(1)*sx(ix,iy)*uu(ix,iy,1)
          floxg(ix,iy) = floxg(ix,iy)*2/(lng(ix,iy,igsp)+lng(ix2,iy,igsp))
 
-  887    continue
+        end do
          conxg(nx+1,iy) = 0
-  888 continue
+      end do
 
 c.... Now the flux in the y-direction
 
-      do 890 iy = j1, j5
-         do 889 ix = i4, i8
+      do iy = j1, j5
+         do ix = i4, i8
 	    t0 = max(tg(ix,iy,igsp),temin*ev)
 	    t1 = max(tg(ix,iy+1,igsp),temin*ev)
             vtn = sqrt( t0/mg(igsp) )
@@ -6411,8 +6413,8 @@ c...  now add the convective velocity for the charge-exchange species
      .             floyg(ix,iy)+cngfloy(1)*sy(ix,iy)*vy(ix,iy,1)
 
          floyg(ix,iy)=floyg(ix,iy)*2/(lng(ix,iy,igsp)+lng(ix,iy+1,igsp))
-  889    continue
-  890 continue
+        end do
+      end do
 
 *  --------------------------------------------------------------------
 *  compute the neutral particle flow
@@ -6425,9 +6427,9 @@ c...  now add the convective velocity for the charge-exchange species
 c...  Addition for nonorthogonal mesh
       if (isnonog .eq. 1) then
 
-         do 8905 iy = j1, min(j6, ny)
+         do iy = j1, min(j6, ny)
             iy1 = max(iy-1,0)
-            do 8904 ix = i1, min(i6, nx)
+            do ix = i1, min(i6, nx)
                ix1 = ixm1(ix,iy)
                ix2 = ixp1(ix,iy)
                ix3 = ixm1(ix,iy1)
@@ -6472,8 +6474,8 @@ ccc   MER NOTE:  no xy flux limit for ix=0 or ix=nx in original code
                   fngxy(ix,iy,igsp) = fngxy(ix,iy,igsp) /
      .                           sqrt( 1 + (fngxy(ix,iy,igsp)/qfl)**2 )
                endif
- 8904       continue
- 8905    continue
+            end do
+        end do
 
 c...  Fix the total fluxes; note the loop indices same as fd2tra
 c...  Flux-limit the total poloidal flux here
@@ -6535,7 +6537,7 @@ c ...   now do fniy
 c.... Calculate the residual for the gas equation for diffusive neutral case
 
       if (isupgon(igsp).eq.0) then
-         do 892 iy = j2, j5
+         do iy = j2, j5
             if ((isudsym==1.or.geometry.eq.'dnXtarget') .and. nxc > 1) then
 	      fngx(nxc-1,iy,igsp) = 0.
 	      fngx(nxc,  iy,igsp) = 0.
@@ -6543,7 +6545,7 @@ c.... Calculate the residual for the gas equation for diffusive neutral case
 	    endif
             if (islimon.ne.0.and.iy.ge.iy_lims) fngx(ix_lim,iy,igsp)=0.
             if (nxpt==2.and.ixmxbcl==1) fngx(ixrb(1)+1,iy,igsp)=0.
-                   do 891 ix = i2, i5
+                   do ix = i2, i5
                ix1 = ixm1(ix,iy)
                resng(ix,iy,igsp) = cngsor * (psorg(ix,iy,igsp) +
      .                         psorcxg(ix,iy,igsp) + psorrg(ix,iy,igsp))
@@ -6554,11 +6556,11 @@ c.... Calculate the residual for the gas equation for diffusive neutral case
 
                if (igsp.eq.1 .and. ishymol.eq.1)  
      .              resng(ix,iy,igsp) = resng(ix,iy,igsp)+psordis(ix,iy,2)
- 891        continue
- 892     continue
+            end do
+        end do
       endif
 
- 895  continue   # end of igsp loop from the beginning of subroutine
+      end do # end of igsp loop from the beginning of subroutine
 
 c...  Special coding for the 1-D gas-box model
       if (is1D_gbx.eq.1) then
@@ -6646,12 +6648,12 @@ c ------------------
       methgx = mod(methg, 10)
       methgy = methg/10
 
-      do 895 igsp = 1, ngsp
+      do igsp = 1, ngsp
 
 c.... First the flux in the x-direction
 
-      do 888 iy = j4, j8
-         do 887 ix = i1, i5
+      do iy = j4, j8
+         do ix = i1, i5
             iy1 = max(0,iy-1)
             iy2 = min(ny+1,iy+1)
             ix2 = ixp1(ix,iy)
@@ -6744,14 +6746,14 @@ c...  now add the convective velocity for charge-exchange neutrals
          if(igsp .eq. 1) floxg(ix,iy) = 
      .             floxg(ix,iy) + cngflox(1)*sx(ix,iy)*uu(ix,iy,1)
 
-  887    continue
+         end do
          conxg(nx+1,iy) = 0
-  888 continue
+       end do
 
 c.... Now the flux in the y-direction
 
-      do 890 iy = j1, j5
-         do 889 ix = i4, i8
+      do iy = j1, j5
+         do ix = i4, i8
 	    t0 = max(tg(ix,iy,igsp),temin*ev)
 	    t1 = max(tg(ix,iy+1,igsp),temin*ev)
             vtn = sqrt( t0/mg(igsp) )
@@ -6825,9 +6827,8 @@ c...  the temperature gradient term is included in floyg
 c...  now add the convective velocity for the charge-exchange species
          if(igsp .eq. 1) floyg(ix,iy) = 
      .               floyg(ix,iy)+cngfloy(1)*sy(ix,iy)*vy(ix,iy,1)
-
-  889    continue
-  890 continue
+         end do
+        end do
 
 *  --------------------------------------------------------------------
 *  compute the neutral particle flow
@@ -6838,8 +6839,8 @@ c...  now add the convective velocity for the charge-exchange species
      .             fngy(0:nx+1,0:ny+1,igsp),0,methg)
 
 c ... Calculate the neutral flow velocity from v = flux/ng
-      do 8903 iy = j1, j5
-         do 8902 ix = i1,i5
+      do iy = j1, j5
+         do ix = i1,i5
             ix1 = ixp1(ix,iy)
             uug(ix,iy,igsp) = fngx(ix,iy,igsp) / (
      .                        0.5*(ng(ix,iy,igsp)+ng(ix1,iy,igsp))
@@ -6852,10 +6853,10 @@ c --------------- We need to transfer the diffusive radial neutral
 c --------------- velocity to the "ion" species containing the neutrals
                vy(ix,iy,iigsp) = vyg(ix,iy,igsp)
             end if
- 8902    continue
+          end do
 cfw ----   If doing only the outer half we want this boundary condition:
          if (iy.le.iysptrx1(1).and.isfixlb(1).eq.2) uug(ixpt2(1),iy,igsp) = 0
- 8903 continue
+        end do
 
 c ... For nonorthogonal mesh and diffusive neutrals, limit fngy for pump out
       if (isnonog.eq.1 .and. isupgon(igsp).eq.0) then
@@ -6874,9 +6875,9 @@ c ... For nonorthogonal mesh and diffusive neutrals, limit fngy for pump out
 c...  Addition for nonorthogonal mesh
       if (isnonog .eq. 1) then
 
-         do 8905 iy = j1, min(j6, ny)
+         do iy = j1, min(j6, ny)
             iy1 = max(iy-1,0)
-            do 8904 ix = i1, min(i6, nx)
+            do ix = i1, min(i6, nx)
                ix1 = ixm1(ix,iy)
                ix2 = ixp1(ix,iy)
                ix3 = ixm1(ix,iy1)
@@ -6927,8 +6928,8 @@ c...  Addition for nonorthogonal mesh
                fngxy(ix,iy,igsp) = difgx2*(grdnv/cos(angfx(ix,iy)) -
      .                             (ng(ix2,iy,igsp) - ng(ix,iy,igsp))*
      .                                 gxf(ix,iy) ) * sx(ix,iy)
- 8904       continue
- 8905    continue
+            end do
+        end do
 
 c...  Fix the total fluxes; note the loop indices same as fd2tra
 c...  Dont bother if  solving the neutral momentum equation
@@ -6954,7 +6955,7 @@ c...  Finished with nonorthogonal mesh part
 c.... Calculate the residual or right-hand-side for the gas equation
 
       if (isupgon(igsp).eq.0) then
-         do 892 iy = j2, j5
+         do iy = j2, j5
             if ((isudsym==1.or.geometry.eq.'dnXtarget') .and. nxc > 1) then
 	      fngx(nxc-1,iy,igsp) = 0.
 	      fngx(nxc,  iy,igsp) = 0.
@@ -6962,7 +6963,7 @@ c.... Calculate the residual or right-hand-side for the gas equation
 	    endif
             if (islimon.ne.0.and.iy.ge.iy_lims) fngx(ix_lim,iy,igsp)=0.
             if (nxpt==2.and.ixmxbcl==1) fngx(ixrb(1)+1,iy,igsp)=0.
-                   do 891 ix = i2, i5
+                   do ix = i2, i5
                ix1 = ixm1(ix,iy)
                resng(ix,iy,igsp) = cngsor * (psorg(ix,iy,igsp) +
      .                         psorcxg(ix,iy,igsp) + psorrg(ix,iy,igsp))
@@ -6972,8 +6973,8 @@ c.... Calculate the residual or right-hand-side for the gas equation
      .                       + psgov_use(ix,iy,igsp)*vol(ix,iy)
                if (igsp.eq.1 .and. ishymol.eq.1) 
      .              resng(ix,iy,igsp) = resng(ix,iy,igsp)-psordis(ix,iy,2)
- 891        continue
- 892     continue
+            end do
+        end do
       else if (isupgon(igsp).eq.1) then
 
 c --- Form the poloidal velocity uu(,,2) from
@@ -6991,8 +6992,8 @@ c --- we get the TOTAL parallel momentum flux out of the poloidal face.
 c --- Note that rrv=Bpol/B is defined at a velocity point
 c --- In order to get Bt/B at a VELOCITY point we cannot use rbfbt,
 c --- use (Bt/B)**2=1-rrv**2 instead.
-         do 23 iy = j4, j6
-            do 22 ix = i1, i6
+         do iy = j4, j6
+            do ix = i1, i6
                ix2 = ixp1(ix,iy)
                uu(ix,iy,iigsp) = rrv(ix,iy)*up(ix,iy,iigsp) +
      .              (1.-rrv(ix,iy)*rrv(ix,iy))*uug(ix,iy,igsp)
@@ -7000,11 +7001,11 @@ c --- use (Bt/B)**2=1-rrv**2 instead.
      .              uu(ix,iy,iigsp) - vygtan(ix,iy,igsp) -
      .              fngxy(ix,iy,igsp) / (sx(ix,iy)*
      .                    0.5*(ng(ix,iy,igsp)+ng(ix2,iy,igsp)))
- 22         continue
- 23      continue
+            end do
+        end do
       end if
 
- 895  continue
+      end do
 
 c...  Special coding for the 1-D gas-box model
       if (is1D_gbx.eq.1) then
