@@ -188,7 +188,7 @@ c...  Set-up tables for particle and energy sinks due to molecules
              enddo
          enddo
 
-                if (ismolcrm .ne. 0) then
+                if ((ismolcrm .ne. 0) .and. (ishymol .eq. 1)) then
 c                     call findFile(crmnfname, aphdirx, aphdirx, adname, isaphdir)
                      call findFile(crmnfname, crmdir, aphdirx, adname, isaphdir)
                      call readcrumpetn(TRIM(adname))
