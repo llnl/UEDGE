@@ -23,6 +23,320 @@ c!omp     endif
 
       end subroutine Pandf1rhs_interface
 
+      SUBROUTINE initialize_ismcnon(ylneq)
+      IMPLICIT NONE
+      integer ifld
+      real ylneq
+      Use(MCN_dim)
+      Use(MCN_sources)
+      Use(UEpar)
+      Use(Comflo)
+      Use(Comtra)
+      Use(Compla)
+      Use(Coefeq)
+      Use(PNC_params)
+      Use(Time_dep_nwt)
+      Use(Ext_neutrals)
+      Use(Dim)
+      
+
+c     Set switches for neutrals-related source terms in plasma equations
+c     (MER 1996/10/28)
+c     (IJ  2015/04/06) add ismcnon>=3 for external call to run_neutrals 
+      if (ismcnon .eq. 1) then        # use MC sources only:
+         if (svrpkg .eq. "cvode") then
+           call xerrab('*** ismcnon=1 not allowed for cvode ***')
+         endif
+         cfneut=0.
+         if (isupgon(1) .eq. 1) then
+            cfvgpx(iigsp)=0.
+            cfvgpy(iigsp)=0.
+            cfvcsx(iigsp)=0.
+            cfvcsy(iigsp)=0.
+         endif
+         cmneut=1.
+      else if (ismcnon .eq. 2) then    # switch between two models:
+         if (ylneq .gt. 0) then   # use fluid model for Jacobian
+            cfneut=1.
+            if (isupgon(1) .eq. 1) then
+               cfvgpx(iigsp)=1.
+               cfvgpy(iigsp)=1.
+               cfvcsx(iigsp)=1.
+               cfvcsy(iigsp)=1.
+            endif
+            cmneut=0.
+         elseif (ylneq .lt. 0) then     # use MC model for evaluation
+            cfneut=0.
+            if (isupgon(1) .eq. 1) then
+               cfvgpx(iigsp)=0.
+               cfvgpy(iigsp)=0.
+               cfvcsx(iigsp)=0.
+               cfvcsy(iigsp)=0.
+            endif
+            cmneut=1.
+         else
+            call xerrab('*** PANDF: ismcnon=2 & yl(neq+1)=0 ???')
+         endif
+      else if (ismcnon .eq. 3) then         # switch between two neutral models internally
+         if (ylneq .gt. 0) then         # use fluid model for preconditioner
+            if (extneutmeth .eq. 1) then				#fluid source & implicit MC flux
+               cfneut=1.     #turn on  fluid sources
+               cfneutdiv=0.  #turn off fluid div fluxes  
+               cmneut=0.     #turn off MC sources
+               cmneutdiv=1.  #turn on  MC div fluxes    
+               if (isupgon(1) .eq. 1) then
+                  cfvgpx(iigsp)=1.
+                  cfvgpy(iigsp)=1.
+                  cfvcsx(iigsp)=1.
+                  cfvcsy(iigsp)=1.
+               endif         
+            else         								#fluid source & fluid flux
+               cfneut=1.     #turn on fluid sources
+               cfneutdiv=1.  #turn on fluid div fluxes  
+               cmneut=0.     #turn off MC sources
+               cmneutdiv=0.  #turn off MC div fluxes    
+               if (isupgon(1) .eq. 1) then
+                  cfvgpx(iigsp)=1.
+                  cfvgpy(iigsp)=1.
+                  cfvcsx(iigsp)=1.
+                  cfvcsy(iigsp)=1.
+               endif
+            endif 
+         elseif (ylneq .lt. 0) then     # use MC model for RHS evaluation
+            if (extneutmeth .eq. 1) then				#fluid source & implicit MC flux
+               cfneut=1.     #turn on  fluid sources
+               cfneutdiv=0.  #turn off fluid div fluxes  
+               cmneut=0.     #turn off MC sources
+               cmneutdiv=1.  #turn on  MC div fluxes             
+               if (isupgon(1) .eq. 1) then
+                  cfvgpx(iigsp)=1.
+                  cfvgpy(iigsp)=1.
+                  cfvcsx(iigsp)=1.
+                  cfvcsy(iigsp)=1.
+               endif
+            else         								#MC source & fluid flux
+               cfneut=0.     #turn off fluid sources
+               cfneutdiv=1.  #turn on  fluid div fluxes  
+               cmneut=1.     #turn on  MC sources
+               cmneutdiv=0.  #turn off MC div fluxes    
+               if (isupgon(1) .eq. 1) then
+                  cfvgpx(iigsp)=0.
+                  cfvgpy(iigsp)=0.
+                  cfvcsx(iigsp)=0.
+                  cfvcsy(iigsp)=0.
+               endif
+            endif 
+
+         else
+            call xerrab('*** PANDF: ismcnon=3 & yl(neq+1)=0 ???')
+         endif
+         if (ylneq .lt. 0) then       # RHS eval (not precon eval)
+			if (isextneuton .ne. 0) then  # implicit use of external neutrals inside exmain
+                #Neutral step
+                dtold=dtreal
+                dtreal=dtneut
+                call store_neutrals
+                call run_neutrals		  # extneutopt sets choice of model
+                call update_neutrals
+                dtreal=dtold
+            endif
+        endif
+      else if (ismcnon .eq. 4) then # test a different fluid model in the preconditioner
+         if (ylneq .gt. 0) then   # Precon eval
+            parvis=parvis*pnc_cfparvis
+            travis=travis*pnc_cftravis
+            do ifld=1,nisp
+              ni(:,:,ifld)=ni(:,:,ifld)*pnc_cfni(ifld)
+              up(:,:,ifld)=up(:,:,ifld)*pnc_cfup(ifld)
+            enddo
+c            write(*,*) 'ismcnon=4'
+c            write(*,*) parvis
+         endif
+      end if #ismcnon
+
+
+      END SUBROUTINE initialize_ismcnon
+
+      SUBROUTINE initialize_ranges(xc, yc)
+      IMPLICIT NONE
+      integer xc, yc, ixf, ixmp2, ixs, iyf, iys, jx
+      logical xccuts, xcturb
+      Use(Dim)
+      Use(UEpar)
+      Use(Comflo)
+      Use(Compla)
+      Use(Selec)
+      Use(Grid)
+      Use(Share)
+      Use(Bcond)
+      Use(Indices_domain_dcl)
+      Use(Xpoint_indices)
+      Use(Turbulence)
+      
+      if ( (xc .lt. 0) .or. 
+     .     ((0<=yc).and.(yc-yinc<=0)).and.isjaccorall==1 ) then  
+                                              # use full ix range near yc=0
+                                              # with integrated core flux BC
+         i1 = 0  # 1-ixmnbcl
+         i2 = 1
+         i2p = 1
+         i3 = 0  # 1-ixmnbcl
+         i4 = 0  # 1-ixmnbcl
+         i5 = nx
+         i5m = nx-1
+         i6 = nx+1  # nx+ixmxbcl
+         i7 = nx+1  # nx+ixmxbcl
+         i8 = nx+1  # nx+ixmxbcl
+      else
+         i1 = max(0, xc-xlinc-1)
+         i2 = max(1, xc-xlinc)
+         i2p = max(1, xc-xrinc-1)
+         i3 = xc-xlinc     # not used as loop indice (can be < 0)
+         i4 = max(0, xc-xlinc)
+         i5 = min(nx, xc+xrinc)
+         i5m = min(nx-1, xc+xrinc)
+         i6 = min(nx+1, xc+xrinc+1)
+         i7 = xc+xrinc     # not used as loop indice (can be > nx)
+         i8 = min(nx+1, xc+xrinc)
+      endif
+      if (yc .lt. 0) then
+         j1 = 0 
+         j1p = 0
+         j2 = 1
+         j2p = 1
+         j3 = 0 
+         j4 = 0 
+         j5 = ny
+         j5m = ny-1
+         j6 = ny+1 
+         j5p = ny
+         j6p = ny+1
+         j7 = ny+1 
+         j8 = ny+1 
+      else
+         j1 = max(0, yc-yinc-1)
+         j2 = max(1, yc-yinc)
+         j1p = max(0, yc-yinc-2)
+         j2p = max(1, yc-yinc-1)
+         j3 = yc-yinc
+         j4 = max(0, yc-yinc)
+         j5 = min(ny, yc+yinc)
+         j5m = min(ny-1, yc+yinc)
+         j6 = min(ny+1, yc+yinc)
+         j5p = min(ny, yc+yinc+1)
+         j6p = min(ny+1, yc+yinc+1)
+c         j6 = min(ny+1, yc+yinc+1)
+         j7 = yc+yinc
+         j8 = min(ny+1, yc+yinc)
+      endif
+
+c...  We will expand the range of possible responses when perturbing the
+c...  plasma in a cell near one of the cuts.
+      xccuts = .false.
+      do jx = 1, nxpt
+        if ( (xc-xlinc<=ixpt1(jx)+1) .and. (xc+xrinc+1>=ixpt1(jx)) .and.
+     .       (yc-yinc<=iysptrx1(jx)) .and. (iysptrx1(jx)>0) ) xccuts=.true.
+        if ( (xc-xlinc<=ixpt2(jx)+1) .and. (xc+xrinc+1>=ixpt2(jx)) .and.
+     .       (yc-yinc<=iysptrx2(jx)) .and. (iysptrx2(jx)>0) ) xccuts=.true.
+      enddo
+
+c...  We must expand the range of ix in the vicinity of cells on
+c...  which turbulent transport depends.
+      xcturb = .false.
+      do jx = 1, nxpt
+         xcturb = xcturb .or. (xc.eq.ixlb(jx).and.ixmnbcl==1) .or.
+     .                        (xc.eq.(ixrb(jx)+1).and.ixmxbcl==1)
+      enddo
+c     Set ix index for outer midplane turbulence
+      if (isudsym==1) then
+         ixmp2 = nxc + 2
+      elseif (geometry=='dnull' .or. geometry(1:9)=="snowflake" .or.
+     .        geometry=="dnXtarget" .or. geometry=="isoleg") then
+         ixmp2 = ixmdp(2) + 1
+      else
+         ixmp2 = ixpt1(1) + nxomit + 3*(ixpt2(1)-ixpt1(1))/4
+      endif
+      xcturb = xcturb .or. (xc.eq.ixmp2)
+      xcturb = xcturb .and. (isturbnloc.eq.1)
+c...  NOTE: For a full double-null configuration, if there are 2 separatrices
+c...  we use the innermost one (at iysptrx) to define the radial boundary
+c...  of the turbulence.
+      if (isturbcons .eq. 1) then
+         xcturb = xcturb .and. yc .eq. iysptrx+1
+      elseif (isturbcons .eq. 2) then
+         xcturb = xcturb .and. yc .ge. iysptrx+1-diffuslimit
+      else
+         xcturb = xcturb .and. yc .ge. iysptrx+1
+      endif
+
+      if (xccuts .or. xcturb) then
+         i1 = 0  
+         i2 = 1
+         i3 = 0  
+         i4 = 0  
+         i5 = nx
+         i6 = nx+1 
+         i7 = nx+1 
+         i8 = nx+1 
+      endif
+
+c...  Define range for source terms to minimize calls to adpak-based routines
+            ixs = i2
+            ixf = i5
+            iys = j2
+            iyf = j5
+            ixs1 = i1
+            ixf6 = i6
+            iys1 = j1
+            iyf6 = j6
+c...  Reset ioniz. and rad. indices to a point if this is a Jacobian calc.
+         if (xc .ge.0 .and. yc .ge. 0) then
+            ixs = xc
+            ixf = xc
+            iys = yc
+            iyf = yc
+            ixs1 = xc
+            ixf6 = xc
+            if (xrinc .ge. 20) then
+               ixs1 = 0  
+               ixf6 = nx+1 
+            endif
+            iys1 = yc
+            iyf6 = yc
+            if (yinc .ge. 20) then
+               iys1 = 0 
+               iyf6 = ny+1 
+            endif
+         endif
+
+c...  Set flag that indicates wide open Jac'n "box" for subroutine bouncon.
+      if (xc .lt. 0) then
+         openbox = .true.
+      elseif (xccuts .or. xcturb) then
+         openbox = .true.
+      elseif ( (0<=yc).and.(yc<=yinc) ) then # for integrated core flux BC
+         openbox = .true.
+      else
+         openbox = .false.
+      endif
+
+c...  Set flags that indicate when the Jac'n "box" overlaps left or right
+c...  boundary cells of a mesh region.  Used in subroutine bouncon.
+      xcnearlb = .false.
+      do jx = 1, nxpt
+         xcnearlb = xcnearlb .or.
+     .       ( (xc-xlinc.le.ixlb(jx)) .and. (xc+xrinc.ge.ixlb(jx)) )
+      enddo
+      if (xc .lt. 0) xcnearlb = .true.
+      xcnearrb = .false.
+      do jx = 1, nxpt
+         xcnearrb = xcnearrb .or.
+     .      ( (xc-xlinc.le.ixrb(jx)+1) .and. (xc+xrinc.ge.ixrb(jx)) )
+      enddo
+      if (xc .lt. 0) xcnearrb = .true.
+
+      END SUBROUTINE initialize_ranges
+
 
 c-----------------------------------------------------------------------
       subroutine pandf (xc, yc, neq, time, yl, yldot)
@@ -77,7 +391,6 @@ c    yldot is the RHS of ODE solver or RHS=0 for Newton solver (NKSOL)
       real temp1, temp2, temp3, temp4, cutlo3, lambd_ci, lambd_ce
       real upxavep1,upxave0,upxavem1,upf0,upfm1
       real teev,nexface,loglmcc,nmxface
-      logical xccuts, xcturb
       integer iy1, ixmp2, iyp1, iyp2, iym1, ixs, ixf, iys, iyf,
      .        methnx, methny, iy2, i2pwr, i5pwr, j2pwr, j5pwr,
      .        iysepu, ixpt1u, ixpt2u
@@ -224,130 +537,7 @@ c... Roadblockers for  call to pandf through openmp structures (added by J.Guter
 ************************************************************************
 *  -- initialization --
 ************************************************************************
-c     Set ix index for outer midplane turbulence
-      if (isudsym==1) then
-         ixmp2 = nxc + 2
-      elseif (geometry=='dnull' .or. geometry(1:9)=="snowflake" .or.
-     .        geometry=="dnXtarget" .or. geometry=="isoleg") then
-         ixmp2 = ixmdp(2) + 1
-      else
-         ixmp2 = ixpt1(1) + nxomit + 3*(ixpt2(1)-ixpt1(1))/4
-      endif
-
-c     Set switches for neutrals-related source terms in plasma equations
-c     (MER 1996/10/28)
-c     (IJ  2015/04/06) add ismcnon>=3 for external call to run_neutrals 
-      if (ismcnon .eq. 1) then        # use MC sources only:
-         if (svrpkg .eq. "cvode") then
-           call xerrab('*** ismcnon=1 not allowed for cvode ***')
-         endif
-         cfneut=0.
-         if (isupgon(1) .eq. 1) then
-            cfvgpx(iigsp)=0.
-            cfvgpy(iigsp)=0.
-            cfvcsx(iigsp)=0.
-            cfvcsy(iigsp)=0.
-         endif
-         cmneut=1.
-      else if (ismcnon .eq. 2) then    # switch between two models:
-         if (yl(neq+1) .gt. 0) then   # use fluid model for Jacobian
-            cfneut=1.
-            if (isupgon(1) .eq. 1) then
-               cfvgpx(iigsp)=1.
-               cfvgpy(iigsp)=1.
-               cfvcsx(iigsp)=1.
-               cfvcsy(iigsp)=1.
-            endif
-            cmneut=0.
-         elseif (yl(neq+1) .lt. 0) then     # use MC model for evaluation
-            cfneut=0.
-            if (isupgon(1) .eq. 1) then
-               cfvgpx(iigsp)=0.
-               cfvgpy(iigsp)=0.
-               cfvcsx(iigsp)=0.
-               cfvcsy(iigsp)=0.
-            endif
-            cmneut=1.
-         else
-            call xerrab('*** PANDF: ismcnon=2 & yl(neq+1)=0 ???')
-         endif
-      else if (ismcnon .eq. 3) then         # switch between two neutral models internally
-         if (yl(neq+1) .gt. 0) then         # use fluid model for preconditioner
-            if (extneutmeth .eq. 1) then				#fluid source & implicit MC flux
-               cfneut=1.     #turn on  fluid sources
-               cfneutdiv=0.  #turn off fluid div fluxes  
-               cmneut=0.     #turn off MC sources
-               cmneutdiv=1.  #turn on  MC div fluxes    
-               if (isupgon(1) .eq. 1) then
-                  cfvgpx(iigsp)=1.
-                  cfvgpy(iigsp)=1.
-                  cfvcsx(iigsp)=1.
-                  cfvcsy(iigsp)=1.
-               endif         
-            else         								#fluid source & fluid flux
-               cfneut=1.     #turn on fluid sources
-               cfneutdiv=1.  #turn on fluid div fluxes  
-               cmneut=0.     #turn off MC sources
-               cmneutdiv=0.  #turn off MC div fluxes    
-               if (isupgon(1) .eq. 1) then
-                  cfvgpx(iigsp)=1.
-                  cfvgpy(iigsp)=1.
-                  cfvcsx(iigsp)=1.
-                  cfvcsy(iigsp)=1.
-               endif
-            endif 
-         elseif (yl(neq+1) .lt. 0) then     # use MC model for RHS evaluation
-            if (extneutmeth .eq. 1) then				#fluid source & implicit MC flux
-               cfneut=1.     #turn on  fluid sources
-               cfneutdiv=0.  #turn off fluid div fluxes  
-               cmneut=0.     #turn off MC sources
-               cmneutdiv=1.  #turn on  MC div fluxes             
-               if (isupgon(1) .eq. 1) then
-                  cfvgpx(iigsp)=1.
-                  cfvgpy(iigsp)=1.
-                  cfvcsx(iigsp)=1.
-                  cfvcsy(iigsp)=1.
-               endif
-            else         								#MC source & fluid flux
-               cfneut=0.     #turn off fluid sources
-               cfneutdiv=1.  #turn on  fluid div fluxes  
-               cmneut=1.     #turn on  MC sources
-               cmneutdiv=0.  #turn off MC div fluxes    
-               if (isupgon(1) .eq. 1) then
-                  cfvgpx(iigsp)=0.
-                  cfvgpy(iigsp)=0.
-                  cfvcsx(iigsp)=0.
-                  cfvcsy(iigsp)=0.
-               endif
-            endif 
-
-         else
-            call xerrab('*** PANDF: ismcnon=3 & yl(neq+1)=0 ???')
-         endif
-         if (yl(neq+1) .lt. 0) then       # RHS eval (not precon eval)
-			if (isextneuton .ne. 0) then  # implicit use of external neutrals inside exmain
-                #Neutral step
-                dtold=dtreal
-                dtreal=dtneut
-                call store_neutrals
-                call run_neutrals		  # extneutopt sets choice of model
-                call update_neutrals
-                dtreal=dtold
-            endif
-        endif
-      else if (ismcnon .eq. 4) then # test a different fluid model in the preconditioner
-         if (yl(neq+1) .gt. 0) then   # Precon eval
-            parvis=parvis*pnc_cfparvis
-            travis=travis*pnc_cftravis
-            do ifld=1,nisp
-              ni(:,:,ifld)=ni(:,:,ifld)*pnc_cfni(ifld)
-              up(:,:,ifld)=up(:,:,ifld)*pnc_cfup(ifld)
-            enddo
-c            write(*,*) 'ismcnon=4'
-c            write(*,*) parvis
-         endif
-      end if #ismcnon
-
+      if (ismcnon .ne. 0) call initialize_ismcnon(yl(neq+1))
 ************************************************************************
 *   This section is to use in the calculation of the jacobian locally.
 ************************************************************************
@@ -359,159 +549,7 @@ c ... Get initial value of system cpu timer.
          tsjf = tick()
       endif
 
-      if ( (xc .lt. 0) .or. 
-     .     ((0<=yc).and.(yc-yinc<=0)).and.isjaccorall==1 ) then  
-                                              # use full ix range near yc=0
-                                              # with integrated core flux BC
-         i1 = 0  # 1-ixmnbcl
-         i2 = 1
-         i2p = 1
-         i3 = 0  # 1-ixmnbcl
-         i4 = 0  # 1-ixmnbcl
-         i5 = nx
-         i5m = nx-1
-         i6 = nx+1  # nx+ixmxbcl
-         i7 = nx+1  # nx+ixmxbcl
-         i8 = nx+1  # nx+ixmxbcl
-      else
-         i1 = max(0, xc-xlinc-1)
-         i2 = max(1, xc-xlinc)
-         i2p = max(1, xc-xrinc-1)
-         i3 = xc-xlinc     # not used as loop indice (can be < 0)
-         i4 = max(0, xc-xlinc)
-         i5 = min(nx, xc+xrinc)
-         i5m = min(nx-1, xc+xrinc)
-         i6 = min(nx+1, xc+xrinc+1)
-         i7 = xc+xrinc     # not used as loop indice (can be > nx)
-         i8 = min(nx+1, xc+xrinc)
-      endif
-      if (yc .lt. 0) then
-         j1 = 0 
-         j1p = 0
-         j2 = 1
-         j2p = 1
-         j3 = 0 
-         j4 = 0 
-         j5 = ny
-         j5m = ny-1
-         j6 = ny+1 
-         j5p = ny
-         j6p = ny+1
-         j7 = ny+1 
-         j8 = ny+1 
-      else
-         j1 = max(0, yc-yinc-1)
-         j2 = max(1, yc-yinc)
-         j1p = max(0, yc-yinc-2)
-         j2p = max(1, yc-yinc-1)
-         j3 = yc-yinc
-         j4 = max(0, yc-yinc)
-         j5 = min(ny, yc+yinc)
-         j5m = min(ny-1, yc+yinc)
-         j6 = min(ny+1, yc+yinc)
-         j5p = min(ny, yc+yinc+1)
-         j6p = min(ny+1, yc+yinc+1)
-c         j6 = min(ny+1, yc+yinc+1)
-         j7 = yc+yinc
-         j8 = min(ny+1, yc+yinc)
-      endif
-
-c...  We will expand the range of possible responses when perturbing the
-c...  plasma in a cell near one of the cuts.
-      xccuts = .false.
-      do jx = 1, nxpt
-        if ( (xc-xlinc<=ixpt1(jx)+1) .and. (xc+xrinc+1>=ixpt1(jx)) .and.
-     .       (yc-yinc<=iysptrx1(jx)) .and. (iysptrx1(jx)>0) ) xccuts=.true.
-        if ( (xc-xlinc<=ixpt2(jx)+1) .and. (xc+xrinc+1>=ixpt2(jx)) .and.
-     .       (yc-yinc<=iysptrx2(jx)) .and. (iysptrx2(jx)>0) ) xccuts=.true.
-      enddo
-
-c...  We must expand the range of ix in the vicinity of cells on
-c...  which turbulent transport depends.
-      xcturb = .false.
-      do jx = 1, nxpt
-         xcturb = xcturb .or. (xc.eq.ixlb(jx).and.ixmnbcl==1) .or.
-     .                        (xc.eq.(ixrb(jx)+1).and.ixmxbcl==1)
-      enddo
-      xcturb = xcturb .or. (xc.eq.ixmp2)
-      xcturb = xcturb .and. (isturbnloc.eq.1)
-c...  NOTE: For a full double-null configuration, if there are 2 separatrices
-c...  we use the innermost one (at iysptrx) to define the radial boundary
-c...  of the turbulence.
-      if (isturbcons .eq. 1) then
-         xcturb = xcturb .and. yc .eq. iysptrx+1
-      elseif (isturbcons .eq. 2) then
-         xcturb = xcturb .and. yc .ge. iysptrx+1-diffuslimit
-      else
-         xcturb = xcturb .and. yc .ge. iysptrx+1
-      endif
-
-      if (xccuts .or. xcturb) then
-         i1 = 0  
-         i2 = 1
-         i3 = 0  
-         i4 = 0  
-         i5 = nx
-         i6 = nx+1 
-         i7 = nx+1 
-         i8 = nx+1 
-      endif
-
-c...  Define range for source terms to minimize calls to adpak-based routines
-            ixs = i2
-            ixf = i5
-            iys = j2
-            iyf = j5
-            ixs1 = i1
-            ixf6 = i6
-            iys1 = j1
-            iyf6 = j6
-c...  Reset ioniz. and rad. indices to a point if this is a Jacobian calc.
-         if (xc .ge.0 .and. yc .ge. 0) then
-            ixs = xc
-            ixf = xc
-            iys = yc
-            iyf = yc
-            ixs1 = xc
-            ixf6 = xc
-            if (xrinc .ge. 20) then
-               ixs1 = 0  
-               ixf6 = nx+1 
-            endif
-            iys1 = yc
-            iyf6 = yc
-            if (yinc .ge. 20) then
-               iys1 = 0 
-               iyf6 = ny+1 
-            endif
-         endif
-
-c...  Set flag that indicates wide open Jac'n "box" for subroutine bouncon.
-      if (xc .lt. 0) then
-         openbox = .true.
-      elseif (xccuts .or. xcturb) then
-         openbox = .true.
-      elseif ( (0<=yc).and.(yc<=yinc) ) then # for integrated core flux BC
-         openbox = .true.
-      else
-         openbox = .false.
-      endif
-
-c...  Set flags that indicate when the Jac'n "box" overlaps left or right
-c...  boundary cells of a mesh region.  Used in subroutine bouncon.
-      xcnearlb = .false.
-      do jx = 1, nxpt
-         xcnearlb = xcnearlb .or.
-     .       ( (xc-xlinc.le.ixlb(jx)) .and. (xc+xrinc.ge.ixlb(jx)) )
-      enddo
-      if (xc .lt. 0) xcnearlb = .true.
-      xcnearrb = .false.
-      do jx = 1, nxpt
-         xcnearrb = xcnearrb .or.
-     .      ( (xc-xlinc.le.ixrb(jx)+1) .and. (xc+xrinc.ge.ixrb(jx)) )
-      enddo
-      if (xc .lt. 0) xcnearrb = .true.
-
+      call initialize_ranges(xc, yc)
 ************************************************************************
 c... First, we convert from the 1-D vector yl to the plasma variables.
 ************************************************************************
