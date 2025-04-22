@@ -340,7 +340,6 @@ c...  boundary cells of a mesh region.  Used in subroutine bouncon.
 
       SUBROUTINE calc_diffusivities
       IMPLICIT NONE
-      integer ifld, iy, iyp1, ix, ix1
       Use(Dim)
       Use(Comtra)
       Use(Selec)
@@ -348,6 +347,15 @@ c...  boundary cells of a mesh region.  Used in subroutine bouncon.
       Use(Compla)
       Use(Phyvar)
       Use(Bfield)
+      Use(Coefeq)
+      Use(Aux)
+      Use(Xpoint_indices)
+      Use(RZ_grid_info)
+      Use(Share)
+      integer ifld, iy, iyp1, ix, ix1
+      real bpfac, bpolmin, bscalf, t0, t1
+      real ave
+      ave(t0,t1) = 2*t0*t1 / (cutlo+t0+t1)
 c ... Calculate the Bohm diffusion rates (units are m**2/s)
       do ifld = 1, nisp
        if (facbni+facbup+facbee+facbei>0 .and. isbohmcalc>0) then
@@ -672,7 +680,6 @@ c     involve ion-density sources, fluxes, and/or velocities.
 
       call calc_diffusivities
 
-      call calc_drifts
 
 ************************************************************************
 *  Transverse Drifts in y-direction and in 2-direction 
@@ -4703,10 +4710,10 @@ c     finding maximum charge state.
       do ifld = 1, nhsp
          natomic(misa) = max(nint(ziin(ifld)), 1)   # must be .ge. 1
          nchstate = max(nchstate, natomic(misa)) 
-         if (ifld .ne. nhsp) then
-             if (minu(ifld+1) .ne. minu(ifld)) misa = misa + 1
-        endif
-      misotope = misa
+         if (ifld .eq. nhsp) go to 50
+         if (minu(ifld+1) .ne. minu(ifld)) misa = misa + 1
+      enddo
+ 50   misotope = misa
       do jz = 1, ngspmx-1
          if (nzsp(jz)==0) break
          misotope = misotope + 1
