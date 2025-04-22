@@ -338,6 +338,110 @@ c...  boundary cells of a mesh region.  Used in subroutine bouncon.
       END SUBROUTINE initialize_ranges
 
 
+      SUBROUTINE calc_diffusivities
+      IMPLICIT NONE
+      integer ifld, iy, iyp1, ix, ix1
+      Use(Dim)
+      Use(Comtra)
+      Use(Selec)
+      Use(Conduc)
+      Use(Compla)
+      Use(Phyvar)
+      Use(Bfield)
+c ... Calculate the Bohm diffusion rates (units are m**2/s)
+      do ifld = 1, nisp
+       if (facbni+facbup+facbee+facbei>0 .and. isbohmcalc>0) then
+         do iy = j1, j6
+            iyp1 = min(ny+1, iy+1)
+            do ix = i1, i6
+               ix1 = ixp1(ix,iy)
+               kybohm(ix,iy) = (te(ix,iy)+te(ix,iyp1)) /
+     .                        (16*ev*(btot(ix,iy)+btot(ix,iyp1)))
+               kxbohm(ix,iy) = (te(ix,iy)+te(ix1,iy)) /
+     .                        (16*ev*(btot(ix,iy)+btot(ix1,iy)))
+               dif_use(ix,iy,ifld)  = facbni*kybohm(ix,iy)
+               dif2_use(ix,iy,ifld) = facbni2*kxbohm(ix,iy)
+               tray_use(ix,iy,ifld)  = facbup*kybohm(ix,iy)
+               kye_use(ix,iy)  = facbee*kybohm(ix,iy)
+               kyi_use(ix,iy)  = facbei*kybohm(ix,iy)
+	       dutm_use(ix,iy,ifld) = kybohm(ix,iy)
+            enddo
+         enddo
+         if (isbohmcalc.eq.2) then  # calc. recip. average with const D
+           fcdif = 0.   # used to zero constant diff. if recip. ave used
+           do iy = j1, j6
+             do ix = i1, i6
+               dif_use(ix,iy,ifld)  = 0.5*ave(difni(ifld),  dif_use(ix,iy,ifld))
+               dif2_use(ix,iy,ifld) = 0.5*ave(difni2(ifld), dif2_use(ix,iy,ifld))
+               tray_use(ix,iy,ifld)  = 0.5*ave(travis(ifld), tray_use(ix,iy,ifld))
+               kye_use(ix,iy)  = 0.5*ave(kye, kye_use(ix,iy))
+               kyi_use(ix,iy)  = 0.5*ave(kyi, kyi_use(ix,iy))
+               dutm_use(ix,iy,ifld)  = 0.5*ave(difutm(1), dutm_use(ix,iy,ifld))
+             enddo
+           enddo
+         endif
+       endif
+
+c ... If isbohmcalc=3, then give (B0/B)**inbdif profile to diff
+       if (isbohmcalc==3) then  # use inbtdif, inbpdif for btot, bpol scaling
+         bpolmin = bpol(ixpt2(1)-ixbpmin,iysptrx,0)
+         do iy = j1, j6
+            do ix = i1, i6
+              ix1 = ixp1(ix,iy)
+	      bscalf=((.5*(btot(ixmp,iysptrx)/btot(ix,iy)) +
+     .               .5*(btot(ixmp,iysptrx)/btot(ix1,iy)))**inbtdif)
+     .       * ((bpol(ixmp,iysptrx,3)+bpol(ixmp,iysptrx,4))/
+     .          (bpol(ix,iy,3)+bpol(ix,iy,4)+bpolmin))**inbpdif
+	      dif_use(ix,iy,ifld)  = difniv(iy,ifld)*bscalf
+	      difp_use(ix,iy,ifld) = difprv(iy,ifld)*bscalf          
+              dif2_use(ix,iy,ifld) = difniv2(iy,ifld)*bscalf
+              tray_use(ix,iy,ifld)  = travisv(iy,ifld)*bscalf
+              kye_use(ix,iy)  = kyev(iy)*bscalf
+              kyi_use(ix,iy)  = kyiv(iy)*bscalf
+              dutm_use(ix,iy,ifld) = difutmv(iy,ifld)*bscalf
+	      vy_use(ix,iy,ifld) = vconyv(iy,ifld)*bscalf
+            enddo
+         enddo
+       endif
+      enddo  # loop over species lfld
+
+c ,,, Add diffusion propto betap**iexpbp and (B0/B)**inbdif (as for isbohmcalc=3)
+      if (isdifbetap == 1) then
+       do ifld = 1, nisp
+         if(zi(ifld) > 0.) then
+           bpolmin = bpol(ixpt2(1)-ixbpmin,iysptrx,0)
+           do iy = j1, j6
+             do ix = i1, i6
+               ix1 = ixp1(ix,iy)
+               betap(ix,iy) = 8.*pi*1.e-7*pr(ix,iy)/bpol(ix,iy,0)**2
+               bpfac = betap(ix,iy)**iexpbp
+ 	       bscalf = ((.5*(btot(ixmp,iysptrx)/btot(ix,iy)) +
+     .                   .5*(btot(ixmp,iysptrx)/btot(ix1,iy)))**inbtdif)
+     .                  * ((bpol(ixmp,iysptrx,3)+bpol(ixmp,iysptrx,4))/
+     .                   (bpol(ix,iy,3)+bpol(ix,iy,4)+bpolmin))**inbpdif
+	       dif_use(ix,iy,ifld)  = difniv(iy,ifld)*bscalf +
+     .                                                    dfacbp*bpfac
+	       difp_use(ix,iy,ifld) = difprv(iy,ifld)*bscalf          
+               dif2_use(ix,iy,ifld) = difniv2(iy,ifld)*bscalf + 
+     .                                                    dfacbp*bpfac
+               tray_use(ix,iy,ifld)  = travisv(iy,ifld)*bscalf + 
+     .                                                   trfacbp*bpfac
+               trax_use(ix,iy,ifld) = trfacbp*bpfac
+               kye_use(ix,iy)  = kyev(iy)*bscalf +  kefacbp*bpfac
+               kyi_use(ix,iy)  = kyiv(iy)*bscalf + kifacbp*bpfac
+               kxe_use(ix,iy) = kefacbp*bpfac
+               kxi_use(ix,iy) = kifacbp*bpfac
+               dutm_use(ix,iy,ifld) = difutmv(iy,ifld)*bscalf
+	       vy_use(ix,iy,ifld) = vconyv(iy,ifld)*bscalf
+             enddo
+           enddo
+         endif
+       enddo
+      endif   # test on isdifbetap
+
+
+      END SUBROUTINE calc_diffusivities
+
 c-----------------------------------------------------------------------
       subroutine pandf (xc, yc, neq, time, yl, yldot)
 
@@ -548,7 +652,7 @@ c ... Get initial value of system cpu timer.
       else
          tsjf = tick()
       endif
-
+!     Initialize loop ranges based on xc and yc
       call initialize_ranges(xc, yc)
 ************************************************************************
 c... First, we convert from the 1-D vector yl to the plasma variables.
@@ -566,97 +670,9 @@ c     involve ion-density sources, fluxes, and/or velocities.
       nfsp = nisp
       if (isimpon .eq. 3 .or. isimpon .eq. 4) nfsp = nhsp
 
-c ... Calculate the Bohm diffusion rates (units are m**2/s)
-      do ifld = 1, nisp
-       if (facbni+facbup+facbee+facbei>0 .and. isbohmcalc>0) then
-         do iy = j1, j6
-            iyp1 = min(ny+1, iy+1)
-            do ix = i1, i6
-               ix1 = ixp1(ix,iy)
-               kybohm(ix,iy) = (te(ix,iy)+te(ix,iyp1)) /
-     .                        (16*ev*(btot(ix,iy)+btot(ix,iyp1)))
-               kxbohm(ix,iy) = (te(ix,iy)+te(ix1,iy)) /
-     .                        (16*ev*(btot(ix,iy)+btot(ix1,iy)))
-               dif_use(ix,iy,ifld)  = facbni*kybohm(ix,iy)
-               dif2_use(ix,iy,ifld) = facbni2*kxbohm(ix,iy)
-               tray_use(ix,iy,ifld)  = facbup*kybohm(ix,iy)
-               kye_use(ix,iy)  = facbee*kybohm(ix,iy)
-               kyi_use(ix,iy)  = facbei*kybohm(ix,iy)
-	       dutm_use(ix,iy,ifld) = kybohm(ix,iy)
-            enddo
-         enddo
-         if (isbohmcalc.eq.2) then  # calc. recip. average with const D
-           fcdif = 0.   # used to zero constant diff. if recip. ave used
-           do iy = j1, j6
-             do ix = i1, i6
-               dif_use(ix,iy,ifld)  = 0.5*ave(difni(ifld),  dif_use(ix,iy,ifld))
-               dif2_use(ix,iy,ifld) = 0.5*ave(difni2(ifld), dif2_use(ix,iy,ifld))
-               tray_use(ix,iy,ifld)  = 0.5*ave(travis(ifld), tray_use(ix,iy,ifld))
-               kye_use(ix,iy)  = 0.5*ave(kye, kye_use(ix,iy))
-               kyi_use(ix,iy)  = 0.5*ave(kyi, kyi_use(ix,iy))
-               dutm_use(ix,iy,ifld)  = 0.5*ave(difutm(1), dutm_use(ix,iy,ifld))
-             enddo
-           enddo
-         endif
-       endif
+      call calc_diffusivities
 
-c ... If isbohmcalc=3, then give (B0/B)**inbdif profile to diff
-       if (isbohmcalc==3) then  # use inbtdif, inbpdif for btot, bpol scaling
-         bpolmin = bpol(ixpt2(1)-ixbpmin,iysptrx,0)
-         do iy = j1, j6
-            do ix = i1, i6
-              ix1 = ixp1(ix,iy)
-	      bscalf=((.5*(btot(ixmp,iysptrx)/btot(ix,iy)) +
-     .               .5*(btot(ixmp,iysptrx)/btot(ix1,iy)))**inbtdif)
-     .       * ((bpol(ixmp,iysptrx,3)+bpol(ixmp,iysptrx,4))/
-     .          (bpol(ix,iy,3)+bpol(ix,iy,4)+bpolmin))**inbpdif
-	      dif_use(ix,iy,ifld)  = difniv(iy,ifld)*bscalf
-	      difp_use(ix,iy,ifld) = difprv(iy,ifld)*bscalf          
-              dif2_use(ix,iy,ifld) = difniv2(iy,ifld)*bscalf
-              tray_use(ix,iy,ifld)  = travisv(iy,ifld)*bscalf
-              kye_use(ix,iy)  = kyev(iy)*bscalf
-              kyi_use(ix,iy)  = kyiv(iy)*bscalf
-              dutm_use(ix,iy,ifld) = difutmv(iy,ifld)*bscalf
-	      vy_use(ix,iy,ifld) = vconyv(iy,ifld)*bscalf
-            enddo
-         enddo
-       endif
-      enddo  # loop over species lfld
-
-c ,,, Add diffusion propto betap**iexpbp and (B0/B)**inbdif (as for isbohmcalc=3)
-      if (isdifbetap == 1) then
-       do ifld = 1, nisp
-         if(zi(ifld) > 0.) then
-           bpolmin = bpol(ixpt2(1)-ixbpmin,iysptrx,0)
-           do iy = j1, j6
-             do ix = i1, i6
-               ix1 = ixp1(ix,iy)
-               betap(ix,iy) = 8.*pi*1.e-7*pr(ix,iy)/bpol(ix,iy,0)**2
-               bpfac = betap(ix,iy)**iexpbp
- 	       bscalf = ((.5*(btot(ixmp,iysptrx)/btot(ix,iy)) +
-     .                   .5*(btot(ixmp,iysptrx)/btot(ix1,iy)))**inbtdif)
-     .                  * ((bpol(ixmp,iysptrx,3)+bpol(ixmp,iysptrx,4))/
-     .                   (bpol(ix,iy,3)+bpol(ix,iy,4)+bpolmin))**inbpdif
-	       dif_use(ix,iy,ifld)  = difniv(iy,ifld)*bscalf +
-     .                                                    dfacbp*bpfac
-	       difp_use(ix,iy,ifld) = difprv(iy,ifld)*bscalf          
-               dif2_use(ix,iy,ifld) = difniv2(iy,ifld)*bscalf + 
-     .                                                    dfacbp*bpfac
-               tray_use(ix,iy,ifld)  = travisv(iy,ifld)*bscalf + 
-     .                                                   trfacbp*bpfac
-               trax_use(ix,iy,ifld) = trfacbp*bpfac
-               kye_use(ix,iy)  = kyev(iy)*bscalf +  kefacbp*bpfac
-               kyi_use(ix,iy)  = kyiv(iy)*bscalf + kifacbp*bpfac
-               kxe_use(ix,iy) = kefacbp*bpfac
-               kxi_use(ix,iy) = kifacbp*bpfac
-               dutm_use(ix,iy,ifld) = difutmv(iy,ifld)*bscalf
-	       vy_use(ix,iy,ifld) = vconyv(iy,ifld)*bscalf
-             enddo
-           enddo
-         endif
-       enddo
-      endif   # test on isdifbetap
-
+      call calc_drifts
 
 ************************************************************************
 *  Transverse Drifts in y-direction and in 2-direction 
@@ -4687,10 +4703,10 @@ c     finding maximum charge state.
       do ifld = 1, nhsp
          natomic(misa) = max(nint(ziin(ifld)), 1)   # must be .ge. 1
          nchstate = max(nchstate, natomic(misa)) 
-         if (ifld .eq. nhsp) go to 50
-         if (minu(ifld+1) .ne. minu(ifld)) misa = misa + 1
-      enddo
- 50   misotope = misa
+         if (ifld .ne. nhsp) then
+             if (minu(ifld+1) .ne. minu(ifld)) misa = misa + 1
+        endif
+      misotope = misa
       do jz = 1, ngspmx-1
          if (nzsp(jz)==0) break
          misotope = misotope + 1
