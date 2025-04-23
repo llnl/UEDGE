@@ -1079,6 +1079,10 @@ ixs1        integer +threadprivate
 ixf6        integer +threadprivate
 iys1        integer +threadprivate
 iyf6        integer +threadprivate
+iys         integer +threadprivate
+ixs         integer +threadprivate
+ixf         integer +threadprivate
+iyf         integer +threadprivate
 xlinc       integer /2/ +threadprivate
 xrinc       integer /1/ +threadprivate
 yinc        integer /2/ +threadprivate

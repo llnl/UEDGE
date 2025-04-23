@@ -4880,7 +4880,7 @@ c------------------------------------------------------------------------
       Use(Poten)    # kappalb,kapparb
 
 *  -- local scalars --
-      integer ix, iy, ifld, igsp, ipf, jx, ixs, ixe, nxt, nxt1
+      integer ix, iy, ifld, igsp, ipf, jx, ixe, nxt, nxt1
       real sxcos, syu, ue_ion_flux_sum
 
 c   Compute fluxes along left (inner divertor - need to change sign)

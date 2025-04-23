@@ -159,7 +159,7 @@ c            write(*,*) parvis
 
       SUBROUTINE initialize_ranges(xc, yc)
       IMPLICIT NONE
-      integer xc, yc, ixf, ixmp2, ixs, iyf, iys, jx
+      integer xc, yc, ixmp2, jx
       logical xccuts, xcturb
       Use(Dim)
       Use(UEpar)
@@ -2103,7 +2103,7 @@ c    yldot is the RHS of ODE solver or RHS=0 for Newton solver (NKSOL)
       real temp1, temp2, temp3, temp4, cutlo3, lambd_ci, lambd_ce
       real upxavep1,upxave0,upxavem1,upf0,upfm1
       real teev,nexface,loglmcc,nmxface
-      integer iy1, ixmp2, iyp1, iyp2, iym1, ixs, ixf, iys, iyf,
+      integer iy1, ixmp2, iyp1, iyp2, iym1, 
      .        methnx, methny, iy2, i2pwr, i5pwr, j2pwr, j5pwr,
      .        iysepu, ixpt1u, ixpt2u
       integer iy0, jy, jylo, jyhi, iy_min, iy_max
