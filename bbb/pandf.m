@@ -825,7 +825,366 @@ c             non-physical interface between upper target plates for dnull
         end do  # Giant loop over ifld (species)
 
 
+c ... Need to calculate new currents (fqp) after saving old & before frice,i
+      if(isphion+isphiofft .eq. 1)  call calc_currents
+
+c ... Add anomalous perp vis vy using calc_currents result - awkward,change
+      if (cfvyavis > 0.) then
+        do ifld = 1, 1  # nfsp  # only good for ifld=1
+          do iy = max(j1,2), min(j5,ny-1)
+            do ix = max(i1,2), min(i6,nx-1)
+              vyavis(ix,iy,ifld) = fqya(ix,iy)*2/(
+     .                  qe*(niy1(ix,iy,1)+niy0(ix,iy,1))*sy(ix,iy) )
+              vy(ix,iy,ifld) = vy(ix,iy,ifld) + cfvyavis*vyavis(ix,iy,ifld)
+            enddo
+          enddo
+        enddo
+      endif          
+
+
       END SUBROUTINE calc_driftterms
+
+
+      SUBROUTINE calc_elec_velocities
+      IMPLICIT NONE
+      Use(Selec)
+      Use(Compla)
+      Use(Imprad)
+      Use(Dim)
+      Use(Comtra)
+      Use(Comflo)
+      Use(Comgeo)
+      Use(Phyvar)
+      Use(Coefeq)
+      Use(Bfield)
+      Use(UEpar)
+      Use(Bcond)
+      integer iy, ix, ifld, ix1
+      real afqp
+************************************************************************
+*     Calculate the electron velocities, vex, upe, ve2, vey
+************************************************************************
+       do iy = j1, j6
+	    do ix = i1, i6
+	    vex(ix,iy) = 0.
+	    vey(ix,iy) = 0.
+        end do
+        end do
+
+      if (isimpon.ne.5) then    # have upe from mombal
+
+      do iy = j1, j6    #iys1, iyf6
+         do ix = i1, i6
+            upe(ix,iy) = 0.
+         enddo
+      enddo
+
+      do ifld = 1, nfsp
+         do iy = j1, j6    #iys1, iyf6
+	    do ix = i1, i6
+               ix1 = ixp1(ix,iy)
+	       upe(ix,iy) = upe(ix,iy) + upi(ix,iy,ifld)*zi(ifld)*0.5*
+     .                      ( ni(ix,iy,ifld)+ni(ix1,iy,ifld) )
+            enddo
+         enddo
+        end do
+      afqp = 1.
+      if (isimpon.eq.6 .or. isimpon.eq.7) afqp = fupe_cur  #allows gradual fix for old cases
+      do iy = j1, j6    #iys1, iyf6
+         do ix = i1, i6
+            ix1 = ixp1(ix,iy)
+	    upe(ix,iy) = (upe(ix,iy) -afqp*fqp(ix,iy)/
+     .                               (rrv(ix,iy)*sx(ix,iy)*qe))/
+     .                             (0.5*( ne(ix,iy)+ne(ix1,iy) ))
+         enddo
+      enddo
+
+      end if
+
+      do iy = j1, j6   # ExB same all species;if cf2dd=1, no imp yet
+	    do ix = i1, i6
+            ix1 = ixp1(ix,iy)
+            vex(ix,iy) = upe(ix,iy)*rrv(ix,iy) + 
+     .                   (cf2ef*v2ce(ix,iy,1) + cf2bf*ve2cb(ix,iy) + 
+     .                         cf2dd*bfacxrozh(ix,iy)*ve2cd(ix,iy,1) ) *
+     .                           0.5*(rbfbt(ix,iy) + rbfbt(ix1,iy)) -
+     .                                               vytan(ix,iy,1) 
+     
+        end do
+       end do
+
+      do ifld = 1, nfsp
+	 do iy = j1, j5
+	    do  ix = i1, i6   # grad_B will be ok as next fqy is subtr.
+	       vey(ix,iy) = vey(ix,iy) + vy(ix,iy,ifld)*zi(ifld)*0.5*
+     .                      ( niy0(ix,iy,ifld)+niy1(ix,iy,ifld) )
+          end do
+         end do
+        end do
+
+        do iy = j1, j5
+	     do ix = i1, i6
+	      vey(ix,iy) = (vey(ix,iy)-cfjve*fqy(ix,iy)/(sy(ix,iy)*qe))/
+     .                    (0.5*( ney0(ix,iy)+ney1(ix,iy) ))
+         end do
+        end do
+	 
+c ... if isnewpot=0, vey(,0) needs to be redone since fqy(,0)=0
+      if (isnewpot==1) then
+        do ix = i1, i6  # ExB vyce same all species
+          vey(ix,0) = cfybf*veycb(ix,0) + vydd(ix,0,1) +
+     .                cfyef*vyce(ix,0,1)
+        enddo
+      endif
+
+c ... If isybdrywd = 1, make vey diffusive, just like vy
+      if (isybdrywd == 1) then  #make vy diffusive in wall cells
+        do ix = i1, i6
+          if (matwalli(ix) > 0) vey(ix,0)  = vydd(ix,0,1)
+          if (matwallo(ix) > 0) vey(ix,ny) = vydd(ix,ny,1)
+        enddo
+      endif
+      
+
+
+      END SUBROUTINE calc_elec_velocities
+
+      SUBROUTINE calc_friction(xc)
+      IMPLICIT NONE
+      Use(Imprad)
+      Use(Selec)
+      Use(Compla)
+      Use(Comgeo)
+      Use(Gradients)
+      Use(Share)
+      Use(Phyvar)
+      Use(Comtra)
+      Use(Cfric)
+      Use(Poten)
+      Use(Coefeq)
+      Use(Comflo)
+      Use(Dim)
+      Use(UEpar)
+      Use(Xpoint_indices)
+      Use(Indices_domain_dcl)
+      Use(Timing)
+      Use(Bfield)
+      Use(Bcond)
+      integer xc
+      integer iy, ix, ix2, ix1, jx, ifld, ixt0, ixt, ixt1
+      real nbarx, ltmax, lmfpe, flxlimf, pondomfpare_use, nexface, 
+     .cutlo3, tsimp, argx, ueb
+      real tick
+    
+
+c ... Calc friction forces from Braginskii; no individ chg-states;isimpon < 5.
+
+      if (isimpon < 5) then
+         do iy = j1, j6    #iys1, iyf6
+            do ix = i1, i6
+               ix2 = ixp1(ix,iy)
+               nbarx = 0.5*(ne(ix,iy)+ne(ix2,iy))
+               ltmax = min( abs(te(ix,iy)/(rrv(ix,iy)*gtex(ix,iy) + cutlo)),
+     .                   lcone(ix,iy) )
+               lmfpe = 2e16*(te(ix,iy)/ev)**2/ne(ix,iy)
+               flxlimf = flalftf*ltmax/(flalftf*ltmax + lmfpe)
+               frice(ix,iy) = -cthe*flxlimf*nbarx*rrv(ix,iy)*gtex(ix,iy) +
+     .                  cfnetap*qe*netap(ix,iy)*fqp(ix,iy)/sx(ix,iy)
+               frici(ix,iy,1) = - frice(ix,iy)
+               if (fac2sp .gt. 1.1 .and. nusp .eq. 2) then
+                  frici(ix,iy,1) = - frice(ix,iy)/fac2sp
+                  frici(ix,iy,2) = - frice(ix,iy)/fac2sp
+               endif
+            enddo
+         enddo
+      endif
+
+c ... For use within subroutine mombal, the poloidal electric field is
+c     calculated from || Ohms law if isphion = 0.  This field is not
+c     intended for use in computing cross-field drifts, so a test of
+c     cfyef is included. Both isphiofft=0 or 1 cases included in one loop
+
+      if (isphion .eq. 0) then   # ex calc here assumes no parallel current
+         do iy = iys1, iyf6
+            do ix = i1, i6
+               ix1 = ix
+               do jx = 1, nxpt
+                 if (ix==ixlb(jx) .and. ixmnbcl==1) then
+                   ix1 = ixlb(jx) + 1
+                 elseif (ix==ixrb(jx) .and. ixmxbcl==1) then
+                   ix1 = ixrb(jx) - 1 
+                 endif
+               enddo
+               ix2 = ixp1(ix1,iy)
+               ltmax = min( abs(te(ix,iy)/(rrv(ix,iy)*gtex(ix,iy) + cutlo)),
+     .                   lcone(ix,iy) )
+               lmfpe = 2e16*(te(ix,iy)/ev)**2/ne(ix,iy)
+               flxlimf = flalftf*ltmax/(flalftf*ltmax + lmfpe)
+               nexface = 0.5*(ne(ix2,iy)+ne(ix1,iy))
+               ex(ix,iy) = (1 - isphiofft) * (
+     .                                     -( gpex(ix1,iy)/nexface +
+     .                                cthe*flxlimf*gtex(ix1,iy) )/qe -
+     .                                              gpondpotx(ix,iy) +
+     .                 pondomfpare_use(ix,iy)/(qe*rrv(ix,iy)*nexface) ) + 
+     .                      isphiofft * (
+     .                            (phi(ix1,iy)-phi(ix2,iy))*gxf(ix1,iy) )
+            enddo
+         enddo
+      endif
+
+c ... Loop over cells (restricted to poloidal slice of box if doing
+c     Jacobian), calling mombal if it is providing parallel flow, and
+c     taking poloidal projection of parallel flow to get poloidal flow.
+c     Unperturbed values of the parallel-flow contribution to uu are
+c     saved here so they can be restored below.
+
+
+
+      do iy = iys1, iyf6
+         if (xc .gt. 0) then
+            ix = xc
+            ix1 = ixm1(ix,iy)
+            if (isimpon .eq. 5) then   # Hirshmans reduced-ion approx.
+               if (istimingon .eq. 1) tsimp = tick()
+               call mombal (ix1,ix,iy)
+               if (istimingon .eq. 1) call timimpfj (tsimp, xc)
+            elseif(isimpon .eq. 6 .or. isimpon .eq. 7) then # Force balance without inertia
+               if (istimingon .eq. 1) tsimp = tick()
+               call mombalni (ix1,ix,iy)
+               if (istimingon .eq. 1) call timimpfj (tsimp, xc)
+            endif
+            do ifld = 1, nfsp
+               if (ifld .le. nusp) then
+                 upi(ix1,iy,ifld) = up(ix1,iy,ifld)
+               else
+                 do jx = 1, nxpt
+                    if ( (ix1==ixlb(jx).and.ixmnbcl==1) .or.
+     .                   (ix1==ixrb(jx).and.ixmxbcl==1) ) then
+                       # constrain boundary velocity
+                       if (zi(ifld) .gt. 1.e-10) then
+                          argx = abs((2-2*upi(ix1,iy,ifld)/
+     .                                     (upi(ix1,iy,1)+cutlo3))**3)
+                          argx = min(20., argx)
+                          upi(ix1,iy,ifld) = upi(ix1,iy,1) + 
+     .                       (upi(ix1,iy,ifld)-upi(ix1,iy,1))*exp(-argx)
+                       endif  # end if-test on zi
+                    endif  # end if-test on ix
+                 enddo  # end do-loop over nxpt mesh regions
+               endif
+               uup(ix1,iy,ifld) = rrv(ix1,iy)*upi(ix1,iy,ifld)
+            enddo
+         endif
+         do ix = ixs1, min(ixf6, nx+1-ixmxbcl)
+            ix2 = ixp1(ix,iy)
+            if (isimpon .eq. 5) then
+               if (istimingon .eq. 1) tsimp = tick()
+               call mombal (ix,ix2,iy)
+               if (istimingon .eq. 1) call timimpfj (tsimp, xc)
+            elseif(isimpon .eq. 6 .or. isimpon .eq. 7) then # Force balance without inertia
+               if (istimingon .eq. 1) tsimp = tick()
+               call mombalni (ix,ix2,iy)
+               if (istimingon .eq. 1) call timimpfj (tsimp, xc)
+            endif
+            do ifld = 1, nfsp
+               if (ifld .le. nusp) then
+                 upi(ix,iy,ifld) = up(ix,iy,ifld)
+               else
+                 do jx = 1, nxpt
+                    if ( (ix==ixlb(jx).and.ixmnbcl==1) .or.
+     .                   (ix==ixrb(jx).and.ixmxbcl==1) ) then
+                       # constrain boundary velocity
+                       if (zi(ifld) .gt. 1.e-10) then
+                          argx = abs((2-2*upi(ix,iy,ifld)/
+     .                                     (upi(ix,iy,1)+cutlo3))**3)
+                          argx = min(20., argx)
+                          upi(ix,iy,ifld) = upi(ix,iy,1) + 
+     .                         (upi(ix,iy,ifld)-upi(ix,iy,1))*exp(-argx)
+                       endif  # end if-test on zi
+                    endif  # end if-test on ix
+                 enddo  # end do-loop over nxpt mesh regions
+               endif
+               uup(ix,iy,ifld) = rrv(ix,iy)*upi(ix,iy,ifld)
+            enddo
+         enddo
+      enddo
+
+c ... Add contributions to poloidal velocity from cross-field drifts
+c     to those from parallel flow.
+
+      do ifld = 1, nfsp
+         do iy = j1, j6
+            if (i1 .gt. 0) then  # il is initial ix; here for uu(ixm1(i1-1,,)
+               ix = i1
+               ix1 = ixm1(ix,iy)
+               uu(ix1,iy,ifld) = uup(ix1,iy,ifld) +
+     .                           0.5 * (rbfbt(ix,iy) + rbfbt(ix1,iy)) *
+     .                           v2(ix1,iy,ifld) - vytan(ix1,iy,ifld) -
+     .                         difax(ifld) * 0.5 * ( ( 0.5*(
+     .                         ni(ix1,iy,ifld)/ni(ix,iy,ifld) +
+     .                         ni(ix,iy,ifld)/ni(ix1,iy,ifld)) -1)**2 ) *
+     .                        (ni(ix,iy,ifld)-ni(ix1,iy,ifld))*gxf(ix1,iy)
+     .                       /(ni(ix,iy,ifld)+ni(ix1,iy,ifld))
+               uz(ix1,iy,ifld) = -uup(ix1,iy,ifld)/rrv(ix1,iy)*
+     .          0.5*(rbfbt(ix,iy) + rbfbt(ix1,iy)) + sign(1.,b02d(ix,iy))*
+     .               (cftef*v2ce(ix1,iy,ifld)+cftdd*v2cd(ix1,iy,ifld))*
+     .                                                       rrv(ix1,iy)
+            endif
+            do ix = i1, i6    #now the remainder of the uu(ix,,)
+               ix2 = ixp1(ix,iy)
+               uu(ix,iy,ifld) = uup(ix,iy,ifld) +
+     .                          0.5 * (rbfbt(ix,iy) + rbfbt(ix2,iy)) *
+     .                          v2(ix,iy,ifld) - vytan(ix,iy,ifld) -
+     .                         difax(ifld) * 0.5 * ( ( 0.5*(
+     .                         ni(ix,iy,ifld)/ni(ix2,iy,ifld) +
+     .                         ni(ix2,iy,ifld)/ni(ix,iy,ifld)) -1)**2 ) *
+     .                        (ni(ix2,iy,ifld)-ni(ix,iy,ifld))*gxf(ix,iy)
+     .                       /(ni(ix2,iy,ifld)+ni(ix,iy,ifld))
+               uz(ix,iy,ifld) = -uup(ix,iy,ifld)/rrv(ix,iy)*
+     .          0.5*(rbfbt(ix,iy) + rbfbt(ix2,iy)) + sign(1.,b02d(ix,iy))*
+     .               (cftef*v2ce(ix,iy,ifld)+cftdd*v2cd(ix,iy,ifld))*
+     .                                                       rrv(ix,iy)
+            enddo
+         enddo
+      enddo
+
+c...  If upi not from full ||mom eq (e.g.,isimpon=6), set impurity
+c...  uu(ixrb,,) & upi(ixrb,,) via generalized Bohm cond.
+      if(isimpon > 0) then
+        do jx = 1, nxpt
+	  ixt0 = ixlb(jx)
+          ixt = ixrb(jx)+1 
+          ixt1 = ixrb(jx)
+	  do ifld = nhsp+1, nfsp
+            if(ifld > nusp) then  #species without full mom eqn
+	      do iy = j1, j6
+c ..          first left plate(s)
+                if(isfixlb(jx) == 0) then # set upi for left plate
+                  cs = csfacrb(ifld,jx)*sqrt( (te(ixt0,iy) +
+     .                            csfacti*ti(ixt0,iy))/mi(ifld) )
+                  ueb = cfueb*( cf2ef*v2ce(ixt0,iy,ifld)*rbfbt(ixt0,iy) -
+     .                            vytan(ixt0,iy,ifld) )/rrv(ixt0,iy)
+	          uu(ixt0,iy,ifld) = -rrv(ixt0,iy)*cs
+                  upi(ixt0,iy,ifld) = -(cs - ueb)
+                endif
+c ..          switch to right plate(s)
+                if(isfixrb(jx) == 0) then
+                  cs = csfacrb(ifld,jx)*sqrt( (te(ixt1,iy) +
+     .                            csfacti*ti(ixt1,iy))/mi(ifld) )
+                  ueb = cfueb*( cf2ef*v2ce(ixt1,iy,ifld)*rbfbt(ixt,iy) -
+     .                            vytan(ixt1,iy,ifld) )/rrv(ixt1,iy)
+	          uu(ixt1,iy,ifld) = rrv(ixt1,iy)*cs
+	          uu(ixt,iy,ifld) = uu(ixt1,iy,ifld)
+                  upi(ixt1,iy,ifld) = cs - ueb
+                  upi(ixt,iy,ifld) = upi(ixt1,iy,ifld)
+                endif
+              enddo
+            endif   #checks if ifld > nusp
+          enddo
+        enddo
+      endif         # checks if isimpon > 0
+
+
+      END SUBROUTINE calc_friction
 
 c-----------------------------------------------------------------------
       subroutine pandf (xc, yc, neq, time, yl, yldot)
@@ -1083,320 +1442,14 @@ c ... value at ix-1.
          enddo
       endif
 
-
-c ... Need to calculate new currents (fqp) after saving old & before frice,i
-      if(isphion+isphiofft .eq. 1)  call calc_currents
-
-c ... Add anomalous perp vis vy using calc_currents result - awkward,change
-      if (cfvyavis > 0.) then
-        do ifld = 1, 1  # nfsp  # only good for ifld=1
-          do iy = max(j1,2), min(j5,ny-1)
-            do ix = max(i1,2), min(i6,nx-1)
-              vyavis(ix,iy,ifld) = fqya(ix,iy)*2/(
-     .                  qe*(niy1(ix,iy,1)+niy0(ix,iy,1))*sy(ix,iy) )
-              vy(ix,iy,ifld) = vy(ix,iy,ifld) + cfvyavis*vyavis(ix,iy,ifld)
-            enddo
-          enddo
-        enddo
-      endif          
-
-c ... Calc friction forces from Braginskii; no individ chg-states;isimpon < 5.
-
-      if (isimpon < 5) then
-         do iy = j1, j6    #iys1, iyf6
-            do ix = i1, i6
-               ix2 = ixp1(ix,iy)
-               nbarx = 0.5*(ne(ix,iy)+ne(ix2,iy))
-               ltmax = min( abs(te(ix,iy)/(rrv(ix,iy)*gtex(ix,iy) + cutlo)),
-     .                   lcone(ix,iy) )
-               lmfpe = 2e16*(te(ix,iy)/ev)**2/ne(ix,iy)
-               flxlimf = flalftf*ltmax/(flalftf*ltmax + lmfpe)
-               frice(ix,iy) = -cthe*flxlimf*nbarx*rrv(ix,iy)*gtex(ix,iy) +
-     .                  cfnetap*qe*netap(ix,iy)*fqp(ix,iy)/sx(ix,iy)
-               frici(ix,iy,1) = - frice(ix,iy)
-               if (fac2sp .gt. 1.1 .and. nusp .eq. 2) then
-                  frici(ix,iy,1) = - frice(ix,iy)/fac2sp
-                  frici(ix,iy,2) = - frice(ix,iy)/fac2sp
-               endif
-            enddo
-         enddo
-      endif
-
-c ... For use within subroutine mombal, the poloidal electric field is
-c     calculated from || Ohms law if isphion = 0.  This field is not
-c     intended for use in computing cross-field drifts, so a test of
-c     cfyef is included. Both isphiofft=0 or 1 cases included in one loop
-
-      if (isphion .eq. 0) then   # ex calc here assumes no parallel current
-         do iy = iys1, iyf6
-            do ix = i1, i6
-               ix1 = ix
-               do jx = 1, nxpt
-                 if (ix==ixlb(jx) .and. ixmnbcl==1) then
-                   ix1 = ixlb(jx) + 1
-                 elseif (ix==ixrb(jx) .and. ixmxbcl==1) then
-                   ix1 = ixrb(jx) - 1 
-                 endif
-               enddo
-               ix2 = ixp1(ix1,iy)
-               ltmax = min( abs(te(ix,iy)/(rrv(ix,iy)*gtex(ix,iy) + cutlo)),
-     .                   lcone(ix,iy) )
-               lmfpe = 2e16*(te(ix,iy)/ev)**2/ne(ix,iy)
-               flxlimf = flalftf*ltmax/(flalftf*ltmax + lmfpe)
-               nexface = 0.5*(ne(ix2,iy)+ne(ix1,iy))
-               ex(ix,iy) = (1 - isphiofft) * (
-     .                                     -( gpex(ix1,iy)/nexface +
-     .                                cthe*flxlimf*gtex(ix1,iy) )/qe -
-     .                                              gpondpotx(ix,iy) +
-     .                 pondomfpare_use(ix,iy)/(qe*rrv(ix,iy)*nexface) ) + 
-     .                      isphiofft * (
-     .                            (phi(ix1,iy)-phi(ix2,iy))*gxf(ix1,iy) )
-            enddo
-         enddo
-      endif
-
-c ... Loop over cells (restricted to poloidal slice of box if doing
-c     Jacobian), calling mombal if it is providing parallel flow, and
-c     taking poloidal projection of parallel flow to get poloidal flow.
-c     Unperturbed values of the parallel-flow contribution to uu are
-c     saved here so they can be restored below.
-
-
-
-      do iy = iys1, iyf6
-         if (xc .gt. 0) then
-            ix = xc
-            ix1 = ixm1(ix,iy)
-            if (isimpon .eq. 5) then   # Hirshmans reduced-ion approx.
-               if (istimingon .eq. 1) tsimp = tick()
-               call mombal (ix1,ix,iy)
-               if (istimingon .eq. 1) call timimpfj (tsimp, xc)
-            elseif(isimpon .eq. 6 .or. isimpon .eq. 7) then # Force balance without inertia
-               if (istimingon .eq. 1) tsimp = tick()
-               call mombalni (ix1,ix,iy)
-               if (istimingon .eq. 1) call timimpfj (tsimp, xc)
-            endif
-            do ifld = 1, nfsp
-               if (ifld .le. nusp) then
-                 upi(ix1,iy,ifld) = up(ix1,iy,ifld)
-               else
-                 do jx = 1, nxpt
-                    if ( (ix1==ixlb(jx).and.ixmnbcl==1) .or.
-     .                   (ix1==ixrb(jx).and.ixmxbcl==1) ) then
-                       # constrain boundary velocity
-                       if (zi(ifld) .gt. 1.e-10) then
-                          argx = abs((2-2*upi(ix1,iy,ifld)/
-     .                                     (upi(ix1,iy,1)+cutlo3))**3)
-                          argx = min(20., argx)
-                          upi(ix1,iy,ifld) = upi(ix1,iy,1) + 
-     .                       (upi(ix1,iy,ifld)-upi(ix1,iy,1))*exp(-argx)
-                       endif  # end if-test on zi
-                    endif  # end if-test on ix
-                 enddo  # end do-loop over nxpt mesh regions
-               endif
-               uup(ix1,iy,ifld) = rrv(ix1,iy)*upi(ix1,iy,ifld)
-            enddo
-         endif
-         do ix = ixs1, min(ixf6, nx+1-ixmxbcl)
-            ix2 = ixp1(ix,iy)
-            if (isimpon .eq. 5) then
-               if (istimingon .eq. 1) tsimp = tick()
-               call mombal (ix,ix2,iy)
-               if (istimingon .eq. 1) call timimpfj (tsimp, xc)
-            elseif(isimpon .eq. 6 .or. isimpon .eq. 7) then # Force balance without inertia
-               if (istimingon .eq. 1) tsimp = tick()
-               call mombalni (ix,ix2,iy)
-               if (istimingon .eq. 1) call timimpfj (tsimp, xc)
-            endif
-            do ifld = 1, nfsp
-               if (ifld .le. nusp) then
-                 upi(ix,iy,ifld) = up(ix,iy,ifld)
-               else
-                 do jx = 1, nxpt
-                    if ( (ix==ixlb(jx).and.ixmnbcl==1) .or.
-     .                   (ix==ixrb(jx).and.ixmxbcl==1) ) then
-                       # constrain boundary velocity
-                       if (zi(ifld) .gt. 1.e-10) then
-                          argx = abs((2-2*upi(ix,iy,ifld)/
-     .                                     (upi(ix,iy,1)+cutlo3))**3)
-                          argx = min(20., argx)
-                          upi(ix,iy,ifld) = upi(ix,iy,1) + 
-     .                         (upi(ix,iy,ifld)-upi(ix,iy,1))*exp(-argx)
-                       endif  # end if-test on zi
-                    endif  # end if-test on ix
-                 enddo  # end do-loop over nxpt mesh regions
-               endif
-               uup(ix,iy,ifld) = rrv(ix,iy)*upi(ix,iy,ifld)
-            enddo
-         enddo
-      enddo
-
-c ... Add contributions to poloidal velocity from cross-field drifts
-c     to those from parallel flow.
-
-      do ifld = 1, nfsp
-         do iy = j1, j6
-            if (i1 .gt. 0) then  # il is initial ix; here for uu(ixm1(i1-1,,)
-               ix = i1
-               ix1 = ixm1(ix,iy)
-               uu(ix1,iy,ifld) = uup(ix1,iy,ifld) +
-     .                           0.5 * (rbfbt(ix,iy) + rbfbt(ix1,iy)) *
-     .                           v2(ix1,iy,ifld) - vytan(ix1,iy,ifld) -
-     .                         difax(ifld) * 0.5 * ( ( 0.5*(
-     .                         ni(ix1,iy,ifld)/ni(ix,iy,ifld) +
-     .                         ni(ix,iy,ifld)/ni(ix1,iy,ifld)) -1)**2 ) *
-     .                        (ni(ix,iy,ifld)-ni(ix1,iy,ifld))*gxf(ix1,iy)
-     .                       /(ni(ix,iy,ifld)+ni(ix1,iy,ifld))
-               uz(ix1,iy,ifld) = -uup(ix1,iy,ifld)/rrv(ix1,iy)*
-     .          0.5*(rbfbt(ix,iy) + rbfbt(ix1,iy)) + sign(1.,b02d(ix,iy))*
-     .               (cftef*v2ce(ix1,iy,ifld)+cftdd*v2cd(ix1,iy,ifld))*
-     .                                                       rrv(ix1,iy)
-            endif
-            do ix = i1, i6    #now the remainder of the uu(ix,,)
-               ix2 = ixp1(ix,iy)
-               uu(ix,iy,ifld) = uup(ix,iy,ifld) +
-     .                          0.5 * (rbfbt(ix,iy) + rbfbt(ix2,iy)) *
-     .                          v2(ix,iy,ifld) - vytan(ix,iy,ifld) -
-     .                         difax(ifld) * 0.5 * ( ( 0.5*(
-     .                         ni(ix,iy,ifld)/ni(ix2,iy,ifld) +
-     .                         ni(ix2,iy,ifld)/ni(ix,iy,ifld)) -1)**2 ) *
-     .                        (ni(ix2,iy,ifld)-ni(ix,iy,ifld))*gxf(ix,iy)
-     .                       /(ni(ix2,iy,ifld)+ni(ix,iy,ifld))
-               uz(ix,iy,ifld) = -uup(ix,iy,ifld)/rrv(ix,iy)*
-     .          0.5*(rbfbt(ix,iy) + rbfbt(ix2,iy)) + sign(1.,b02d(ix,iy))*
-     .               (cftef*v2ce(ix,iy,ifld)+cftdd*v2cd(ix,iy,ifld))*
-     .                                                       rrv(ix,iy)
-            enddo
-         enddo
-      enddo
-
-c...  If upi not from full ||mom eq (e.g.,isimpon=6), set impurity
-c...  uu(ixrb,,) & upi(ixrb,,) via generalized Bohm cond.
-      if(isimpon > 0) then
-        do jx = 1, nxpt
-	  ixt0 = ixlb(jx)
-          ixt = ixrb(jx)+1 
-          ixt1 = ixrb(jx)
-	  do ifld = nhsp+1, nfsp
-            if(ifld > nusp) then  #species without full mom eqn
-	      do iy = j1, j6
-c ..          first left plate(s)
-                if(isfixlb(jx) == 0) then # set upi for left plate
-                  cs = csfacrb(ifld,jx)*sqrt( (te(ixt0,iy) +
-     .                            csfacti*ti(ixt0,iy))/mi(ifld) )
-                  ueb = cfueb*( cf2ef*v2ce(ixt0,iy,ifld)*rbfbt(ixt0,iy) -
-     .                            vytan(ixt0,iy,ifld) )/rrv(ixt0,iy)
-	          uu(ixt0,iy,ifld) = -rrv(ixt0,iy)*cs
-                  upi(ixt0,iy,ifld) = -(cs - ueb)
-                endif
-c ..          switch to right plate(s)
-                if(isfixrb(jx) == 0) then
-                  cs = csfacrb(ifld,jx)*sqrt( (te(ixt1,iy) +
-     .                            csfacti*ti(ixt1,iy))/mi(ifld) )
-                  ueb = cfueb*( cf2ef*v2ce(ixt1,iy,ifld)*rbfbt(ixt,iy) -
-     .                            vytan(ixt1,iy,ifld) )/rrv(ixt1,iy)
-	          uu(ixt1,iy,ifld) = rrv(ixt1,iy)*cs
-	          uu(ixt,iy,ifld) = uu(ixt1,iy,ifld)
-                  upi(ixt1,iy,ifld) = cs - ueb
-                  upi(ixt,iy,ifld) = upi(ixt1,iy,ifld)
-                endif
-              enddo
-            endif   #checks if ifld > nusp
-          enddo
-        enddo
-      endif         # checks if isimpon > 0
-
+      call calc_friction(xc)
 ************************************************************************
 *     Calculate the currents fqx, fqy, fq2 and fqp, if isphion = 1
 *     or if isphiofft = 1.
 ************************************************************************
 ccc      if(isphion+isphiofft .eq. 1)  call calc_currents
 
-************************************************************************
-*     Calculate the electron velocities, vex, upe, ve2, vey
-************************************************************************
-       do iy = j1, j6
-	    do ix = i1, i6
-	    vex(ix,iy) = 0.
-	    vey(ix,iy) = 0.
-        end do
-        end do
-
-      if (isimpon.ne.5) then    # have upe from mombal
-
-      do iy = j1, j6    #iys1, iyf6
-         do ix = i1, i6
-            upe(ix,iy) = 0.
-         enddo
-      enddo
-
-      do ifld = 1, nfsp
-         do iy = j1, j6    #iys1, iyf6
-	    do ix = i1, i6
-               ix1 = ixp1(ix,iy)
-	       upe(ix,iy) = upe(ix,iy) + upi(ix,iy,ifld)*zi(ifld)*0.5*
-     .                      ( ni(ix,iy,ifld)+ni(ix1,iy,ifld) )
-            enddo
-         enddo
-        end do
-      afqp = 1.
-      if (isimpon.eq.6 .or. isimpon.eq.7) afqp = fupe_cur  #allows gradual fix for old cases
-      do iy = j1, j6    #iys1, iyf6
-         do ix = i1, i6
-            ix1 = ixp1(ix,iy)
-	    upe(ix,iy) = (upe(ix,iy) -afqp*fqp(ix,iy)/
-     .                               (rrv(ix,iy)*sx(ix,iy)*qe))/
-     .                             (0.5*( ne(ix,iy)+ne(ix1,iy) ))
-         enddo
-      enddo
-
-      end if
-
-      do iy = j1, j6   # ExB same all species;if cf2dd=1, no imp yet
-	    do ix = i1, i6
-            ix1 = ixp1(ix,iy)
-            vex(ix,iy) = upe(ix,iy)*rrv(ix,iy) + 
-     .                   (cf2ef*v2ce(ix,iy,1) + cf2bf*ve2cb(ix,iy) + 
-     .                         cf2dd*bfacxrozh(ix,iy)*ve2cd(ix,iy,1) ) *
-     .                           0.5*(rbfbt(ix,iy) + rbfbt(ix1,iy)) -
-     .                                               vytan(ix,iy,1) 
-     
-        end do
-       end do
-
-      do ifld = 1, nfsp
-	 do iy = j1, j5
-	    do  ix = i1, i6   # grad_B will be ok as next fqy is subtr.
-	       vey(ix,iy) = vey(ix,iy) + vy(ix,iy,ifld)*zi(ifld)*0.5*
-     .                      ( niy0(ix,iy,ifld)+niy1(ix,iy,ifld) )
-          end do
-         end do
-        end do
-
-        do iy = j1, j5
-	     do ix = i1, i6
-	      vey(ix,iy) = (vey(ix,iy)-cfjve*fqy(ix,iy)/(sy(ix,iy)*qe))/
-     .                    (0.5*( ney0(ix,iy)+ney1(ix,iy) ))
-         end do
-        end do
-	 
-c ... if isnewpot=0, vey(,0) needs to be redone since fqy(,0)=0
-      if (isnewpot==1) then
-        do ix = i1, i6  # ExB vyce same all species
-          vey(ix,0) = cfybf*veycb(ix,0) + vydd(ix,0,1) +
-     .                cfyef*vyce(ix,0,1)
-        enddo
-      endif
-
-c ... If isybdrywd = 1, make vey diffusive, just like vy
-      if (isybdrywd == 1) then  #make vy diffusive in wall cells
-        do ix = i1, i6
-          if (matwalli(ix) > 0) vey(ix,0)  = vydd(ix,0,1)
-          if (matwallo(ix) > 0) vey(ix,ny) = vydd(ix,ny,1)
-        enddo
-      endif
-      
-
+        call calc_elec_velocities
 ************************************************************************
 *   We Calculate the source terms now.
 ************************************************************************
