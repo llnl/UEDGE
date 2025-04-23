@@ -1186,270 +1186,45 @@ c ..          switch to right plate(s)
 
       END SUBROUTINE calc_friction
 
-c-----------------------------------------------------------------------
-      subroutine pandf (xc, yc, neq, time, yl, yldot)
 
-c... Calculates matrix A and the right-hand side depending on the values
-c... of xc, yc.
-c  Definitions for argument list
-c
-c  Input variables:
-c    xc is poloidal index of perturbed variablefor Jacobian calc, 
-c       or =-1 for full RHS evaluation
-c    yc is radial index for perturbed variable for Jacobian calc, 
-c       or =-1 for full RHS evaluation
-c    neq is the total number of variables
-c    time is the present physical time; useable by VODPK but not NKSOL
-c    yl is the vector of unknowns
-c  Output variables:
-c    yldot is the RHS of ODE solver or RHS=0 for Newton solver (NKSOL)
-
-      implicit none
-
-*  -- input arguments
-      integer xc, yc, neq      
-      real time, yl(*),yldot(*)
-
-*  -- set local array dimension
-      integer nigmx
-      parameter (nigmx=100)
-
-*  -- slocal variables
-      integer ifld, jfld, zn, k, k1, k2, jx, ixt, ixt1, ixr, ixr1, iixt,
-     .        ixt0
-      real fxet, fxit, qr, vt0, vt1, vtn, vtn2, pradold, eeliold, 
-     .     erlizold, erlrcold, psorrgold(nigmx), psorcxgold(nigmx),
-     .     nuizold(nigmx), nucxold(nigmx), nurcold(nigmx), nuixold(nigmx),
-     .     psorgold(nigmx), tsfe, tsjf, niavex, niavey, teave, tiave, tgavex,
-     .     zeffave, noavex, noavey, tiavey, tgavey, psordisold, 
-     .     nucxiold(nigmx), nueliold(nigmx), nuelgold(nigmx), rrfac, visxtmp,
-     .     vttn, vttp, neavex, pwrebkgold, pwribkgold, feexflr, feixflr,
-     .     naavex,naavey,nuelmolx,nuelmoly,fniycboave, corecells, sycore
-      real fqpo, fqpom, friceo, friceom, upeo, upeom, fricio(100), 
-     .     friciom(100), upio(100), upiom(100), uupo(100), uupom(100)
-      real nevol, ngvol, kionz, krecz, kcxrz, kionm, krecm, kcxrm, nzbg,
-     .     niz_floor, hflux, zflux, psorv, kionz0, pscx0, pxri, kcxrzig,
-     .     nizm_floor, argx, massfac, ae, geyym, geyy0, geyyp, dgeyy0,
-     .     dgeyy1, te_diss, wallfac, z1fac, bpolmin, rt2nus, epstmp, tv2
-      real awoll,awll
-      integer izch, ihyd, iimp, jg, jz, nsm1, ifld_fcs, ifld_lcs
-      real uuv, ne_sgvi, nbarx, argth, fac_rad, ffyi, ffyo
-      real grdnv, qflx, qfly, cshx, cshy, qshx, qshy, lxtec, lxtic
-      real lmfpn, lmfppar, lmfpperp
-      real temp1, temp2, temp3, temp4, cutlo3, lambd_ci, lambd_ce
-      real upxavep1,upxave0,upxavem1,upf0,upfm1
-      real teev,nexface,loglmcc,nmxface
-      integer iy1, ixmp2, iyp1, iyp2, iym1, ixs, ixf, iys, iyf,
-     .        methnx, methny, iy2, i2pwr, i5pwr, j2pwr, j5pwr,
-     .        iysepu, ixpt1u, ixpt2u
-      integer iy0, jy, jylo, jyhi, iy_min, iy_max
-      real diffustotal
-      real difnimix, kyemix, kyimix, v2dia, bscalf, bpfac
-      real rdum,rdumaray(1),afqp,ltmax,lmfpe,lmfpi,flxlimf
-      real rdumx,rdumy,dr1,dr2,qion
-      real b_ctr,dbds_m,dbds_p,eta_h0,eta_hm,eta_hp,drag_1,drag_2,
-     .     drag_3,mf_path,nu_ii,frac_col,fniy_recy
-      real thetacc,dupdx,dupdy
-      real dndym1,dndy0,dndyp1,d2ndy20,d2ndy2p1,d3ndy3
-      real dtdym1,dtdy0,dtdyp1,d2tdy20,d2tdy2p1,d3tdy3,nhi_nha
-      integer idum, idumaray(1)
-      real tsimpfe, tsimp, tsnpg, ueb
-      integer impflag
-      # former Aux module variables
-      integer ix,iy,igsp,iv,iv1,iv2,iv3,ix1,ix2,ix3,ix4,ix5,ix6
-      real tv,t0,t1,t2,a,t1old,t1new,t2old,t2new
-      # new helper variables
-      real up1cc, upgcc, vycc, v2cc
-cnxg      data igs/1/
-
-      Use(Dim)      # nx,ny,nhsp,nusp,nzspt,nzsp,nisp,ngsp,nxpt
-      Use(Xpoint_indices)      # ixlb,ixpt1,ixpt2,ixrb,iysptrx1,iysptrx2
-                               # iysptrx
-      Use(Timing)   # istimingon,ttotfe,ttotjf,ttimpfe,ttimpjf,ttnpg
-      Use(Share)    # nxpt,nxomit,geometry,nxc,cutlo,islimon,ix_lim,iy_lims
-                    # istabon,isudsym
-      Use(Math_problem_size)   # neqmx,numvar
-      Use(Phyvar)   # pi,me,mp,ev,qe,rt8opi
-      Use(UEpar)    # methe,methu,methn,methi,methg,concap,lnlam,
-                    # convis,icnuiz,icnucx,cnuiz,cnucx,isrecmon,
-                    # ngbackg,ingb,eion,ediss,afix,coef,ce,ci,
-                    # dp1,qfl,csh,qsh,mfl,msh,cs,fxe,ctaue,fxi,ctaui,
-                    # zcoef,coef1,nurlxu,isphiofft,isintlog,isgxvon
-                    # isgpye,frnnuiz,nzbackg,inzb,nlimix,nlimiy,
-                    # isofric,isteaven
-                    # isnionxy,isuponxy,isteonxy,istionxy,isngonxy,isphionxy,
-                    # isupon,isteon,istion,isphion
-      Use(Aux)      # ixmp
-      Use(Coefeq)
-      Use(Bcond)    # albedoo,albedoi,isfixlb,isfixrb
-                    # xcnearlb,xcnearrb,openbox
-      Use(Parallv)  # nxg,nyg
-      Use(Rccoef)   # recylb,recyrb,recycw,recycz,sputtr
-      Use(Fixsrc)
-      Use(Selec)    # i1,i2,i3,i4,i5,i6,i7,i8,xlinc,xrinc,ixs1,
-                    # j1,j1p,j2,j2p,j3,j4,j5,j6,j5p,j6p,j7,j8,j5m
-      Use(Comgeo)   # isxptx,isxpty
-      Use(Noggeo)   # fym,fy0,fyp,fymx,fypx,angfx,fxm,fx0,fxp,fxmy,fxpy
-      Use(Compla)   # znucl,rtaux,rtauy,rtau,rt_scal
-      Use(Comflo)
-      Use(Conduc)   # lmfplim
+      SUBROUTINE calc_volumetric_sources(xc, yc)
+      IMPLICIT NONE
+      Use(Selec)
+      Use(Dim)
       Use(Rhsides)
-      Use(Save_terms)   # psorold,psorxrold
-      Use(Indexes)  
-      Use(Ynorm)    # isflxvar,nnorm,ennorm,fnorm,n0,n0g
-      Use(Poten)    # bcee,bcei,cthe,cthi
-      Use(Comtra)   # parvis,travis,difni,difnit,difpr,difni2,
-                    # difpr2,vcony,flalfe,flalfi,flgam,kxe,kxecore,
-                    # kye,kyet,kxi,kxicore,kxn,kyi,kyit,kyn,feqp,
-                    # flalfgx,flalfgy,flalfv,flalfvgx,flalfvgy,
-                    # flalftgx,flalftgy,alfeqp,facbni,facbni2,facbee,
-                    # facbei,isbohmcalc,diffusivity,diffusivwrk,
-                    # diffusivloc,isdifxg_aug,isdifyg_aug,sigvi_floor,
-                    # facbup
-      Use(Bfield)   # btot,rbfbt,rbfbt2
-      Use(Locflux)
-      Use(Wkspace)
-      Use(Gradients)
-      Use(Imprad)   # isimpon,nzloc,impradloc,prad,pradz,na,ntau,nratio,
-                    # afrac,atau,ismctab,rcxighg,pwrze
-
-      Use(Volsrc)   # pwrsore,pwrsori,volpsor
-      Use(Model_choice)   # iondenseqn
-      Use(Time_dep_nwt)   # ylodt
-      Use(Cfric)          # frice,frici
-      Use(Turbulence)     # isturbnloc,isturbcons,diffuslimit,diffuswgts
-      Use(Turbulence_diagnostics)   # chinorml,chinormh
-      Use(MCN_dim)
-      Use(MCN_sources)	  # uesor_ni,uesor_up,uesor_ti,uesor_te
-      Use(Ext_neutrals)          # isextneuton, extneutopt
-      Use(PNC_params)            # dtneut, dtold
-      Use(PNC_data)              # ni_pnc, etc.
-      Use(Reduced_ion_interface) # misotope,natomic
-      Use(Indices_domain_dcl)    # ixmxbcl
-      Use(Indices_domain_dcg)    # ndomain
-      Use(Npes_mpi)              # mype
-      Use(RZ_grid_info)  		 # bpol
-      Use(Interp)				 # ngs, tgs 
-      Use(ParallelEval)          # ParallelJac,ParallelPandf1
+      Use(Share)
+      Use(Compla)
+      Use(Comgeo)
+      Use(Save_terms)
+      Use(Conduc)
+      Use(Fixsrc)
+      Use(UEpar)
+      Use(Coefeq)
+      Use(Comtra)
+      Use(Phyvar)
+      Use(Imprad)
+      Use(Timing)
+      Use(Xpoint_indices)
       Use(PandfTiming)
-
-*  -- procedures for atomic and molecular rates --
-      integer zmax,znuc
-      real dene,denz(0:1),radz(0:1)
-      real rsa, rra, rqa, rcx, emissbs, erl1, erl2, radneq, radimpmc
-      real radmc, svdiss, vyiy0, vyiym1, v2ix0, v2ixm1, sv_crumpet
-      external rsa, rra, rqa, rcx, emissbs, erl1, erl2, radneq, radimpmc
-      real tgupyface, ngupyface, n1upyface, ng2upyface
-      external radmc, svdiss, sv_crumpet
-      real tick,tock
-      external tick, tock
-	  
-ccc      save
-*  -- procedures --
-      real ave, etaper, interp_yf, interp_xf
+      Use(Lsode)
+      Use(Bcond)
+      Use(Gradients)
+      Use(Cfric)
+      Use(Comflo)
+      integer xc, yc
+      integer iy, ix, ifld, igsp, j2pwr, j5pwr, i2pwr, i5pwr, 
+     .  ix1, ix2, jg, ifld_lcs, jz, ifld_fcs, izch,  z1fac, 
+     .  iyp1, iym1, iy1
+      real rdumx, dr1, dr2, rdumy, psordisold, nucxiold(100), 
+     .  nueliold(100), nucxold(100), nurcold(100), nuizold(100), 
+     .  nuixold(100), nuelgold(100), psorgold(100), psorrgold(100), 
+     .  psorcxgold(100), ne_sgvi, t0, t1, tsimp, nevol, ngvol, krecz, kcxrz, 
+     .  kionz0, kionz, kcxrzig, niz_floor, pscx0, massfac, kionm, krecm, kcxrm, 
+     .  pxri, tsnpg, t1old, t2old, t1new, t2new, vyiy0, vyiym1, 
+     .  v2ix0, v2ixm1, t2, nexface, nizm_floor, tv
+      real rsa, rra, rcx, tick, svdiss, sv_crumpet, tock, ave
+      external rsa, rra, rcx, svdiss, sv_crumpet
       ave(t0,t1) = 2*t0*t1 / (cutlo+t0+t1)
-      etaper(ix,iy) = 3.234e-9*loglambda(ix,iy)/(max(te(ix,iy),temin*ev)
-     .                                          /(1000.*ev))**(1.5)
-      interp_yf(ix,iy,t0,t1) = (t0*gy(ix,iy) + t1*gy(ix,iy+1)) /
-     .                                       (gy(ix,iy)+gy(ix,iy+1))
-      interp_xf(ix,iy,t0,t1) =(t0*gx(ix,iy) + t1*gx(ixp1(ix,iy),iy)) /
-     .                                (gx(ix,iy)+gx(ixp1(ix,iy),iy))
-      cutlo3 = cutlo**0.3
-
-c   TODO: Move checks to initialization to avoid checking every loop
-c  Check array sizes
-      if (ngsp > nigmx .or. nisp > nigmx) then
-         call xerrab("***PANDF in oderhs.m: increase nigmx, recompile")
-      endif
-c... Timing of pandf components (added by J. Guterl)
-        if (TimingPandf.gt.0
-     . .and. yl(neq+1) .lt. 0 .and. ParallelPandf1.eq.0) then
-        TimingPandfOn=1
-        else
-        TimingPandfOn=0
-        endif
-        if (TimingPandfOn.gt.0) TimePandf=tick()
-c... Roadblockers for  call to pandf through openmp structures (added by J.Guterl)
-      if ((isimpon.gt.0 .and. ((isimpon.ne.6) .and. (isimpon.ne.2) .and. 
-     .(isimpon.ne.7))) .and. (ParallelJac.gt.0 .or. ParallelPandf1.gt.0)) then
-      call xerrab('Only isimpon=0, 2, 6, or 7 is validated with openmp.
-     .Contact the UEDGE team to use other  options with openmp.')
-      endif
-
-      if ((ismcnon.gt.0) .and. (ParallelJac.gt.0 .or. ParallelPandf1.gt.0)) then
-      call xerrab('Only ismcnon=0 is validated with openmp.
-     .Contact the UEDGE team to use other options with openmp.')
-      endif
-
-
-************************************************************************
-*  -- initialization --
-************************************************************************
-      if (ismcnon .ne. 0) call initialize_ismcnon(yl(neq+1))
-************************************************************************
-*   This section is to use in the calculation of the jacobian locally.
-************************************************************************
-
-c ... Get initial value of system cpu timer.
-      if(xc .lt. 0) then
-         tsfe = tick()
-      else
-         tsjf = tick()
-      endif
-!     Initialize loop ranges based on xc and yc
-      call initialize_ranges(xc, yc)
-************************************************************************
-c... First, we convert from the 1-D vector yl to the plasma variables.
-************************************************************************
-         if (TimingPandfOn.gt.0) TimeConvert0=tick()
-         call convsr_vo (xc, yc, yl)  # pre 9/30/97 was one call to convsr
-         if (TimingPandfOn.gt.0) TotTimeConvert0=TotTimeConvert0+tock(TimeConvert0)
-         if (TimingPandfOn.gt.0) TimeConvert1=tick()
-         call convsr_aux (xc, yc)
-         if (TimingPandfOn.gt.0) TotTimeConvert1=TotTimeConvert1+tock(TimeConvert1)
-
-c ... Set variable controlling upper limit of species loops that
-c     involve ion-density sources, fluxes, and/or velocities.
-
-      nfsp = nisp
-      if (isimpon .eq. 3 .or. isimpon .eq. 4) nfsp = nhsp
-
-      call calc_diffusivities
-
-      call calc_driftterms
-    
-c ... Save values returned by Hirshman mombal for Jacobian calc. to
-c ... minimize calls - restore the "m" or ix-1 values at the end of pandf
-c ... The Jacobian ix loop can then be reduced to only include ix-1 and ix
-c ... Suffix "o" refers to "old" value at ix, and suffix "om" means "old" 
-c ... value at ix-1.
-
-      if (xc.ge.0 .and. yc.ge.0) then
-         ix1 = ixm1(xc,yc)
-         fqpom = fqp(ix1,yc)
-         friceom = frice(ix1,yc)
-         upeom = upe(ix1,yc)
-         fqpo = fqp(xc,yc)
-         friceo = frice(xc,yc)
-         upeo = upe(xc,yc)
-         do ifld = 1, nfsp
-            friciom(ifld) = frici(ix1,yc,ifld)    # dimension req. nfsp<101
-            upiom(ifld) = upi(ix1,yc,ifld)
-            uupom(ifld) = uup(ix1,yc,ifld)
-            fricio(ifld) = frici(xc,yc,ifld)
-            upio(ifld) = upi(xc,yc,ifld)
-            uupo(ifld) = uup(xc,yc,ifld)
-         enddo
-      endif
-
-      call calc_friction(xc)
-************************************************************************
-*     Calculate the currents fqx, fqy, fq2 and fqp, if isphion = 1
-*     or if isphiofft = 1.
-************************************************************************
-ccc      if(isphion+isphiofft .eq. 1)  call calc_currents
-
-        call calc_elec_velocities
 ************************************************************************
 *   We Calculate the source terms now.
 ************************************************************************
@@ -2272,6 +2047,275 @@ c ... Then "ion" species 2 (redundant as gas species 1) is hydr atom
         endif  #test on cfvgpx(2) > 0 or = 0
       endif   #test for inertial neutrals
 
+
+      END SUBROUTINE calc_volumetric_sources
+
+c-----------------------------------------------------------------------
+      subroutine pandf (xc, yc, neq, time, yl, yldot)
+
+c... Calculates matrix A and the right-hand side depending on the values
+c... of xc, yc.
+c  Definitions for argument list
+c
+c  Input variables:
+c    xc is poloidal index of perturbed variablefor Jacobian calc, 
+c       or =-1 for full RHS evaluation
+c    yc is radial index for perturbed variable for Jacobian calc, 
+c       or =-1 for full RHS evaluation
+c    neq is the total number of variables
+c    time is the present physical time; useable by VODPK but not NKSOL
+c    yl is the vector of unknowns
+c  Output variables:
+c    yldot is the RHS of ODE solver or RHS=0 for Newton solver (NKSOL)
+
+      implicit none
+
+*  -- input arguments
+      integer xc, yc, neq      
+      real time, yl(*),yldot(*)
+
+*  -- set local array dimension
+      integer nigmx
+      parameter (nigmx=100)
+
+*  -- slocal variables
+      integer ifld, jfld, zn, k, k1, k2, jx, ixt, ixt1, ixr, ixr1, iixt,
+     .        ixt0
+      real fxet, fxit, qr, vt0, vt1, vtn, vtn2, pradold, eeliold, 
+     .     erlizold, erlrcold, psorrgold(nigmx), psorcxgold(nigmx),
+     .     nuizold(nigmx), nucxold(nigmx), nurcold(nigmx), nuixold(nigmx),
+     .     psorgold(nigmx), tsfe, tsjf, niavex, niavey, teave, tiave, tgavex,
+     .     zeffave, noavex, noavey, tiavey, tgavey, psordisold, 
+     .     nucxiold(nigmx), nueliold(nigmx), nuelgold(nigmx), rrfac, visxtmp,
+     .     vttn, vttp, neavex, pwrebkgold, pwribkgold, feexflr, feixflr,
+     .     naavex,naavey,nuelmolx,nuelmoly,fniycboave, corecells, sycore
+      real fqpo, fqpom, friceo, friceom, upeo, upeom, fricio(100), 
+     .     friciom(100), upio(100), upiom(100), uupo(100), uupom(100)
+      real nevol, ngvol, kionz, krecz, kcxrz, kionm, krecm, kcxrm, nzbg,
+     .     niz_floor, hflux, zflux, psorv, kionz0, pscx0, pxri, kcxrzig,
+     .     nizm_floor, argx, massfac, ae, geyym, geyy0, geyyp, dgeyy0,
+     .     dgeyy1, te_diss, wallfac, z1fac, bpolmin, rt2nus, epstmp, tv2
+      real awoll,awll
+      integer izch, ihyd, iimp, jg, jz, nsm1, ifld_fcs, ifld_lcs
+      real uuv, ne_sgvi, nbarx, argth, fac_rad, ffyi, ffyo
+      real grdnv, qflx, qfly, cshx, cshy, qshx, qshy, lxtec, lxtic
+      real lmfpn, lmfppar, lmfpperp
+      real temp1, temp2, temp3, temp4, cutlo3, lambd_ci, lambd_ce
+      real upxavep1,upxave0,upxavem1,upf0,upfm1
+      real teev,nexface,loglmcc,nmxface
+      integer iy1, ixmp2, iyp1, iyp2, iym1, ixs, ixf, iys, iyf,
+     .        methnx, methny, iy2, i2pwr, i5pwr, j2pwr, j5pwr,
+     .        iysepu, ixpt1u, ixpt2u
+      integer iy0, jy, jylo, jyhi, iy_min, iy_max
+      real diffustotal
+      real difnimix, kyemix, kyimix, v2dia, bscalf, bpfac
+      real rdum,rdumaray(1),afqp,ltmax,lmfpe,lmfpi,flxlimf
+      real rdumx,rdumy,dr1,dr2,qion
+      real b_ctr,dbds_m,dbds_p,eta_h0,eta_hm,eta_hp,drag_1,drag_2,
+     .     drag_3,mf_path,nu_ii,frac_col,fniy_recy
+      real thetacc,dupdx,dupdy
+      real dndym1,dndy0,dndyp1,d2ndy20,d2ndy2p1,d3ndy3
+      real dtdym1,dtdy0,dtdyp1,d2tdy20,d2tdy2p1,d3tdy3,nhi_nha
+      integer idum, idumaray(1)
+      real tsimpfe, tsimp, tsnpg, ueb
+      integer impflag
+      # former Aux module variables
+      integer ix,iy,igsp,iv,iv1,iv2,iv3,ix1,ix2,ix3,ix4,ix5,ix6
+      real tv,t0,t1,t2,a,t1old,t1new,t2old,t2new
+      # new helper variables
+      real up1cc, upgcc, vycc, v2cc
+cnxg      data igs/1/
+
+      Use(Dim)      # nx,ny,nhsp,nusp,nzspt,nzsp,nisp,ngsp,nxpt
+      Use(Xpoint_indices)      # ixlb,ixpt1,ixpt2,ixrb,iysptrx1,iysptrx2
+                               # iysptrx
+      Use(Timing)   # istimingon,ttotfe,ttotjf,ttimpfe,ttimpjf,ttnpg
+      Use(Share)    # nxpt,nxomit,geometry,nxc,cutlo,islimon,ix_lim,iy_lims
+                    # istabon,isudsym
+      Use(Math_problem_size)   # neqmx,numvar
+      Use(Phyvar)   # pi,me,mp,ev,qe,rt8opi
+      Use(UEpar)    # methe,methu,methn,methi,methg,concap,lnlam,
+                    # convis,icnuiz,icnucx,cnuiz,cnucx,isrecmon,
+                    # ngbackg,ingb,eion,ediss,afix,coef,ce,ci,
+                    # dp1,qfl,csh,qsh,mfl,msh,cs,fxe,ctaue,fxi,ctaui,
+                    # zcoef,coef1,nurlxu,isphiofft,isintlog,isgxvon
+                    # isgpye,frnnuiz,nzbackg,inzb,nlimix,nlimiy,
+                    # isofric,isteaven
+                    # isnionxy,isuponxy,isteonxy,istionxy,isngonxy,isphionxy,
+                    # isupon,isteon,istion,isphion
+      Use(Aux)      # ixmp
+      Use(Coefeq)
+      Use(Bcond)    # albedoo,albedoi,isfixlb,isfixrb
+                    # xcnearlb,xcnearrb,openbox
+      Use(Parallv)  # nxg,nyg
+      Use(Rccoef)   # recylb,recyrb,recycw,recycz,sputtr
+      Use(Fixsrc)
+      Use(Selec)    # i1,i2,i3,i4,i5,i6,i7,i8,xlinc,xrinc,ixs1,
+                    # j1,j1p,j2,j2p,j3,j4,j5,j6,j5p,j6p,j7,j8,j5m
+      Use(Comgeo)   # isxptx,isxpty
+      Use(Noggeo)   # fym,fy0,fyp,fymx,fypx,angfx,fxm,fx0,fxp,fxmy,fxpy
+      Use(Compla)   # znucl,rtaux,rtauy,rtau,rt_scal
+      Use(Comflo)
+      Use(Conduc)   # lmfplim
+      Use(Rhsides)
+      Use(Save_terms)   # psorold,psorxrold
+      Use(Indexes)  
+      Use(Ynorm)    # isflxvar,nnorm,ennorm,fnorm,n0,n0g
+      Use(Poten)    # bcee,bcei,cthe,cthi
+      Use(Comtra)   # parvis,travis,difni,difnit,difpr,difni2,
+                    # difpr2,vcony,flalfe,flalfi,flgam,kxe,kxecore,
+                    # kye,kyet,kxi,kxicore,kxn,kyi,kyit,kyn,feqp,
+                    # flalfgx,flalfgy,flalfv,flalfvgx,flalfvgy,
+                    # flalftgx,flalftgy,alfeqp,facbni,facbni2,facbee,
+                    # facbei,isbohmcalc,diffusivity,diffusivwrk,
+                    # diffusivloc,isdifxg_aug,isdifyg_aug,sigvi_floor,
+                    # facbup
+      Use(Bfield)   # btot,rbfbt,rbfbt2
+      Use(Locflux)
+      Use(Wkspace)
+      Use(Gradients)
+      Use(Imprad)   # isimpon,nzloc,impradloc,prad,pradz,na,ntau,nratio,
+                    # afrac,atau,ismctab,rcxighg,pwrze
+
+      Use(Volsrc)   # pwrsore,pwrsori,volpsor
+      Use(Model_choice)   # iondenseqn
+      Use(Time_dep_nwt)   # ylodt
+      Use(Cfric)          # frice,frici
+      Use(Turbulence)     # isturbnloc,isturbcons,diffuslimit,diffuswgts
+      Use(Turbulence_diagnostics)   # chinorml,chinormh
+      Use(MCN_dim)
+      Use(MCN_sources)	  # uesor_ni,uesor_up,uesor_ti,uesor_te
+      Use(Ext_neutrals)          # isextneuton, extneutopt
+      Use(PNC_params)            # dtneut, dtold
+      Use(PNC_data)              # ni_pnc, etc.
+      Use(Reduced_ion_interface) # misotope,natomic
+      Use(Indices_domain_dcl)    # ixmxbcl
+      Use(Indices_domain_dcg)    # ndomain
+      Use(Npes_mpi)              # mype
+      Use(RZ_grid_info)  		 # bpol
+      Use(Interp)				 # ngs, tgs 
+      Use(ParallelEval)          # ParallelJac,ParallelPandf1
+      Use(PandfTiming)
+
+*  -- procedures for atomic and molecular rates --
+      integer zmax,znuc
+      real dene,denz(0:1),radz(0:1)
+      real rsa, rra, rqa, rcx, emissbs, erl1, erl2, radneq, radimpmc
+      real radmc, svdiss, vyiy0, vyiym1, v2ix0, v2ixm1, sv_crumpet
+      external rsa, rra, rqa, rcx, emissbs, erl1, erl2, radneq, radimpmc
+      real tgupyface, ngupyface, n1upyface, ng2upyface
+      external radmc, svdiss, sv_crumpet
+      real tick,tock
+      external tick, tock
+	  
+ccc      save
+*  -- procedures --
+      real ave, etaper, interp_yf, interp_xf
+      ave(t0,t1) = 2*t0*t1 / (cutlo+t0+t1)
+      etaper(ix,iy) = 3.234e-9*loglambda(ix,iy)/(max(te(ix,iy),temin*ev)
+     .                                          /(1000.*ev))**(1.5)
+      interp_yf(ix,iy,t0,t1) = (t0*gy(ix,iy) + t1*gy(ix,iy+1)) /
+     .                                       (gy(ix,iy)+gy(ix,iy+1))
+      interp_xf(ix,iy,t0,t1) =(t0*gx(ix,iy) + t1*gx(ixp1(ix,iy),iy)) /
+     .                                (gx(ix,iy)+gx(ixp1(ix,iy),iy))
+      cutlo3 = cutlo**0.3
+
+c   TODO: Move checks to initialization to avoid checking every loop
+c  Check array sizes
+      if (ngsp > nigmx .or. nisp > nigmx) then
+         call xerrab("***PANDF in oderhs.m: increase nigmx, recompile")
+      endif
+c... Timing of pandf components (added by J. Guterl)
+        if (TimingPandf.gt.0
+     . .and. yl(neq+1) .lt. 0 .and. ParallelPandf1.eq.0) then
+        TimingPandfOn=1
+        else
+        TimingPandfOn=0
+        endif
+        if (TimingPandfOn.gt.0) TimePandf=tick()
+c... Roadblockers for  call to pandf through openmp structures (added by J.Guterl)
+      if ((isimpon.gt.0 .and. ((isimpon.ne.6) .and. (isimpon.ne.2) .and. 
+     .(isimpon.ne.7))) .and. (ParallelJac.gt.0 .or. ParallelPandf1.gt.0)) then
+      call xerrab('Only isimpon=0, 2, 6, or 7 is validated with openmp.
+     .Contact the UEDGE team to use other  options with openmp.')
+      endif
+
+      if ((ismcnon.gt.0) .and. (ParallelJac.gt.0 .or. ParallelPandf1.gt.0)) then
+      call xerrab('Only ismcnon=0 is validated with openmp.
+     .Contact the UEDGE team to use other options with openmp.')
+      endif
+
+
+************************************************************************
+*  -- initialization --
+************************************************************************
+      if (ismcnon .ne. 0) call initialize_ismcnon(yl(neq+1))
+************************************************************************
+*   This section is to use in the calculation of the jacobian locally.
+************************************************************************
+
+c ... Get initial value of system cpu timer.
+      if(xc .lt. 0) then
+         tsfe = tick()
+      else
+         tsjf = tick()
+      endif
+!     Initialize loop ranges based on xc and yc
+      call initialize_ranges(xc, yc)
+************************************************************************
+c... First, we convert from the 1-D vector yl to the plasma variables.
+************************************************************************
+         if (TimingPandfOn.gt.0) TimeConvert0=tick()
+         call convsr_vo (xc, yc, yl)  # pre 9/30/97 was one call to convsr
+         if (TimingPandfOn.gt.0) TotTimeConvert0=TotTimeConvert0+tock(TimeConvert0)
+         if (TimingPandfOn.gt.0) TimeConvert1=tick()
+         call convsr_aux (xc, yc)
+         if (TimingPandfOn.gt.0) TotTimeConvert1=TotTimeConvert1+tock(TimeConvert1)
+
+c ... Set variable controlling upper limit of species loops that
+c     involve ion-density sources, fluxes, and/or velocities.
+
+      nfsp = nisp
+      if (isimpon .eq. 3 .or. isimpon .eq. 4) nfsp = nhsp
+
+      call calc_diffusivities
+
+      call calc_driftterms
+    
+c ... Save values returned by Hirshman mombal for Jacobian calc. to
+c ... minimize calls - restore the "m" or ix-1 values at the end of pandf
+c ... The Jacobian ix loop can then be reduced to only include ix-1 and ix
+c ... Suffix "o" refers to "old" value at ix, and suffix "om" means "old" 
+c ... value at ix-1.
+
+      if (xc.ge.0 .and. yc.ge.0) then
+         ix1 = ixm1(xc,yc)
+         fqpom = fqp(ix1,yc)
+         friceom = frice(ix1,yc)
+         upeom = upe(ix1,yc)
+         fqpo = fqp(xc,yc)
+         friceo = frice(xc,yc)
+         upeo = upe(xc,yc)
+         do ifld = 1, nfsp
+            friciom(ifld) = frici(ix1,yc,ifld)    # dimension req. nfsp<101
+            upiom(ifld) = upi(ix1,yc,ifld)
+            uupom(ifld) = uup(ix1,yc,ifld)
+            fricio(ifld) = frici(xc,yc,ifld)
+            upio(ifld) = upi(xc,yc,ifld)
+            uupo(ifld) = uup(xc,yc,ifld)
+         enddo
+      endif
+
+      call calc_friction(xc)
+************************************************************************
+*     Calculate the currents fqx, fqy, fq2 and fqp, if isphion = 1
+*     or if isphiofft = 1.
+************************************************************************
+ccc      if(isphion+isphiofft .eq. 1)  call calc_currents
+
+        call calc_elec_velocities
+
+        call calc_volumetric_sources(xc, yc)
 *****************************************************************
 *  Other physics coefficients. (old PHYVIS)
 *****************************************************************
