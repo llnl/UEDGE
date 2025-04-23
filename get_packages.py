@@ -6,16 +6,14 @@ locdef = False
 with open('bbb/pandf.m') as f:
     for line in f:
         if locdef is True:
-            try:
+            if len(line.strip())>0:
                 if line.strip()[0] == '.':
-                    for var in line.split()[1].split(','):
+                    for var in line.replace('.','. ').replace(',', ' ').replace('(', ' ').split():
                         var.strip()
                         if len(var)>0:
                             block['defined'].append(var)
                     continue
-            except:
-                pass
-        if (line[0] == 'c') or (line[0] == '!') or (line[0] == '*'):
+        if (line[0].lower() == 'c') or (line[0] == '!') or (line[0] == '*'):
             continue
         line = line.split('#')[0]
         line = line.split('remark')[0]
@@ -25,7 +23,7 @@ with open('bbb/pandf.m') as f:
             subroutines[subroutine] = {'packages': [], 'local': [], 'undef': [], 'imported': [], 'defined': [],
                 'missing_packages': [], 'missing_localvars': []} 
             block = subroutines[subroutine]
-        elif 'end' in line.lower():
+        elif 'end subroutine' in line.lower():
             subroutine = None
             block = None
         elif len(line.strip())==0:
@@ -58,11 +56,14 @@ with open('bbb/pandf.m') as f:
         # Parse lines
         elif subroutine is not None:
             for split in ['.and.', '.or.', '.lt.', '.le.', '.ge.', '.gt.',
-                '=','+','-','*','/', '(',')',',', 'elseif', 'endif',' if ',' do ',
-                '<','>','then',' min',' max', 'else','.eq.', ' log(', 'exp',
-                ' mod', ' sqrt', ' log', ' abs', '.', ':']:
-                line = line.lower().replace(split,' ')
-                line = line.replace(split.upper(),' ')
+                '=','+','-','*','/', '(',')',',', 'elseif', 'endif','if ','do',
+                '<','>','then',' min',' max', 'else','.eq.', ' log', 'exp',
+                ' mod', ' sqrt', ' abs', '.', ':', 'cos', 'sign', 'enddo',
+                'return', ' end', 'cycle','false', 'true', 'continue',
+                'call', 'goto', 'break']:
+                for substr in [split, ' '+split,
+                    split+' ', split.replace('(', ' (')]:
+                    line = line.lower().replace(substr,' ')
             for var in line.split():
                 try:
                     float(var)
