@@ -2976,8 +2976,8 @@ c                   if (ix .eq. 1 .and. iy .eq. 1) write(*,*) 'sng_ue', ifld, jf
 *  loop over all species.
 *  ---------------------------------------------------------------------
 
-      if(isupon(ifld) .ne. 0) then
       do ifld = 1, nusp
+      if(isupon(ifld) .ne. 0) then
 *     ------------------------------------------------------------------
 *     compute the residual.
 *     ------------------------------------------------------------------
@@ -3244,8 +3244,8 @@ cccMER erroneous multiplicative factor -1/2 (from original code) ???
            endif # end if-test on yc
 
          enddo # end do-loop over nxpt x-points
-        end do
         end if
+        end do
 
 
       END SUBROUTINE calc_ion_momentum
@@ -3272,8 +3272,8 @@ cccMER erroneous multiplicative factor -1/2 (from original code) ???
       real awoll, t0, t1, awll, tv
 
 
-      if(isupon(ifld) .ne. 0) then
       do ifld = 1, nusp
+      if(isupon(ifld) .ne. 0) then
 *  -- source term and pressure gradient --
 
          do iy = j2, j5
@@ -3440,12 +3440,15 @@ c  -- it is included in frici from mombal or mombalni
            endif
          enddo
         endif   # if test on isofric.eq.1
-        end do
         end if
+        end do
 
 
 
       END SUBROUTINE calc_momentum_residuals
+
+
+
 
 c-----------------------------------------------------------------------
       subroutine pandf (xc, yc, neq, time, yl, yldot)
@@ -3776,11 +3779,8 @@ c  The diffusion is flux limited using the thermal flux
 
 ccc         if(isngon .eq. 1) call neudif
 
-*****************************************************************
         call calc_ion_momentum(xc, yc)
-
-        call calc_momentum_residuals
-
+        call calc_momentum_residuals()
 
 *****************************************************************
 *****************************************************************
