@@ -2014,6 +2014,504 @@ c ... Then "ion" species 2 (redundant as gas species 1) is hydr atom
 
       END SUBROUTINE calc_volumetric_sources
 
+      SUBROUTINE calc_viscosities
+      IMPLICIT NONE
+      Use(Dim)
+      Use(UEpar)
+      Use(Compla)
+      Use(Selec)
+      Use(Phyvar)
+      Use(Comtra)
+      Use(Coefeq)
+      Use(Comgeo)
+      Use(Conduc)
+      Use(Share)
+      Use(Wkspace)
+      integer ifld, iy, iyp1, ix, ix1, ix2, ix3, jfld
+      real vtn, lmfpn, lmfppar, lmfpperp, rrfac, tgupyface, nmxface, 
+     .  ngupyface, n1upyface, ng2upyface, e, tv, lambda, tv2, 
+     .  epstmp, visxtmp, rt2nus, t0, a
+*****************************************************************
+*  Other physics coefficients. (old PHYVIS)
+*****************************************************************
+
+* -- loop over species number --
+
+      do ifld = 1, nfsp
+
+c
+c     neutral viscosity for isupgon=1
+c
+c  Logic here is specialized; only ifld=2 (igsp=1) has viscosity calc.
+c  If more neutral species have full parallel mom eqn, need to redo loops
+         if(isupgon(1) .eq. 1 .and. zi(ifld) .eq. 0)then
+            do iy = j1,j6
+               iyp1 = min(iy+1,ny+1)
+               do ix = i1,i6
+c
+                  ix1 = ixm1(ix,iy)
+                  vtn = sqrt(max(tg(ix,iy,1),tgmin*ev)/mi(ifld))
+ 		  qfl = flalfvgxa(ix)*nm(ix,iy,ifld)*vtn**2
+                  if(isvisxn_old == 1) then
+                    lmfpn = 1./(sigcx * 
+     .                          (ni(ix,iy,1) + rnn2cx*ni(ix,iy,ifld)))
+                  elseif(isvisxn_old==0 .and. ishymol==0) then
+                    lmfppar = vtn/(kelhihg*ni(ix,iy,1) +
+     .                                         kelhghg*ni(ix,iy,ifld))
+                    lmfpperp = vtn/( vtn*sigcx*ni(ix,iy,1) + 
+     .                      kelhihg*ni(ix,iy,1)+kelhghg*ni(ix,iy,ifld) )
+                    rrfac = rr(ix,iy)*rr(ix,iy)
+                    lmfpn = lmfppar*rrfac + lmfpperp*(1-rrfac)
+                  else   # (isvisxn_old=0 .and. ishymol=1) then #with mols
+                    lmfppar = vtn/(kelhihg*ni(ix,iy,1) +
+     .                     kelhghg*ni(ix,iy,ifld) + kelhmhg*ng(ix,iy,2))
+                    lmfpperp = vtn/( vtn*sigcx*ni(ix,iy,1) + 
+     .                     kelhihg*ni(ix,iy,1) +kelhghg*ni(ix,iy,ifld) +
+     .                     kelhmhg*ng(ix,iy,2) )
+                    rrfac = rr(ix,iy)*rr(ix,iy)
+                    lmfpn = lmfppar*rrfac + lmfpperp*(1-rrfac)
+                  endif
+                  csh = lmfpn*nm(ix,iy,ifld)*vtn*
+     .                                      lgvmax/(lgvmax + lmfpn)  
+                  if (isgxvon .eq. 0) then 
+                    qsh = csh * (up(ix1,iy,ifld)-up(ix,iy,ifld))
+     .                                         *gx(ix,iy)
+                  elseif (isgxvon .eq. 1) then
+                    qsh = csh * (up(ix1,iy,ifld)-up(ix,iy,ifld))
+     .                *2*gxf(ix,iy)*gxf(ix1,iy)/(gxf(ix,iy)+gxf(ix1,iy))
+                  endif
+                  visx(ix,iy,ifld)= cfvisxn*csh/ 
+     .               (1 + (abs(qsh/(qfl+cutlo))**flgamvg))**(1./flgamvg)
+     .               + cfanomvisxg*travis(ifld)*nm(ix,iy,ifld)
+
+c    Now do y-direction; use ni on up y-face
+                  ix2 = ixp1(ix,iy)
+                  ix3 = ixp1(ix,iyp1)
+                  tgupyface = 0.25*( tg(ix,iy,1)+
+     .                         tg(ix,iyp1,1)+tg(ix2,iy,1)+
+     .                         tg(ix3,iyp1,1) )
+                  vtn = sqrt(max(tgupyface,tgmin*ev)/mi(ifld))
+                  nmxface = 0.5*(nm(ix,iy,ifld)+nm(ix2,iy,ifld))
+                  ngupyface = 0.25*( ni(ix,iy,ifld)+
+     .                         ni(ix,iyp1,ifld)+ni(ix2,iy,ifld)+
+     .                         ni(ix3,iyp1,ifld) )
+                  n1upyface = 0.25*( ni(ix,iy,1)+
+     .                         ni(ix,iyp1,1)+ni(ix2,iy,1)+
+     .                         ni(ix3,iyp1,1) )
+                  if(ishymol == 0) then
+                    lmfppar = vtn/(kelhihg*n1upyface +
+     .                                         kelhghg*ngupyface)
+                    lmfpperp = vtn/( vtn*sigcx*n1upyface + 
+     .                      kelhihg*n1upyface+kelhghg*ngupyface )
+                    lmfpn = lmfppar*rrfac + lmfpperp*(1-rrfac)
+                  else  # ishymol=1
+                    ng2upyface = 0.25*( ng(ix,iy,2)+
+     .                         ng(ix,iyp1,2)+ng(ix2,iy,2)+
+     .                         ng(ix3,iyp1,2) )
+                    lmfppar = vtn/(kelhihg*n1upyface +
+     .                     kelhghg*n1upyface + kelhmhg*ng2upyface)
+                    lmfpperp = vtn/( vtn*sigcx*n1upyface + 
+     .                     kelhihg*n1upyface +kelhghg*ngupyface +
+     .                     kelhmhg*ng2upyface )
+                    lmfpn = lmfppar*rrfac + lmfpperp*(1-rrfac)
+                  endif
+        
+                  csh = lmfpn*ngupyface*mi(ifld)*vtn*
+     .                                      lgvmax/(lgvmax + lmfpn)  
+
+ 		  qfl = flalfvgya(iy)*ngupyface*mi(ifld)*vtn**2
+                  qsh = csh * (up(ix,iy,ifld)-up(ix,iyp1,ifld)) * 
+     .                                                        gyf(ix,iy)
+                  visy(ix,iy,ifld)= cfvisyn*csh / 
+     .               (1 + (abs(qsh/(qfl+cutlo))**flgamvg))**(1./flgamvg)
+     .               + cfanomvisyg*travis(ifld)*nmxface
+c
+            end do
+        end do
+         endif
+c
+c
+       if(zi(ifld) > 1.e-20) then
+         do iy = j1, j6
+            do ix = i1, i6
+               w(ix,iy) = 0.0e0
+            end do
+        end do
+
+         do jfld = 1, nisp
+            tv = zi(jfld)**2 / sqrt((mi(ifld)+mi(jfld))/(2*mp))
+            do iy = j1, j6
+               do ix = i1, i6
+                  w(ix,iy) = w(ix,iy) + tv*ni(ix,iy,jfld)
+            end do
+          end do
+        end do
+
+         do iy = j1, j6
+            do ix = i1, i6
+	       ctaui(ix,iy,ifld) = 2.1e13/(loglambda(ix,iy)*zi(ifld)**2) # mass fac?
+               tv2 = ctaui(ix,iy,ifld)/(ev*sqrt(ev))
+               if (convis .eq. 0) then
+                  a = max (ti(ix,iy), temin*ev)
+               else
+                  a = afix*ev
+               endif
+	       epstmp = max(epsneo(ix,iy), 1.e-50)
+               visxtmp = tv2 * coef * rr(ix,iy) * rr(ix,iy) *
+     .                            a*a*sqrt(a) * ni(ix,iy,ifld)/w(ix,iy)
+               visx(ix,iy,ifld) = parvis(ifld)*visxtmp +
+     .                            trax_use(ix,iy,ifld)*nm(ix,iy,ifld)
+               nuii(ix,iy,ifld) = w(ix,iy)/(tv2*a*sqrt(a))
+               nuiistar(ix,iy,ifld) = ( lconneo(ix,iy)*nuii(ix,iy,ifld)/
+     .                                 (epstmp**1.5*(2*a/mi(ifld))**0.5)
+     .                                           + 1.e-50 )
+               visxneo(ix,iy,ifld) = visxtmp*
+     .                 (1./(1.+epstmp**(-1.5)/nuiistar(ix,iy,ifld)))*
+     .                               (1./(1.+1./nuiistar(ix,iy,ifld)))
+               rt2nus = 1.414*nuiistar(ix,iy,ifld)
+               ktneo(ix,iy,ifld) = (-0.17 + 1.05*rt2nus**.5 + 
+     .                     2.7*rt2nus**2*epstmp**3) / ( 1.+
+     .                0.7*rt2nus**.5 + rt2nus**2*epstmp**3 )
+               alfneo(ix,iy,ifld) = (8./15.)*(ktneo(ix,iy,ifld) - 1.)*
+     .                 (1./(1.+epstmp**(-1.5)/nuiistar(ix,iy,ifld)))*
+     .                            ( 1./(1.+1./nuiistar(ix,iy,ifld)) )
+               k2neo(ix,iy,ifld) =(.66 + 1.88*epstmp**.5 - 1.54*epstmp)/ 
+     .                            (1. + 1.03*rt2nus**.5 + 0.31*rt2nus) +
+     .             1.17*epstmp**3*rt2nus/(1. + 0.74*epstmp**1.5*rt2nus)
+c...  flux limit the viscosity; beware of using visx(0,iy) and 
+c...  visx(nx+1,iy) as they are meaningless when flux limited
+               ix1 = ixm1(ix,iy)
+               t0 = max (ti(ix,iy), temin*ev)
+               vtn = sqrt(t0/mi(ifld))
+               mfl = flalfv * nm(ix,iy,ifld) * rr(ix,iy) *
+     .               vol(ix,iy) * gx(ix,iy) * (t0/mi(ifld)) 
+ccc  Distance between veloc. cell centers:
+               if (isgxvon .eq. 0) then     # dx(ix)=1/gx(ix)
+                 csh = visx(ix,iy,ifld) * vol(ix,iy) * gx(ix,iy)
+     .                            * gx(ix,iy)
+               elseif (isgxvon .eq. 1) then # dx(ix)=.5/gxf(ix-1)+.5/gxf(ix)
+                 csh = visx(ix,iy,ifld) * vol(ix,iy) * gx(ix,iy)
+     .               * 2*gxf(ix,iy)*gxf(ix1,iy)/(gxf(ix,iy)+gxf(ix1,iy))
+               endif
+ccc 
+               msh = abs( csh*(upi(ix1,iy,ifld) - upi(ix,iy,ifld)) )
+               visx(ix,iy,ifld) = visx(ix,iy,ifld)
+     .               / (1 + (msh/(mfl+1.e-20*msh))**flgamv )**(1/flgamv)
+               visy(ix,iy,ifld)=(fcdif*travis(ifld)+ tray_use(ix,iy,ifld))*
+     .                              nm(ix,iy,ifld) +  4*eta1(ix,iy)
+            end do
+        end do
+       endif      # test if zi(ifld) > 1.e-20
+        end do    # large loop for ifld = 1, nfsp
+
+
+      END SUBROUTINE calc_viscosities
+
+      SUBROUTINE calc_plasma_heatconductivities
+      IMPLICIT NONE
+      Use(Selec)
+      Use(Conduc)
+      Use(Dim)
+      Use(Compla)
+      Use(Wkspace)
+      Use(Comgeo)
+      Use(UEpar)
+      Use(Comtra)
+      Use(Phyvar)
+      Use(Xpoint_indices)
+      Use(Vars_nclass)
+      Use(Indices_domain_dcl)
+      Use(Share)
+      Use(Comflo)
+      Use(Coefeq)
+      Use(MCN_sources)
+      integer iy, ix, ifld, jfld, ix1, iyp1, jx
+      real tv, a, lambda, fxet, fxit,niavex, niavey, kyemix, fcd, 
+     .  kyimix, tiave, lmfpi, e16, wallfac, qflx, cshx, lxtic, qshx, 
+     .  teave, zeffave, lmfpe, neavex, iy1, tgavex, tgavey, noavex, 
+     .  noavey, lmfpn, qfly, cshy, qshy
+
+*****************************************************************
+*****************************************************************
+*  Heat Conduction. (old PHYTHC)
+*****************************************************************
+*  ---------------------------------------------------------------------
+*  compute conductivities on cell faces
+*  ---------------------------------------------------------------------
+
+*  -- initialize to 0 --
+
+      do iy = j1, j6
+         do ix = i1, i6
+            hcxe(ix,iy) = 0.0e0
+            hcxi(ix,iy) = 0.0e0
+            hcxineo(ix,iy) = 0.0e0
+            hcye(ix,iy) = 0.0e0
+            hcyi(ix,iy) = 0.0e0
+            do ifld = 1, nisp
+               hcxij(ix,iy,ifld) = 0.0e0
+               hcyij(ix,iy,ifld) = 0.0e0
+            enddo
+        end do
+      end do
+
+*  -- loop over species number --
+
+      do ifld = 1, nisp
+c -- Skip this if these are the neutrals (zi(ifld).eq.0)
+         if (zi(ifld) .ne. 0.0e0) then
+
+c...  Initialize w1 and w2 for each species
+         do iy = j1, j6
+            do ix = i1, i6
+               w1(ix,iy) = 0.0e0
+               w2(ix,iy) = 0.0e0
+            end do
+         end do
+
+*     -- conductivities --
+*        The poloidal conductivities  are initially computed without
+*        the factor rr**2 * tv**2.5)
+
+         do jfld = 1, nisp
+            tv = zi(jfld)**2
+            a = zi(jfld)**2 *
+     .            sqrt(2*mi(ifld)*mi(jfld)/(mi(ifld)+mi(jfld)))
+            do  iy = j1, j6
+               do ix = i1, i6
+                  ix1 = ixp1(ix,iy)
+                  w1(ix,iy) = w1(ix,iy) + tv*(ni(ix,iy,jfld)*gx(ix,iy) +
+     .                                     ni(ix1,iy,jfld)*gx(ix1,iy)) / 
+     .                                        (gx(ix,iy) + gx(ix1,iy))
+                  w2(ix,iy) = w2(ix,iy) + a*(ni(ix,iy,jfld)*gx(ix,iy) +
+     .                                     ni(ix1,iy,jfld)*gx(ix1,iy)) / 
+     .                                        (gx(ix,iy) + gx(ix1,iy))
+                end do
+            end do
+        end do
+
+         do iy = j1, j6
+            do ix = i1, i6
+               ix1 = ixp1(ix,iy)
+               iyp1 = min(ny+1, iy+1)
+               ctaue(ix,iy,ifld) = 3.5e11*zi(ifld)/loglambda(ix,iy)
+               ctaui(ix,iy,ifld) =2.1e13/(loglambda(ix,iy)*zi(ifld)**2)
+               fxe = kxe * ce * ctaue(ix,iy,ifld) / (me*ev*sqrt(ev))
+               fxi = kxi * ci * ctaui(ix,iy,ifld) / (ev*sqrt(ev*mp))
+               fxet = fxe
+               fxit = fxi
+               do jx = 1, nxpt  #reduce kxe inside sep by rkxecore fac
+                  if ( (iy.le.iysptrx) .and. 
+     .                    ix.gt.ixpt1(jx) .and. ix.le.ixpt2(jx) ) then
+                     fxet = fxe/( 1. + (rkxecore-1.)*
+     .                              (yyf(iy)/(yyf(0)+4.e-50))**inkxc )
+                     fxit = kxicore * fxi
+                  endif
+               enddo
+               niavex = ( ni(ix ,iy,ifld)*gx(ix ,iy) +
+     .                    ni(ix1,iy,ifld)*gx(ix1,iy)) /
+     .                     (gx(ix,iy) + gx(ix1,iy))
+               niavey = ( niy0(ix,iy,ifld)*gy(ix,iy) +
+     .                    niy1(ix,iy,ifld)*gy(ix,iyp1)) /
+     .                     (gy(ix,iy) + gy(ix,iyp1))
+               hcxe(ix,iy) = hcxe(ix,iy)+fxet*niavex/w1(ix,iy)
+
+c ... Use fixed diffusivity inside the separatrix, anomalous outside,
+c     if anomalous-diffusivity multiplier is nonzero.
+               kyemix = fcdif*kye + kye_use(ix,iy)
+cccMER NOTE: when there are multiple x-points, as in 'dnull' configuration,
+ccc          iysptrx is the last closed flux surface (see S.R. nphygeo)
+               if(kyet .gt. 1.e-20 .and. iy .gt. iysptrx) then
+                  kyemix = (1. - ckyet) * kyemix +
+     .               ckyet * kyet * diffusivwrk(ix,iy)
+               endif
+               hcye(ix,iy) = hcye(ix,iy) + ( kyemix +
+     .                       2.33*(dclass_e(ix,iy)+dclass_e(ix,iyp1)) )*
+     .                                               zi(ifld) * niavey
+
+               hcxij(ix,iy,ifld) = fxit*niavex/w2(ix,iy)
+               kyimix = fcdif*kyi + kyi_use(ix,iy)
+cccMER NOTE: when there are multiple x-points, as in 'dnull' configuration,
+ccc          iysptrx is the last closed flux surface (see S.R. nphygeo)
+               if(kyit .gt. 1.e-20 .and. iy .gt. iysptrx) then
+                  kyimix = (1. - ckyit) * kyimix +
+     .               ckyit * kyit * diffusivwrk(ix,iy)
+               endif
+               hcyij(ix,iy,ifld) = hcyij(ix,iy,ifld) + ( kyimix +
+     .                           (dclass_i(ix,iy)+dclass_i(ix,iyp1)) )*
+     .                                                         niavey
+              end do  
+            end do
+          end if 
+        end do
+
+  
+c ... Add ion temp. dep. for pol. terms, flux limit, & build total ion hcx,yi
+        do ifld = 1, nisp
+         if (zi(ifld) .ne. 0.e0) then
+         do iy = j1, j6
+            do ix = i1, i6
+               ix1 = ixp1(ix,iy)
+               if (concap .eq. 0) then
+                  tiave = (ti(ix,iy)*gx(ix,iy) + ti(ix1,iy)*gx(ix1,iy)) /
+     .                                         (gx(ix,iy) + gx(ix1,iy))
+                  do jx = 1, nxpt
+                    if (ix==ixlb(jx).and.ixmnbcl==1) tiave=ti(ixlb(jx)+1,iy)
+                    if (ix==ixrb(jx).and.ixmxbcl==1) tiave=ti(ixrb(jx),iy)
+                  enddo
+                  a = max (tiave, temin*ev)
+               else
+                  a = afix*ev
+               endif
+               hcxij(ix,iy,ifld) = hcxij(ix,iy,ifld)*rrv(ix,iy)*
+     .                                            rrv(ix,iy)*a*a*sqrt(a)
+c...  reduce hcxij if ti very flat; prevents large conduction for high ti
+c...  or if lmfpi exceeds a mean-free path limit, lmfplim
+               lmfpi = 1.e16*(tiave/ev)**2/ni(ix,iy,1) # i-mean-free-path
+               niavex = ( ni(ix ,iy,ifld)*gx(ix ,iy) +
+     .                    ni(ix1,iy,ifld)*gx(ix1,iy)) /
+     .                                     (gx(ix,iy) + gx(ix1,iy))
+               hcxij(ix,iy,ifld) = hcxij(ix,iy,ifld)/(1.+lmfpi/lmfplim)
+               hcxij(ix,iy,ifld) = hcxij(ix,iy,ifld) *
+     .                         ( cutlo + (ti(ix,iy)-ti(ix1,iy))**2 ) /
+     .                         ( cutlo + (ti(ix,iy)-ti(ix1,iy))**2 +
+     .                      (0.5*alfkxi*(ti(ix,iy)+ti(ix1,iy)))**2 ) +
+     .                         kxi_use(ix,iy)*niavex
+
+c ... Flux limit individ. hcxij in poloidal direction if isflxldi=2
+               if (isflxldi .eq. 2) then
+                  niavex = ( ni(ix ,iy,ifld)*gx(ix ,iy) +
+     .                       ni(ix1,iy,ifld)*gx(ix1,iy)) /
+     .                                        (gx(ix,iy) + gx(ix1,iy))
+                  wallfac = 1.
+                  do jx = 1, nxpt
+                     if ( ( (ix==ixlb(jx).and.ixmnbcl==1) .or.
+     .                      (ix==ixrb(jx).and.ixmxbcl==1) )
+     .                    .and. (isplflxl==0) ) wallfac = flalfipl/flalfi
+                  enddo
+                  qflx = wallfac*flalfi * rrv(ix,iy) *
+     .                                    sqrt(a/mi(ifld)) * niavex * a
+                  cshx = hcxij(ix,iy,ifld)
+	          lxtic = 0.5*(ti(ix,iy)+ti(ix1,iy)) /
+     .               (abs(ti(ix,iy)-ti(ix1,iy))*gxf(ix,iy) + 100.*cutlo)
+	          qshx = cshx * (ti(ix,iy)-ti(ix1,iy)) * gxf(ix,iy) *
+     .                                              (1. + lxtic/lxtimax)
+                  hcxij(ix,iy,ifld) = cshx  / (1 + abs(qshx/qflx))
+               endif
+               hcxi(ix,iy) = hcxi(ix,iy) + hcxij(ix,iy,ifld)
+               hcxineo(ix,iy) = hcxineo(ix,iy) + hcxij(ix,iy,ifld)*
+     .                      1.5676*epsneo(ix,iy)**1.5/k2neo(ix,iy,ifld)
+               hcyi(ix,iy) = hcyi(ix,iy) + hcyij(ix,iy,ifld)
+               qipar(ix,iy,ifld) = hcxij(ix,iy,ifld)*gxf(ix,iy)*
+     .                                (ti(ix,iy)-ti(ix1,iy))/rrv(ix,iy)
+            enddo
+         enddo
+        end if
+        end do
+
+c...  Now include elec. temp and other dep. in poloidal terms + diff. neut.
+      do iy = j1, j6
+         do ix = i1, i6
+            ix1 = ixp1(ix,iy)
+            iyp1 = min(ny+1, iy+1)
+            if (concap .eq. 0) then
+               teave = (te(ix,iy)*gx(ix,iy) + te(ix1,iy)*gx(ix1,iy)) /
+     .                                       (gx(ix,iy) + gx(ix1,iy))
+               do jx = 1, nxpt
+                 if(ix==ixlb(jx).and.ixmnbcl==1) teave=te(ixlb(jx)+1,iy)
+                 if(ix==ixrb(jx).and.ixmxbcl==1) teave=te(ixrb(jx),iy)
+               enddo
+               a = max (teave, temin*ev)
+            else
+               a = afix*ev
+            endif
+            zeffave = (zeff(ix,iy)*gx(ix,iy) + zeff(ix1,iy)*gx(ix1,iy)) /
+     .                                         (gx(ix,iy) + gx(ix1,iy))
+            zcoef = 0.308 + 0.767*zeffave - 0.075*zeffave**2
+            hcxe(ix,iy) = hcxe(ix,iy)*rrv(ix,iy)*rrv(ix,iy)*a*a*sqrt(a)
+     .                    *zcoef
+
+c...  reduce hcxe if te very flat; prevents very large conduction for high te
+c...  or if the mean-free path exceeds lmfplim
+            lmfpe = 2e16*(te(ix,iy)/ev)**2/ne(ix,iy)  #mfp for elec [m]
+            neavex = ( ne(ix ,iy)*gx(ix ,iy) +
+     .                 ne(ix1,iy)*gx(ix1,iy))/(gx(ix,iy) + gx(ix1,iy))
+            hcxe(ix,iy) = hcxe(ix,iy) *
+     .                         ( cutlo + (te(ix,iy)-te(ix1,iy))**2 ) /
+     .                         ( cutlo + (te(ix,iy)-te(ix1,iy))**2 +
+     .                     (0.5*alfkxe*(te(ix,iy)+te(ix1,iy)))**2 ) +
+     .                        kxe_use(ix,iy)*neavex
+            hcxe(ix,iy) = hcxe(ix,iy) /( (1. + lmfpe/lmfplim) *
+     .                  (1+hcxe(ix,iy)*gx(ix,iy)**2*tdiflim/ne(ix,iy)) )
+            if (isupgon(1).eq.0) then   # add diff. gas cx contrib. to hcxi
+               hcxn(ix,iy) = 0.
+               hcyn(ix,iy) = 0.
+c..1dn0802
+c IJ 2016/10/10	add cfneutsor_ei multiplier to control fraction of neutral energy to add
+               hcxi(ix,iy) = hcxi(ix,iy)
+     .           + cftiexclg*cfneut*cfneutsor_ei*kxn*( ng(ix ,iy,1)*ti(ix ,iy)
+     .                              +ng(ix1,iy,1)*ti(ix1,iy) ) /
+     .                  (mi(1)*(nucx(ix,iy,1) + nucx(ix1,iy,1)))
+               hcyi(ix,iy) = hcyi(ix,iy)
+     .           + cftiexclg*cfneut*cfneutsor_ei*kyn*( ngy0(ix,iy,1)*tiy0(ix,iy)
+     .                              +ngy1(ix,iy,1)*tiy1(ix,iy) ) /
+     .                  (mi(1)*(nucx(ix,iy,1) + nucx(ix,iyp1,1)))
+            endif
+          end do
+        end do
+
+c
+c
+      if (isupgon(1).eq.1) then
+c
+c ----- Section for the inertial neutral fluid; we need to do different
+c ----- things than for the ions. Note third index=iigsp is neutral species
+c ----- The inertial neutrals coeff. are flux-limited and add to total here
+         do iy = j1, j6
+            iy1 = min(iy,ny)   #dont use j5 because hcx also in loop (not imp.)
+            do ix = i1, i6
+               ix1 = ixp1(ix,iy)
+               tgavex = max(0.5*(tg(ix,iy,1) + tg(ix1,iy,1)), temin*ev)
+               tgavey= max(0.5*(tgy0(ix,iy,1)+tgy1(ix,iy,1)), temin*ev)
+               niavex = 0.5*(ni(ix,iy,1) + ni(ix1,iy,1)) #only for coll. term
+               niavey = 0.5*(niy0(ix,iy1,1) + niy1(ix,iy1,1)) #only coll. term
+               noavex = ( ni(ix ,iy,iigsp)*gx(ix ,iy) +
+     .                    ni(ix1,iy,iigsp)*gx(ix1,iy)) /
+     .                     (gx(ix,iy) + gx(ix1,iy))
+               noavey = 0.5*(niy0(ix,iy1,iigsp) + niy1(ix,iy1,iigsp))
+
+c          Set up flux-limit variables (no rrv here) 
+c          First limit the poloidal coeff, then radial
+c IJ 2016/10/10	add cfneutsor_ei multiplier to control fraction of neutral energy to add
+               qflx = flalftgxa(ix) * sqrt(tgavex/mi(iigsp)) * noavex *
+     .                                                     tgavex
+               lmfpn = 1./(sigcx * (niavex + rnn2cx*noavex))
+               cshx = lmfpn*sqrt(tgavex/mi(iigsp))*noavex * 
+     .                         lgtmax(iigsp)/(lmfpn + lgtmax(iigsp))
+               qshx = cshx * (tg(ix,iy,1)-tg(ix1,iy,1)) * gxf(ix,iy)
+	       hcxn(ix,iy) = cshx  / 
+     .                      (1 + (abs(qshx/qflx))**flgamtg)**(1./flgamtg)
+               hcxi(ix,iy) = hcxi(ix,iy) + 
+     .                          cftiexclg*cfneut*cfneutsor_ei*hcxn(ix,iy)
+c          Now for the radial flux limit - good for nonorthog grid too
+               qfly = flalftgya(iy) * sqrt(tgavey/mi(iigsp)) * noavey *
+     .                                                     tgavey
+               lmfpn = 1./(sigcx * (niavey + rnn2cx*noavey))
+               cshy = lmfpn*sqrt(tgavey/mi(iigsp))*noavey * 
+     .                         lgtmax(iigsp)/(lmfpn + lgtmax(iigsp))
+               qshy = cshy * (tgy0(ix,iy1,1)-tgy1(ix,iy1,1))/dynog(ix,iy)
+               hcyn(ix,iy) = cshy / 
+     .                      (1 + (abs(qshy/qfly))**flgamtg)**(1./flgamtg)
+               hcyi(ix,iy) = hcyi(ix,iy) + 
+     .                          cftiexclg*cfneut*cfneutsor_ei*hcyn(ix,iy)
+c     
+          end do
+        end do
+      endif
+
+
+      END SUBROUTINE calc_plasma_heatconductivities
+
 c-----------------------------------------------------------------------
       subroutine pandf (xc, yc, neq, time, yl, yldot)
 
@@ -2305,457 +2803,10 @@ cc            write(*,*) 'Just after psordisold; xc,yc=',xc,yc
          endif
 
         call calc_volumetric_sources(xc, yc)
-*****************************************************************
-*  Other physics coefficients. (old PHYVIS)
-*****************************************************************
 
-* -- loop over species number --
+        call calc_viscosities
 
-      do ifld = 1, nfsp
-
-c
-c     neutral viscosity for isupgon=1
-c
-c  Logic here is specialized; only ifld=2 (igsp=1) has viscosity calc.
-c  If more neutral species have full parallel mom eqn, need to redo loops
-         if(isupgon(1) .eq. 1 .and. zi(ifld) .eq. 0)then
-            do iy = j1,j6
-               iyp1 = min(iy+1,ny+1)
-               do ix = i1,i6
-c
-                  ix1 = ixm1(ix,iy)
-                  vtn = sqrt(max(tg(ix,iy,1),tgmin*ev)/mi(ifld))
- 		  qfl = flalfvgxa(ix)*nm(ix,iy,ifld)*vtn**2
-                  if(isvisxn_old == 1) then
-                    lmfpn = 1./(sigcx * 
-     .                          (ni(ix,iy,1) + rnn2cx*ni(ix,iy,ifld)))
-                  elseif(isvisxn_old==0 .and. ishymol==0) then
-                    lmfppar = vtn/(kelhihg*ni(ix,iy,1) +
-     .                                         kelhghg*ni(ix,iy,ifld))
-                    lmfpperp = vtn/( vtn*sigcx*ni(ix,iy,1) + 
-     .                      kelhihg*ni(ix,iy,1)+kelhghg*ni(ix,iy,ifld) )
-                    rrfac = rr(ix,iy)*rr(ix,iy)
-                    lmfpn = lmfppar*rrfac + lmfpperp*(1-rrfac)
-                  else   # (isvisxn_old=0 .and. ishymol=1) then #with mols
-                    lmfppar = vtn/(kelhihg*ni(ix,iy,1) +
-     .                     kelhghg*ni(ix,iy,ifld) + kelhmhg*ng(ix,iy,2))
-                    lmfpperp = vtn/( vtn*sigcx*ni(ix,iy,1) + 
-     .                     kelhihg*ni(ix,iy,1) +kelhghg*ni(ix,iy,ifld) +
-     .                     kelhmhg*ng(ix,iy,2) )
-                    rrfac = rr(ix,iy)*rr(ix,iy)
-                    lmfpn = lmfppar*rrfac + lmfpperp*(1-rrfac)
-                  endif
-                  csh = lmfpn*nm(ix,iy,ifld)*vtn*
-     .                                      lgvmax/(lgvmax + lmfpn)  
-                  if (isgxvon .eq. 0) then 
-                    qsh = csh * (up(ix1,iy,ifld)-up(ix,iy,ifld))
-     .                                         *gx(ix,iy)
-                  elseif (isgxvon .eq. 1) then
-                    qsh = csh * (up(ix1,iy,ifld)-up(ix,iy,ifld))
-     .                *2*gxf(ix,iy)*gxf(ix1,iy)/(gxf(ix,iy)+gxf(ix1,iy))
-                  endif
-                  visx(ix,iy,ifld)= cfvisxn*csh/ 
-     .               (1 + (abs(qsh/(qfl+cutlo))**flgamvg))**(1./flgamvg)
-     .               + cfanomvisxg*travis(ifld)*nm(ix,iy,ifld)
-
-c    Now do y-direction; use ni on up y-face
-                  ix2 = ixp1(ix,iy)
-                  ix3 = ixp1(ix,iyp1)
-                  tgupyface = 0.25*( tg(ix,iy,1)+
-     .                         tg(ix,iyp1,1)+tg(ix2,iy,1)+
-     .                         tg(ix3,iyp1,1) )
-                  vtn = sqrt(max(tgupyface,tgmin*ev)/mi(ifld))
-                  nmxface = 0.5*(nm(ix,iy,ifld)+nm(ix2,iy,ifld))
-                  ngupyface = 0.25*( ni(ix,iy,ifld)+
-     .                         ni(ix,iyp1,ifld)+ni(ix2,iy,ifld)+
-     .                         ni(ix3,iyp1,ifld) )
-                  n1upyface = 0.25*( ni(ix,iy,1)+
-     .                         ni(ix,iyp1,1)+ni(ix2,iy,1)+
-     .                         ni(ix3,iyp1,1) )
-                  if(ishymol == 0) then
-                    lmfppar = vtn/(kelhihg*n1upyface +
-     .                                         kelhghg*ngupyface)
-                    lmfpperp = vtn/( vtn*sigcx*n1upyface + 
-     .                      kelhihg*n1upyface+kelhghg*ngupyface )
-                    lmfpn = lmfppar*rrfac + lmfpperp*(1-rrfac)
-                  else  # ishymol=1
-                    ng2upyface = 0.25*( ng(ix,iy,2)+
-     .                         ng(ix,iyp1,2)+ng(ix2,iy,2)+
-     .                         ng(ix3,iyp1,2) )
-                    lmfppar = vtn/(kelhihg*n1upyface +
-     .                     kelhghg*n1upyface + kelhmhg*ng2upyface)
-                    lmfpperp = vtn/( vtn*sigcx*n1upyface + 
-     .                     kelhihg*n1upyface +kelhghg*ngupyface +
-     .                     kelhmhg*ng2upyface )
-                    lmfpn = lmfppar*rrfac + lmfpperp*(1-rrfac)
-                  endif
-        
-                  csh = lmfpn*ngupyface*mi(ifld)*vtn*
-     .                                      lgvmax/(lgvmax + lmfpn)  
-
- 		  qfl = flalfvgya(iy)*ngupyface*mi(ifld)*vtn**2
-                  qsh = csh * (up(ix,iy,ifld)-up(ix,iyp1,ifld)) * 
-     .                                                        gyf(ix,iy)
-                  visy(ix,iy,ifld)= cfvisyn*csh / 
-     .               (1 + (abs(qsh/(qfl+cutlo))**flgamvg))**(1./flgamvg)
-     .               + cfanomvisyg*travis(ifld)*nmxface
-c
-            end do
-        end do
-         endif
-c
-c
-       if(zi(ifld) > 1.e-20) then
-         do iy = j1, j6
-            do ix = i1, i6
-               w(ix,iy) = 0.0e0
-            end do
-        end do
-
-         do jfld = 1, nisp
-            tv = zi(jfld)**2 / sqrt((mi(ifld)+mi(jfld))/(2*mp))
-            do iy = j1, j6
-               do ix = i1, i6
-                  w(ix,iy) = w(ix,iy) + tv*ni(ix,iy,jfld)
-            end do
-          end do
-        end do
-
-         do iy = j1, j6
-            do ix = i1, i6
-	       ctaui(ix,iy,ifld) = 2.1e13/(loglambda(ix,iy)*zi(ifld)**2) # mass fac?
-               tv2 = ctaui(ix,iy,ifld)/(ev*sqrt(ev))
-               if (convis .eq. 0) then
-                  a = max (ti(ix,iy), temin*ev)
-               else
-                  a = afix*ev
-               endif
-	       epstmp = max(epsneo(ix,iy), 1.e-50)
-               visxtmp = tv2 * coef * rr(ix,iy) * rr(ix,iy) *
-     .                            a*a*sqrt(a) * ni(ix,iy,ifld)/w(ix,iy)
-               visx(ix,iy,ifld) = parvis(ifld)*visxtmp +
-     .                            trax_use(ix,iy,ifld)*nm(ix,iy,ifld)
-               nuii(ix,iy,ifld) = w(ix,iy)/(tv2*a*sqrt(a))
-               nuiistar(ix,iy,ifld) = ( lconneo(ix,iy)*nuii(ix,iy,ifld)/
-     .                                 (epstmp**1.5*(2*a/mi(ifld))**0.5)
-     .                                           + 1.e-50 )
-               visxneo(ix,iy,ifld) = visxtmp*
-     .                 (1./(1.+epstmp**(-1.5)/nuiistar(ix,iy,ifld)))*
-     .                               (1./(1.+1./nuiistar(ix,iy,ifld)))
-               rt2nus = 1.414*nuiistar(ix,iy,ifld)
-               ktneo(ix,iy,ifld) = (-0.17 + 1.05*rt2nus**.5 + 
-     .                     2.7*rt2nus**2*epstmp**3) / ( 1.+
-     .                0.7*rt2nus**.5 + rt2nus**2*epstmp**3 )
-               alfneo(ix,iy,ifld) = (8./15.)*(ktneo(ix,iy,ifld) - 1.)*
-     .                 (1./(1.+epstmp**(-1.5)/nuiistar(ix,iy,ifld)))*
-     .                            ( 1./(1.+1./nuiistar(ix,iy,ifld)) )
-               k2neo(ix,iy,ifld) =(.66 + 1.88*epstmp**.5 - 1.54*epstmp)/ 
-     .                            (1. + 1.03*rt2nus**.5 + 0.31*rt2nus) +
-     .             1.17*epstmp**3*rt2nus/(1. + 0.74*epstmp**1.5*rt2nus)
-c...  flux limit the viscosity; beware of using visx(0,iy) and 
-c...  visx(nx+1,iy) as they are meaningless when flux limited
-               ix1 = ixm1(ix,iy)
-               t0 = max (ti(ix,iy), temin*ev)
-               vtn = sqrt(t0/mi(ifld))
-               mfl = flalfv * nm(ix,iy,ifld) * rr(ix,iy) *
-     .               vol(ix,iy) * gx(ix,iy) * (t0/mi(ifld)) 
-ccc  Distance between veloc. cell centers:
-               if (isgxvon .eq. 0) then     # dx(ix)=1/gx(ix)
-                 csh = visx(ix,iy,ifld) * vol(ix,iy) * gx(ix,iy)
-     .                            * gx(ix,iy)
-               elseif (isgxvon .eq. 1) then # dx(ix)=.5/gxf(ix-1)+.5/gxf(ix)
-                 csh = visx(ix,iy,ifld) * vol(ix,iy) * gx(ix,iy)
-     .               * 2*gxf(ix,iy)*gxf(ix1,iy)/(gxf(ix,iy)+gxf(ix1,iy))
-               endif
-ccc 
-               msh = abs( csh*(upi(ix1,iy,ifld) - upi(ix,iy,ifld)) )
-               visx(ix,iy,ifld) = visx(ix,iy,ifld)
-     .               / (1 + (msh/(mfl+1.e-20*msh))**flgamv )**(1/flgamv)
-               visy(ix,iy,ifld)=(fcdif*travis(ifld)+ tray_use(ix,iy,ifld))*
-     .                              nm(ix,iy,ifld) +  4*eta1(ix,iy)
-            end do
-        end do
-       endif      # test if zi(ifld) > 1.e-20
-        end do    # large loop for ifld = 1, nfsp
-
-*****************************************************************
-*****************************************************************
-*  Heat Conduction. (old PHYTHC)
-*****************************************************************
-*  ---------------------------------------------------------------------
-*  compute conductivities on cell faces
-*  ---------------------------------------------------------------------
-
-*  -- initialize to 0 --
-
-      do iy = j1, j6
-         do ix = i1, i6
-            hcxe(ix,iy) = 0.0e0
-            hcxi(ix,iy) = 0.0e0
-            hcxineo(ix,iy) = 0.0e0
-            hcye(ix,iy) = 0.0e0
-            hcyi(ix,iy) = 0.0e0
-            do ifld = 1, nisp
-               hcxij(ix,iy,ifld) = 0.0e0
-               hcyij(ix,iy,ifld) = 0.0e0
-            enddo
-        end do
-      end do
-
-*  -- loop over species number --
-
-      do ifld = 1, nisp
-c -- Skip this if these are the neutrals (zi(ifld).eq.0)
-         if (zi(ifld) .ne. 0.0e0) then
-
-c...  Initialize w1 and w2 for each species
-         do iy = j1, j6
-            do ix = i1, i6
-               w1(ix,iy) = 0.0e0
-               w2(ix,iy) = 0.0e0
-            end do
-         end do
-
-*     -- conductivities --
-*        The poloidal conductivities  are initially computed without
-*        the factor rr**2 * tv**2.5)
-
-         do jfld = 1, nisp
-            tv = zi(jfld)**2
-            a = zi(jfld)**2 *
-     .            sqrt(2*mi(ifld)*mi(jfld)/(mi(ifld)+mi(jfld)))
-            do  iy = j1, j6
-               do ix = i1, i6
-                  ix1 = ixp1(ix,iy)
-                  w1(ix,iy) = w1(ix,iy) + tv*(ni(ix,iy,jfld)*gx(ix,iy) +
-     .                                     ni(ix1,iy,jfld)*gx(ix1,iy)) / 
-     .                                        (gx(ix,iy) + gx(ix1,iy))
-                  w2(ix,iy) = w2(ix,iy) + a*(ni(ix,iy,jfld)*gx(ix,iy) +
-     .                                     ni(ix1,iy,jfld)*gx(ix1,iy)) / 
-     .                                        (gx(ix,iy) + gx(ix1,iy))
-                end do
-            end do
-        end do
-
-         do iy = j1, j6
-            do ix = i1, i6
-               ix1 = ixp1(ix,iy)
-               iyp1 = min(ny+1, iy+1)
-               ctaue(ix,iy,ifld) = 3.5e11*zi(ifld)/loglambda(ix,iy)
-               ctaui(ix,iy,ifld) =2.1e13/(loglambda(ix,iy)*zi(ifld)**2)
-               fxe = kxe * ce * ctaue(ix,iy,ifld) / (me*ev*sqrt(ev))
-               fxi = kxi * ci * ctaui(ix,iy,ifld) / (ev*sqrt(ev*mp))
-               fxet = fxe
-               fxit = fxi
-               do jx = 1, nxpt  #reduce kxe inside sep by rkxecore fac
-                  if ( (iy.le.iysptrx) .and. 
-     .                    ix.gt.ixpt1(jx) .and. ix.le.ixpt2(jx) ) then
-                     fxet = fxe/( 1. + (rkxecore-1.)*
-     .                              (yyf(iy)/(yyf(0)+4.e-50))**inkxc )
-                     fxit = kxicore * fxi
-                  endif
-               enddo
-               niavex = ( ni(ix ,iy,ifld)*gx(ix ,iy) +
-     .                    ni(ix1,iy,ifld)*gx(ix1,iy)) /
-     .                     (gx(ix,iy) + gx(ix1,iy))
-               niavey = ( niy0(ix,iy,ifld)*gy(ix,iy) +
-     .                    niy1(ix,iy,ifld)*gy(ix,iyp1)) /
-     .                     (gy(ix,iy) + gy(ix,iyp1))
-               hcxe(ix,iy) = hcxe(ix,iy)+fxet*niavex/w1(ix,iy)
-
-c ... Use fixed diffusivity inside the separatrix, anomalous outside,
-c     if anomalous-diffusivity multiplier is nonzero.
-               kyemix = fcdif*kye + kye_use(ix,iy)
-cccMER NOTE: when there are multiple x-points, as in 'dnull' configuration,
-ccc          iysptrx is the last closed flux surface (see S.R. nphygeo)
-               if(kyet .gt. 1.e-20 .and. iy .gt. iysptrx) then
-                  kyemix = (1. - ckyet) * kyemix +
-     .               ckyet * kyet * diffusivwrk(ix,iy)
-               endif
-               hcye(ix,iy) = hcye(ix,iy) + ( kyemix +
-     .                       2.33*(dclass_e(ix,iy)+dclass_e(ix,iyp1)) )*
-     .                                               zi(ifld) * niavey
-
-               hcxij(ix,iy,ifld) = fxit*niavex/w2(ix,iy)
-               kyimix = fcdif*kyi + kyi_use(ix,iy)
-cccMER NOTE: when there are multiple x-points, as in 'dnull' configuration,
-ccc          iysptrx is the last closed flux surface (see S.R. nphygeo)
-               if(kyit .gt. 1.e-20 .and. iy .gt. iysptrx) then
-                  kyimix = (1. - ckyit) * kyimix +
-     .               ckyit * kyit * diffusivwrk(ix,iy)
-               endif
-               hcyij(ix,iy,ifld) = hcyij(ix,iy,ifld) + ( kyimix +
-     .                           (dclass_i(ix,iy)+dclass_i(ix,iyp1)) )*
-     .                                                         niavey
-              end do  
-            end do
-          end if 
-        end do
-
-  
-c ... Add ion temp. dep. for pol. terms, flux limit, & build total ion hcx,yi
-        do ifld = 1, nisp
-         if (zi(ifld) .ne. 0.e0) then
-         do iy = j1, j6
-            do ix = i1, i6
-               ix1 = ixp1(ix,iy)
-               if (concap .eq. 0) then
-                  tiave = (ti(ix,iy)*gx(ix,iy) + ti(ix1,iy)*gx(ix1,iy)) /
-     .                                         (gx(ix,iy) + gx(ix1,iy))
-                  do jx = 1, nxpt
-                    if (ix==ixlb(jx).and.ixmnbcl==1) tiave=ti(ixlb(jx)+1,iy)
-                    if (ix==ixrb(jx).and.ixmxbcl==1) tiave=ti(ixrb(jx),iy)
-                  enddo
-                  a = max (tiave, temin*ev)
-               else
-                  a = afix*ev
-               endif
-               hcxij(ix,iy,ifld) = hcxij(ix,iy,ifld)*rrv(ix,iy)*
-     .                                            rrv(ix,iy)*a*a*sqrt(a)
-c...  reduce hcxij if ti very flat; prevents large conduction for high ti
-c...  or if lmfpi exceeds a mean-free path limit, lmfplim
-               lmfpi = 1.e16*(tiave/ev)**2/ni(ix,iy,1) # i-mean-free-path
-               niavex = ( ni(ix ,iy,ifld)*gx(ix ,iy) +
-     .                    ni(ix1,iy,ifld)*gx(ix1,iy)) /
-     .                                     (gx(ix,iy) + gx(ix1,iy))
-               hcxij(ix,iy,ifld) = hcxij(ix,iy,ifld)/(1.+lmfpi/lmfplim)
-               hcxij(ix,iy,ifld) = hcxij(ix,iy,ifld) *
-     .                         ( cutlo + (ti(ix,iy)-ti(ix1,iy))**2 ) /
-     .                         ( cutlo + (ti(ix,iy)-ti(ix1,iy))**2 +
-     .                      (0.5*alfkxi*(ti(ix,iy)+ti(ix1,iy)))**2 ) +
-     .                         kxi_use(ix,iy)*niavex
-
-c ... Flux limit individ. hcxij in poloidal direction if isflxldi=2
-               if (isflxldi .eq. 2) then
-                  niavex = ( ni(ix ,iy,ifld)*gx(ix ,iy) +
-     .                       ni(ix1,iy,ifld)*gx(ix1,iy)) /
-     .                                        (gx(ix,iy) + gx(ix1,iy))
-                  wallfac = 1.
-                  do jx = 1, nxpt
-                     if ( ( (ix==ixlb(jx).and.ixmnbcl==1) .or.
-     .                      (ix==ixrb(jx).and.ixmxbcl==1) )
-     .                    .and. (isplflxl==0) ) wallfac = flalfipl/flalfi
-                  enddo
-                  qflx = wallfac*flalfi * rrv(ix,iy) *
-     .                                    sqrt(a/mi(ifld)) * niavex * a
-                  cshx = hcxij(ix,iy,ifld)
-	          lxtic = 0.5*(ti(ix,iy)+ti(ix1,iy)) /
-     .               (abs(ti(ix,iy)-ti(ix1,iy))*gxf(ix,iy) + 100.*cutlo)
-	          qshx = cshx * (ti(ix,iy)-ti(ix1,iy)) * gxf(ix,iy) *
-     .                                              (1. + lxtic/lxtimax)
-                  hcxij(ix,iy,ifld) = cshx  / (1 + abs(qshx/qflx))
-               endif
-               hcxi(ix,iy) = hcxi(ix,iy) + hcxij(ix,iy,ifld)
-               hcxineo(ix,iy) = hcxineo(ix,iy) + hcxij(ix,iy,ifld)*
-     .                      1.5676*epsneo(ix,iy)**1.5/k2neo(ix,iy,ifld)
-               hcyi(ix,iy) = hcyi(ix,iy) + hcyij(ix,iy,ifld)
-               qipar(ix,iy,ifld) = hcxij(ix,iy,ifld)*gxf(ix,iy)*
-     .                                (ti(ix,iy)-ti(ix1,iy))/rrv(ix,iy)
-            enddo
-         enddo
-        end if
-        end do
-
-c...  Now include elec. temp and other dep. in poloidal terms + diff. neut.
-      do iy = j1, j6
-         do ix = i1, i6
-            ix1 = ixp1(ix,iy)
-            iyp1 = min(ny+1, iy+1)
-            if (concap .eq. 0) then
-               teave = (te(ix,iy)*gx(ix,iy) + te(ix1,iy)*gx(ix1,iy)) /
-     .                                       (gx(ix,iy) + gx(ix1,iy))
-               do jx = 1, nxpt
-                 if(ix==ixlb(jx).and.ixmnbcl==1) teave=te(ixlb(jx)+1,iy)
-                 if(ix==ixrb(jx).and.ixmxbcl==1) teave=te(ixrb(jx),iy)
-               enddo
-               a = max (teave, temin*ev)
-            else
-               a = afix*ev
-            endif
-            zeffave = (zeff(ix,iy)*gx(ix,iy) + zeff(ix1,iy)*gx(ix1,iy)) /
-     .                                         (gx(ix,iy) + gx(ix1,iy))
-            zcoef = 0.308 + 0.767*zeffave - 0.075*zeffave**2
-            hcxe(ix,iy) = hcxe(ix,iy)*rrv(ix,iy)*rrv(ix,iy)*a*a*sqrt(a)
-     .                    *zcoef
-
-c...  reduce hcxe if te very flat; prevents very large conduction for high te
-c...  or if the mean-free path exceeds lmfplim
-            lmfpe = 2e16*(te(ix,iy)/ev)**2/ne(ix,iy)  #mfp for elec [m]
-            neavex = ( ne(ix ,iy)*gx(ix ,iy) +
-     .                 ne(ix1,iy)*gx(ix1,iy))/(gx(ix,iy) + gx(ix1,iy))
-            hcxe(ix,iy) = hcxe(ix,iy) *
-     .                         ( cutlo + (te(ix,iy)-te(ix1,iy))**2 ) /
-     .                         ( cutlo + (te(ix,iy)-te(ix1,iy))**2 +
-     .                     (0.5*alfkxe*(te(ix,iy)+te(ix1,iy)))**2 ) +
-     .                        kxe_use(ix,iy)*neavex
-            hcxe(ix,iy) = hcxe(ix,iy) /( (1. + lmfpe/lmfplim) *
-     .                  (1+hcxe(ix,iy)*gx(ix,iy)**2*tdiflim/ne(ix,iy)) )
-            if (isupgon(1).eq.0) then   # add diff. gas cx contrib. to hcxi
-               hcxn(ix,iy) = 0.
-               hcyn(ix,iy) = 0.
-c..1dn0802
-c IJ 2016/10/10	add cfneutsor_ei multiplier to control fraction of neutral energy to add
-               hcxi(ix,iy) = hcxi(ix,iy)
-     .           + cftiexclg*cfneut*cfneutsor_ei*kxn*( ng(ix ,iy,1)*ti(ix ,iy)
-     .                              +ng(ix1,iy,1)*ti(ix1,iy) ) /
-     .                  (mi(1)*(nucx(ix,iy,1) + nucx(ix1,iy,1)))
-               hcyi(ix,iy) = hcyi(ix,iy)
-     .           + cftiexclg*cfneut*cfneutsor_ei*kyn*( ngy0(ix,iy,1)*tiy0(ix,iy)
-     .                              +ngy1(ix,iy,1)*tiy1(ix,iy) ) /
-     .                  (mi(1)*(nucx(ix,iy,1) + nucx(ix,iyp1,1)))
-            endif
-          end do
-        end do
-
-c
-c
-      if (isupgon(1).eq.1) then
-c
-c ----- Section for the inertial neutral fluid; we need to do different
-c ----- things than for the ions. Note third index=iigsp is neutral species
-c ----- The inertial neutrals coeff. are flux-limited and add to total here
-         do iy = j1, j6
-            iy1 = min(iy,ny)   #dont use j5 because hcx also in loop (not imp.)
-            do ix = i1, i6
-               ix1 = ixp1(ix,iy)
-               tgavex = max(0.5*(tg(ix,iy,1) + tg(ix1,iy,1)), temin*ev)
-               tgavey= max(0.5*(tgy0(ix,iy,1)+tgy1(ix,iy,1)), temin*ev)
-               niavex = 0.5*(ni(ix,iy,1) + ni(ix1,iy,1)) #only for coll. term
-               niavey = 0.5*(niy0(ix,iy1,1) + niy1(ix,iy1,1)) #only coll. term
-               noavex = ( ni(ix ,iy,iigsp)*gx(ix ,iy) +
-     .                    ni(ix1,iy,iigsp)*gx(ix1,iy)) /
-     .                     (gx(ix,iy) + gx(ix1,iy))
-               noavey = 0.5*(niy0(ix,iy1,iigsp) + niy1(ix,iy1,iigsp))
-
-c          Set up flux-limit variables (no rrv here) 
-c          First limit the poloidal coeff, then radial
-c IJ 2016/10/10	add cfneutsor_ei multiplier to control fraction of neutral energy to add
-               qflx = flalftgxa(ix) * sqrt(tgavex/mi(iigsp)) * noavex *
-     .                                                     tgavex
-               lmfpn = 1./(sigcx * (niavex + rnn2cx*noavex))
-               cshx = lmfpn*sqrt(tgavex/mi(iigsp))*noavex * 
-     .                         lgtmax(iigsp)/(lmfpn + lgtmax(iigsp))
-               qshx = cshx * (tg(ix,iy,1)-tg(ix1,iy,1)) * gxf(ix,iy)
-	       hcxn(ix,iy) = cshx  / 
-     .                      (1 + (abs(qshx/qflx))**flgamtg)**(1./flgamtg)
-               hcxi(ix,iy) = hcxi(ix,iy) + 
-     .                          cftiexclg*cfneut*cfneutsor_ei*hcxn(ix,iy)
-c          Now for the radial flux limit - good for nonorthog grid too
-               qfly = flalftgya(iy) * sqrt(tgavey/mi(iigsp)) * noavey *
-     .                                                     tgavey
-               lmfpn = 1./(sigcx * (niavey + rnn2cx*noavey))
-               cshy = lmfpn*sqrt(tgavey/mi(iigsp))*noavey * 
-     .                         lgtmax(iigsp)/(lmfpn + lgtmax(iigsp))
-               qshy = cshy * (tgy0(ix,iy1,1)-tgy1(ix,iy1,1))/dynog(ix,iy)
-               hcyn(ix,iy) = cshy / 
-     .                      (1 + (abs(qshy/qfly))**flgamtg)**(1./flgamtg)
-               hcyi(ix,iy) = hcyi(ix,iy) + 
-     .                          cftiexclg*cfneut*cfneutsor_ei*hcyn(ix,iy)
-c     
-          end do
-        end do
-      endif
-
+        call calc_plasma_heatconductivities
 *  Equipartition (old PHYEQP)
 *****************************************************************
 *  ---------------------------------------------------------------------
