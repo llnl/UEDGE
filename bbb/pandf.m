@@ -2225,10 +2225,10 @@ ccc
       Use(Comflo)
       Use(Coefeq)
       Use(MCN_sources)
-      integer iy, ix, ifld, jfld, ix1, iyp1, jx
-      real tv, a, lambda, fxet, fxit,niavex, niavey, kyemix, fcd, 
-     .  kyimix, tiave, lmfpi, e16, wallfac, qflx, cshx, lxtic, qshx, 
-     .  teave, zeffave, lmfpe, neavex, iy1, tgavex, tgavey, noavex, 
+      integer iy, ix, ifld, jfld, ix1, iyp1, jx, iy1
+      real tv, a, fxet, fxit, niavex, niavey, kyemix, fcd, 
+     .  kyimix, tiave, lmfpi, wallfac, qflx, cshx, lxtic, qshx, 
+     .  teave, zeffave, lmfpe, neavex, tgavex, tgavey, noavex, 
      .  noavey, lmfpn, qfly, cshy, qshy
 
 *****************************************************************
@@ -2508,9 +2508,60 @@ c
           end do
         end do
       endif
-
-
       END SUBROUTINE calc_plasma_heatconductivities
+
+      SUBROUTINE calc_ei_equipartition
+      IMPLICIT NONE
+      Use(Selec)
+      Use(Wkspace)
+      Use(Dim)
+      Use(Compla)
+      Use(UEpar)
+      Use(Phyvar)
+      Use(Comtra)
+      Use(Conduc)
+      Use(Share)
+      integer iy, ix, ifld, ix2
+      real tv, a, loglmcc
+*  Equipartition (old PHYEQP)
+*****************************************************************
+*  ---------------------------------------------------------------------
+*  compute equipartition.
+*  ---------------------------------------------------------------------
+
+*     -- initialize w3 --
+      do iy = j1, j6
+         do ix = i1, i6
+            w3(ix,iy) = 0.0e0
+          end do
+        end do
+
+      do ifld = 1, nisp
+         tv = zi(ifld)**2/mi(ifld)
+         do iy = j2, j5
+            do ix = i2, i5
+               w3(ix,iy) = w3(ix,iy) + tv*ni(ix,iy,ifld)
+          end do
+        end do
+      end do
+
+*  -- compute equipartition --
+ccc In detail, coef1 = qe**4*sqrt(me)*lnlam / ((2*pi)**1.5*eps0**2)
+      do iy = j2, j5
+         do ix = i2, i5
+            ix2 = ixm1(ix,iy)
+            a = max (te(ix,iy), temin*ev)
+            loglmcc = 0.5*(loglambda(ix,iy)+loglambda(ix2,iy))
+            coef1 = feqp*4.8e-15*loglmcc*sqrt(ev)*ev*mp
+            eqp(ix,iy) = coef1 * w3(ix,iy) * ne(ix,iy) / (a*sqrt(a))
+c...       reduce eqp when (te-ti)/(te+ti) << 1
+            eqp(ix,iy) = eqp(ix,iy) * (a-ti(ix,iy))**2 / ( cutlo +
+     .                (a-ti(ix,iy))**2 + (alfeqp*(a+ti(ix,iy)))**2 )
+        end do
+      end do
+
+
+      END SUBROUTINE calc_ei_equipartition
 
 c-----------------------------------------------------------------------
       subroutine pandf (xc, yc, neq, time, yl, yldot)
@@ -2807,43 +2858,8 @@ cc            write(*,*) 'Just after psordisold; xc,yc=',xc,yc
         call calc_viscosities
 
         call calc_plasma_heatconductivities
-*  Equipartition (old PHYEQP)
-*****************************************************************
-*  ---------------------------------------------------------------------
-*  compute equipartition.
-*  ---------------------------------------------------------------------
 
-*     -- initialize w3 --
-      do iy = j1, j6
-         do ix = i1, i6
-            w3(ix,iy) = 0.0e0
-          end do
-        end do
-
-      do ifld = 1, nisp
-         tv = zi(ifld)**2/mi(ifld)
-         do iy = j2, j5
-            do ix = i2, i5
-               w3(ix,iy) = w3(ix,iy) + tv*ni(ix,iy,ifld)
-          end do
-        end do
-      end do
-
-*  -- compute equipartition --
-ccc In detail, coef1 = qe**4*sqrt(me)*lnlam / ((2*pi)**1.5*eps0**2)
-      do iy = j2, j5
-         do ix = i2, i5
-            ix2 = ixm1(ix,iy)
-            a = max (te(ix,iy), temin*ev)
-            loglmcc = 0.5*(loglambda(ix,iy)+loglambda(ix2,iy))
-            coef1 = feqp*4.8e-15*loglmcc*sqrt(ev)*ev*mp
-            eqp(ix,iy) = coef1 * w3(ix,iy) * ne(ix,iy) / (a*sqrt(a))
-c...       reduce eqp when (te-ti)/(te+ti) << 1
-            eqp(ix,iy) = eqp(ix,iy) * (a-ti(ix,iy))**2 / ( cutlo +
-     .                (a-ti(ix,iy))**2 + (alfeqp*(a+ti(ix,iy)))**2 )
-        end do
-      end do
-
+        call calc_ei_equipartition
 *********************************************************
 c ... Gas thermal coefficients, initially for molecules *
 *********************************************************
