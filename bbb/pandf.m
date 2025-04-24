@@ -2862,7 +2862,590 @@ c ... TODO: Add double-null fix here (now only does one half-mesh...)
  
       END SUBROUTINE calc_ion_transport
 
+      SUBROUTINE calc_ion_particle_residuals
+      IMPLICIT NONE
+      Use(Dim)
+      Use(Selec)
+      Use(UEpar)
+      Use(Rhsides)
+      Use(Compla)
+      Use(Volsrc)
+      Use(Coefeq)
+      Use(MCN_sources)
+      Use(Conduc)
+      Use(Comgeo)
+      Use(Phyvar)
+      Use(Comflo)
+      Use(Comtra)
+      Use(Ext_neutrals)
+      integer ifld, iy, ix, ix1, jfld
 
+*  -- compute the residual if isnion = 1 --
+
+      do ifld = 1, nfsp
+       do iy = j2, j5
+         do ix = i2, i5
+	   if(isnionxy(ix,iy,ifld) == 1) then
+              resco(ix,iy,ifld) = 
+     .           snic(ix,iy,ifld)+sniv(ix,iy,ifld)*ni(ix,iy,ifld) +
+     .           volpsor(ix,iy,ifld) +
+     .           cfneut * cfneutsor_ni * cnsor * psor(ix,iy,ifld) +
+     .           cfneut * cfneutsor_ni * cnsor * psorxr(ix,iy,ifld) +
+     .           cfneut * cfneutsor_ni * cnsor * psori(ix,iy,ifld) -
+     .           nuvl(ix,iy,ifld)*vol(ix,iy)*ni(ix,iy,ifld) +
+     .           voljcsor(ix,iy)/qe
+           endif
+c           if (ifld .ne. iigsp) then
+	       if(zi(ifld) .ne. 0) then # IJ 2016 skip if neutral zi(ifld)=0
+              resco(ix,iy,ifld) = resco(ix,iy,ifld) + cmneut * uesor_ni(ix,iy,ifld)
+           else # IJ 2016 zi==0, assume neutral->ifld and ion->ifld-1
+              resco(ix,iy,ifld) = resco(ix,iy,ifld) - cmneut * uesor_ni(ix,iy,ifld-1)
+           endif
+          end do
+        end do
+
+       do iy = j2, j5
+         do ix = i2, i5
+	       if(isnionxy(ix,iy,ifld) == 1) then
+              ix1 = ixm1(ix,iy)
+	        if(zi(ifld) .ne. 0) then # IJ 2016 skip if neutral  zi(ifld)=0
+                 resco(ix,iy,ifld) = resco(ix,iy,ifld)
+     .                                   - ( (fnix(ix,iy,ifld) - fnix(ix1,iy, ifld))
+     .                            + fluxfacy*(fniy(ix,iy,ifld) - fniy(ix,iy-1,ifld)) )
+              else ## zi==0
+                 resco(ix,iy,ifld) = resco(ix,iy,ifld)
+     .              - cfneutdiv*cfneutdiv_fng*( (fnix(ix,iy,ifld)-fnix(ix1,iy, ifld))
+     .                               + fluxfacy*(fniy(ix,iy,ifld)-fniy(ix,iy-1,ifld)) )
+           
+c ... IJ 2016/10/19 add MC neutral flux if flags set
+                 if (get_neutral_moments .and. cmneutdiv_fng .ne. 0.0) then 
+                    jfld=1  ## assume main ions in ifld=1
+                    sng_ue(ix,iy,jfld) = - ( (fngx_ue(ix,iy,jfld) - fngx_ue(ix1,iy, jfld))
+     .                        +   fluxfacy*(fngy_ue(ix,iy,jfld) - fngy_ue(ix,iy-1,jfld)) )
+     .                        *( (ng(ix,iy,jfld)*ti(ix,iy))/(ng(ix,iy,jfld)*ti(ix,iy)) )
+c                   if (ix .eq. 1 .and. iy .eq. 1) write(*,*) 'sng_ue', ifld, jfld
+                    resco(ix,iy,ifld) = resco(ix,iy,ifld) + 
+     .                                  cmneutdiv*cmneutdiv_fng*sng_ue(ix,iy,jfld)
+                 endif
+              endif
+           endif
+          end do
+        end do
+       enddo       # end of ifld loop
+
+
+      END SUBROUTINE calc_ion_particle_residuals
+
+      SUBROUTINE calc_ion_momentum(xc, yc)
+      IMPLICIT NONE
+      Use(UEpar)
+      Use(Compla)
+      Use(Dim)
+      Use(Selec)
+      Use(Locflux)
+      Use(Imprad)
+      Use(Comgeo)
+      Use(Bfield)
+      Use(Coefeq)
+      Use(Conduc)
+      Use(Xpoint_indices)
+      Use(Indices_domain_dcg)
+      Use(Npes_mpi)
+      Use(Dnull_temp)
+      Use(Comflo)
+      Use(Share)
+      Use(Noggeo)
+      Use(Phyvar)
+      Use(Comtra)
+      Use(Rhsides)
+      integer xc, yc
+      integer ifld, iy, ix, ix1, ix2, ix4, iy1, ix3, ix5, iysepu, k, k1, 
+     .k2
+      real uuv, grdnv, vtn, b_ctr, dbds_m, dbds_p, eta_h0, eta_hm,
+     .  eta_hp, drag_1, drag_2, nu_ii, drag_3, mf_path, frac_col, 
+     .  t0, t1
+      real ave
+      ave(t0,t1) = 2*t0*t1 / (cutlo+t0+t1)
+
+*****************************************************************
+*  Here starts the old MOMBAL_B2
+*****************************************************************
+
+
+*  ---------------------------------------------------------------------
+*  loop over all species.
+*  ---------------------------------------------------------------------
+
+      if(isupon(ifld) .ne. 0) then
+      do ifld = 1, nusp
+*     ------------------------------------------------------------------
+*     compute the residual.
+*     ------------------------------------------------------------------
+
+*  -- evaluate flox and conx --
+
+         do iy = j4, j8
+            flox(0,iy) = 0.0e0
+            conx(0,iy) = 0.0e0
+            do ix = i2, i6
+               ix1 = ixm1(ix,iy)
+               if (isimpon.ge.5 .and. ifld.eq.1) then
+                   #up(,,1) is total mass vel, whereas uu(,,i) for each ion
+                  uuv =0.5*( (up(ix1,iy,ifld)*rrv(ix1,iy)+
+     .                        up(ix,iy,ifld)*rrv(ix,iy)) +
+     .                     (v2(ix1,iy,ifld)+v2(ix,iy,ifld))*rbfbt(ix,iy)-
+     .                     (vytan(ix1,iy,ifld)+vytan(ix,iy,ifld)) )
+               else
+                  uuv = 0.5 * (uu(ix1,iy,ifld)+uu(ix,iy,ifld))
+               endif
+               flox(ix,iy) = cmfx * nm(ix,iy,ifld) * uuv *
+     .                          vol(ix,iy) * gx(ix,iy)
+ccc Distance between veloc. cell centers:
+               if (isgxvon .eq. 0) then     # dx(ix)=1/gx(ix)
+                 conx(ix,iy) = visx(ix,iy,ifld) * vol(ix,iy) * gx(ix,iy)
+     .                            * gx(ix,iy)
+               elseif (isgxvon .eq. 1) then # dx(ix)=.5/gxf(ix-1) + .5/gxf(ix)
+                 conx(ix,iy) = visx(ix,iy,ifld) * vol(ix,iy) * gx(ix,iy)
+     .               * 2*gxf(ix,iy)*gxf(ix1,iy)/(gxf(ix,iy)+gxf(ix1,iy))
+               endif
+            end do
+         end do
+
+*  -- evaluate floy and cony without averaging over two ix cells --
+
+         do  iy = j1, j5
+            if (nxpt == 1 .or. iy <= iysptrx1(1)) then
+              iysepu = iysptrx1(1)
+              if (ndomain > 1) iysepu = iysptrxg(mype+1)  # and ixpt1,2u??
+              ixpt1u = ixpt1(1)
+              ixpt2u = ixpt2(1)
+            else  # nxpt=2 and iy > iysptrx1(1), use second separatrix
+              iysepu = iysptrx1(2)
+              ixpt1u = ixpt1(2)
+              ixpt2u = ixpt2(2)
+            endif
+            do ix = i4, i8
+               ix2 = ixp1(ix,iy)
+               ix4 = ixp1(ix,iy+1)
+               cony(ix,iy) = .5 * syv(ix,iy) *
+     .                       (ave(visy(ix,iy,ifld)*gy(ix,iy),
+     .                           visy(ix,iy+1,ifld)*gy(ix,iy+1)) +
+     .                        ave(visy(ix2,iy,ifld)*gy(ix2,iy),
+     .                            visy(ix4,iy+1,ifld) * gy(ix4,iy+1)))
+               if (iy==iysepu .and. (ix==ixpt1u .or. ix==ixpt2u)) then
+                 cony(ix,iy) = syv(ix,iy) *
+     .                       ( ave(visy(ix,iy,ifld)*gy(ix,iy),
+     .                             visy(ix,iy+1,ifld)*gy(ix,iy+1)) )
+                 floy(ix,iy) = (cmfy/2) * syv(ix,iy) *(
+     .                    ave(nm(ix,iy,ifld),nm(ix,iy+1,ifld)) )*
+     .                                         vy(ix,iy,ifld)
+                 if (ifld==1) then  # add user-specified convection
+                   floy(ix,iy) = floy(ix,iy)+(cmfy/2)*syv(ix,iy) *(
+     .                    ave(nm(ix,iy,ifld),nm(ix,iy+1,ifld)) )*
+     .                                                 vyup_use(ix,iy)
+                 endif
+               elseif(isugfm1side == 1 .and. zi(ifld) == 0.) then
+                 floy(ix,iy) = (cmfy/4) * syv(ix,iy) *(
+     .                    ave(nm(ix,iy,ifld),nm(ix,iy+1,ifld)) +
+     .                    ave(nm(ix2,iy,ifld),nm(ix4,iy+1,ifld))) *
+     .                       ( vy(ix,iy,ifld) + vy(ix,iy,ifld) )
+               else
+                 floy(ix,iy) = (cmfy/4) * syv(ix,iy) *(
+     .                    ave(nm(ix,iy,ifld),nm(ix,iy+1,ifld)) +
+     .                    ave(nm(ix2,iy,ifld),nm(ix4,iy+1,ifld))) *
+     .                       ( vy(ix,iy,ifld) + vy(ix2,iy,ifld) )
+                 if (ifld==1) then  # add user-specified convection
+                    floy(ix,iy) = floy(ix,iy)+(cmfy/4)*syv(ix,iy) *(
+     .                    ave(nm(ix,iy,ifld),nm(ix,iy+1,ifld)) +
+     .                    ave(nm(ix2,iy,ifld),nm(ix4,iy+1,ifld))) *
+     .                       ( vyup_use(ix,iy) + vyup_use(ix2,iy) )
+                 endif
+               endif
+	     if(ishavisy == 1) then
+               cony(ix,iy) = .5 * syv(ix,iy) *
+     .                       (ave(visy(ix,iy,ifld)*gy(ix,iy),
+     .                           visy(ix,iy+1,ifld)*gy(ix,iy+1)) +
+     .                        ave(visy(ix2,iy,ifld)*gy(ix2,iy),
+     .                            visy(ix4,iy+1,ifld) * gy(ix4,iy+1)))
+             else
+               cony(ix,iy) = .25 * cfaccony*syv(ix,iy) *
+     .                       ( visy(ix,iy,ifld)*gy(ix,iy) +
+     .                         visy(ix,iy+1,ifld)*gy(ix,iy+1) +
+     .                         visy(ix2,iy,ifld)*gy(ix2,iy) +
+     .                         visy(ix4,iy+1,ifld)*gy(ix4,iy+1) )
+             endif
+
+            end do
+        end do
+
+*  -- compute the momentum transport --
+
+         call fd2tra (nx,ny,flox,floy,conx,cony,
+     .                up(0:nx+1,0:ny+1,ifld),fmix(0:nx+1,0:ny+1,ifld),
+     .                fmiy(0:nx+1,0:ny+1,ifld),1, methu)
+
+      if (isnonog .eq. 1) then
+
+c     Compute y-component fmixy of nonorthogonal diffusive momentum flux.
+c     The convective component is already already added through uu(ix,iy).
+c     Average fym, etc in ix to get staggered velocity-grid values fymv, etc.
+c     The density-stencil dxnog has to be averaged as well.
+         do iy = j2, j5
+            iy1 = max(iy-1,0)
+            do ix = i2, i5+1    # ixp1(i5,iy)
+               ix1 = ixm1(ix,iy)
+               ix3 = ixm1(ix,iy1)
+               ix5 = ixm1(ix,iy+1)
+               grdnv = ( 
+     .                  fymv (ix,iy,1)*up(ix ,iy1 ,ifld)+
+     .                  fy0v (ix,iy,1)*up(ix ,iy  ,ifld)+
+     .                  fypv (ix,iy,1)*up(ix ,iy+1,ifld)+
+     .                  fymxv(ix,iy,1)*up(ix3,iy1 ,ifld)+
+     .                  fypxv(ix,iy,1)*up(ix5,iy+1,ifld)-
+     .                  fymv (ix,iy,0)*up(ix3,iy1 ,ifld)-
+     .                  fy0v (ix,iy,0)*up(ix1,iy  ,ifld)-
+     .                  fypv (ix,iy,0)*up(ix5,iy+1,ifld)-
+     .                  fymxv(ix,iy,0)*up(ix ,iy1 ,ifld)-
+     .                  fypxv(ix,iy,0)*up(ix ,iy+1,ifld) )*2/
+     .                              (dxnog(ix,iy)+dxnog(ix1,iy))
+               if (isgxvon .eq. 0) then
+                  fmixy(ix,iy,ifld) = cfvisxy(ifld)*visy(ix,iy,ifld) *
+     .              ( grdnv/cos(0.5*(angfx(ix1,iy)+angfx(ix,iy))) - 
+     .               (up(ix,iy,ifld) - up(ix1,iy,ifld))*gx(ix,iy) ) *
+     .              0.5*(sx(ix1,iy)+sx(ix,iy))
+               elseif (isgxvon .eq. 1) then
+                  fmixy(ix,iy,ifld) = cfvisxy(ifld)*visy(ix,iy,ifld) *
+     .              ( grdnv/cos(0.5*(angfx(ix1,iy)+angfx(ix,iy))) - 
+     .               (up(ix,iy,ifld) - up(ix1,iy,ifld))*
+     .                     ( 2*gxf(ix,iy)*gxf(ix1,iy) /
+     .                        (gxf(ix,iy)+gxf(ix1,iy)) ) ) *
+     .                     0.5*(sx(ix1,iy)+sx(ix,iy))
+               endif
+c...  Now flux limit with flalfvgxy if ifld=2
+               if (ifld==2) then
+                 t0 = max(tg(ix,iy,1),tgmin*ev)
+                 vtn = sqrt(t0/mg(1))
+                 qfl = flalfvgxya(ix)*0.5*(sx(ix,iy)+sx(ix1,iy))*vtn**2*
+     .                                        nm(ix,iy,ifld) + cutlo
+                 fmixy(ix,iy,ifld) = fmixy(ix,iy,ifld) /
+     .                             sqrt(1+(fmixy(ix,iy,ifld)/qfl)**2)
+               endif
+
+            end do
+        end do
+      endif
+
+c...  Compute viscous drag from nonuniform B-field, then add to smoc
+      if (isupdrag .eq. 1 .and. ifld .eq. 1) then
+        do iy = j2, j5
+          do ix = i2, i5
+            ix1 = ixm1(ix,iy)
+            ix2 = ixp1(ix,iy)
+c ...   First, the short mfp drag 
+            b_ctr = 0.5*(btot(ix,iy)+btot(ix2,iy)) 
+                    # derviatives dbds_m and dbds_p are one-sided
+            dbds_m = (btot(ix,iy) - btot(ix1,iy))*
+     .                                      gxf(ix1,iy)*rrv(ix1,iy)
+            dbds_p = (btot(ix2,iy) - btot(ix,iy))*
+     .                                        gxf(ix,iy)*rrv(ix,iy)
+            eta_h0 = visx(ix,iy,1)/b_ctr**2.5
+            eta_hm = 0.5*(visx(ix,iy,1)+visx(ix1,iy,1))/
+     .                                              btot(ix,iy)**2.5
+            eta_hp = 0.5*(visx(ix2,iy,1)+visx(ix,iy,1))/
+     .                                              btot(ix2,iy)**2.5
+            drag_1 = -2*eta_h0*0.5*(up(ix2,iy,1)-up(ix1,iy,1))*
+     .                            (btot(ix2,iy)-btot(ix,iy))*
+     .                                   (gxf(ix,iy)*rrv(ix,iy))**2
+            drag_2 = up(ix,iy,1)*(eta_hp*dbds_p - eta_hm*dbds_m)*
+     .                                        gxf(ix,iy)*rrv(ix,iy)
+c ...   now for the trapped particle drag (sloppy)
+            nu_ii = ni(ix,iy,1)*(2*mp/mi(1))**0.5/
+     .                                   (3e12*(ti(ix,iy)*ev)**1.5)
+            drag_3 = -mi(1)*ni(ix,iy,1)*up(ix,iy,1)*nu_ii*frac_pt
+            mf_path = (2*ti(ix,iy)/mi(1))**0.5 / nu_ii
+            frac_col = 1 / (1 + (mf_path/con_leng)**2)
+            smoc(ix,iy,1) = smoc(ix,iy,1) + (0.6666667*frac_col*
+     .                      b_ctr**2.5*(drag_1 + drag_2) +
+     .                      (1 - frac_col)*drag_3) * volv(ix,iy)
+          enddo
+        enddo
+      endif
+      
+c...  Compute total viscosity for nonuniform B-field; put in visvol_v,q
+      if (cfvisxneov+cfvisxneoq > 0.) call upvisneo
+
+c...  Now fix the fluxes touching the x-point(s):
+
+
+         do k = 1, nxpt   # loop over all x-points
+           k1 = k      # region argument of ixpt1 that touches this x-point
+           k2 = k-1    # region argument of ixpt2 that touches this x-point
+           if (k==1) k2 = nxpt
+
+           if (nxpt==2) then      # set ghxpt,gvxpt,sxyxpt for full double null
+              if (k==1) then      # this is the lower x-point
+                 ghxpt = ghxpt_lower
+                 gvxpt = gvxpt_lower
+                 sxyxpt = sxyxpt_lower
+              elseif (k==2) then  # this is the upper x-point
+                 ghxpt = ghxpt_upper
+                 gvxpt = gvxpt_upper
+                 sxyxpt = sxyxpt_upper
+              endif
+           endif
+
+	   if( ((2*(yc-iysptrx1(k1))-1)/4 .le. 1) .or. j1 == 0 ) then
+           if( ((2*(xc-ixpt1(k1))-1)/4)*((2*(xc-ixpt2(k2))-1)/4).eq.0 .or. 
+     .                                                        i1.eq.0 ) then
+           if(isnfmiy .eq. 1) then
+
+           fmiy(ixpt1(k1),iysptrx1(k1),ifld) = 0.
+           fmiy(ixpt2(k2),iysptrx2(k2),ifld) = 0.
+           nixpt(ifld,k1) = 0.125 * ( 
+     .           ni(ixpt1(k1),iysptrx1(k1)  ,ifld) + ni(ixpt1(k1)+1,iysptrx1(k1)  ,ifld)
+     .         + ni(ixpt1(k1),iysptrx1(k1)+1,ifld) + ni(ixpt1(k1)+1,iysptrx1(k1)+1,ifld)
+     .         + ni(ixpt2(k2),iysptrx2(k2)  ,ifld) + ni(ixpt2(k2)+1,iysptrx2(k2)  ,ifld)
+     .         + ni(ixpt2(k2),iysptrx2(k2)+1,ifld) + ni(ixpt2(k2)+1,iysptrx2(k2)+1,ifld) )
+           visyxpt(ifld,k1) = 0.125 * ( 
+     .        visy(ixpt1(k1),iysptrx1(k1)  ,ifld) + visy(ixpt1(k1)+1,iysptrx1(k1)  ,ifld)
+     .      + visy(ixpt1(k1),iysptrx1(k1)+1,ifld) + visy(ixpt1(k1)+1,iysptrx1(k1)+1,ifld)
+     .      + visy(ixpt2(k2),iysptrx2(k2)  ,ifld) + visy(ixpt2(k2)+1,iysptrx2(k2)  ,ifld)
+     .      + visy(ixpt2(k2),iysptrx2(k2)+1,ifld) + visy(ixpt2(k2)+1,iysptrx2(k2)+1,ifld) )
+           upxpt(ifld,k1) = 0.25 * (
+     .           up(ixpt1(k1),iysptrx1(k1)  ,ifld) + up(ixpt2(k2),iysptrx2(k2)  ,ifld)
+     .         + up(ixpt1(k1),iysptrx1(k1)+1,ifld) + up(ixpt2(k2),iysptrx2(k2)+1,ifld) )
+           vyvxpt(ifld,k1) = (0.707*0.25) * (
+     .           vy(ixpt1(k1)  ,iysptrx1(k1),ifld) - vy(ixpt2(k2)  ,iysptrx2(k2),ifld)
+     .         - vy(ixpt1(k1)+1,iysptrx1(k1),ifld) + vy(ixpt2(k2)+1,iysptrx2(k2),ifld) )
+           vyhxpt(ifld,k1) = (0.707*0.25) * (
+     .         - vy(ixpt1(k1)  ,iysptrx1(k1),ifld) + vy(ixpt2(k2)  ,iysptrx2(k2),ifld)
+     .         - vy(ixpt1(k1)+1,iysptrx1(k1),ifld) + vy(ixpt2(k2)+1,iysptrx2(k2),ifld) )
+cccMER The convective contributions to fmihxpt and fmivxpt seem to have an
+cccMER erroneous multiplicative factor -1/2 (from original code) ???
+           fmihxpt(ifld,k1) = cfnfmiy*( - cmfy*(mi(ifld)/2)*sxyxpt*nixpt(ifld,k1)*
+     .                     vyhxpt(ifld,k1)*upxpt(ifld,k1)
+     .                   - sxyxpt*visyxpt(ifld,k1)*(up(ixpt2(k2),iysptrx2(k2)+1,ifld)
+     .                     - up(ixpt1(k1),iysptrx1(k1)+1,ifld))*ghxpt )
+           fmivxpt(ifld,k1) = cfnfmiy*(- cmfy*(mi(ifld)/2)*sxyxpt*nixpt(ifld,k1)*
+     .                     vyvxpt(ifld,k1)*upxpt(ifld,k1)
+     .                   - sxyxpt*visyxpt(ifld,k1)*(up(ixpt2(k2),iysptrx2(k2),ifld)
+     .                     - up(ixpt1(k1),iysptrx1(k1),ifld))*gvxpt )
+           smoc(ixpt1(k1),iysptrx1(k1)+1,ifld) = smoc(ixpt1(k1),iysptrx1(k1)+1,ifld) 
+     .                                - fmihxpt(ifld,k1)
+           smoc(ixpt2(k2),iysptrx2(k2)+1,ifld) = smoc(ixpt2(k2),iysptrx2(k2)+1,ifld) 
+     .                                + fmihxpt(ifld,k1)
+           smoc(ixpt1(k1),iysptrx1(k1)  ,ifld) = smoc(ixpt1(k1),iysptrx1(k1)  ,ifld) 
+     .                                - fmivxpt(ifld,k1)
+           smoc(ixpt2(k2),iysptrx2(k2)  ,ifld) = smoc(ixpt2(k2),iysptrx2(k2)  ,ifld) 
+     .                                + fmivxpt(ifld,k1)
+         
+           endif # end if-test on isnfmiy
+           endif # end if-test on xc
+           endif # end if-test on yc
+
+         enddo # end do-loop over nxpt x-points
+        end do
+        end if
+
+
+      END SUBROUTINE calc_ion_momentum
+
+      SUBROUTINE calc_momentum_residuals
+      IMPLICIT NONE
+      Use(Selec)
+      Use(Compla)
+      Use(UEpar)
+      Use(Coefeq)
+      Use(Rhsides)
+      Use(MCN_sources)
+      Use(Comgeo)
+      Use(Conduc)
+      Use(Volsrc)
+      Use(Dim)
+      Use(Share)
+      Use(Comflo)
+      Use(Comtra)
+      Use(Cfric)
+      Use(Wkspace)
+      Use(Phyvar)
+      integer iy, ix, ix2, ifld, jfld 
+      real awoll, t0, t1, awll, tv
+
+
+      if(isupon(ifld) .ne. 0) then
+      do ifld = 1, nusp
+*  -- source term and pressure gradient --
+
+         do iy = j2, j5
+            do ix = i2, i5
+               ix2 = ixp1(ix,iy)
+               if (zi(ifld) .ne. 0) then  # additions only for charged ions
+                  dp1 =  cngmom(ifld)*(1/fac2sp)*
+     .                      ( ng(ix2,iy,1)*tg(ix2,iy,1)-
+     .                        ng(ix ,iy,1)*tg(ix ,iy,1) ) 
+                  resmo(ix,iy,ifld) = 0.
+                  resmo(ix,iy,ifld) = 
+     .                  smoc(ix,iy,ifld)
+     .                + smov(ix,iy,ifld) * up(ix,iy,ifld)
+     .                - cfneut * cfneutsor_mi * sx(ix,iy) * rrv(ix,iy) * dp1
+     .                - cfneut * cfneutsor_mi * cmwall(ifld)*0.5*(ng(ix,iy,1)+ng(ix2,iy,1))
+     .                      * mi(ifld)*up(ix,iy,ifld)*0.5
+     .                      *(nucx(ix,iy,1)+nucx(ix2,iy,1))*volv(ix,iy)
+     .                + cmneut * cmneutsor_mi * uesor_up(ix,iy,ifld)
+     .                + cfmsor*(msor(ix,iy,ifld) + msorxr(ix,iy,ifld)) #### IJ 2017: needs *cfneut for multi-charge state ions & MC neutrals?
+     .                + volmsor(ix,iy,ifld)
+     .                + cfvisxneov*visvol_v(ix,iy,ifld)
+     .                + cfvisxneoq*visvol_q(ix,iy,ifld)
+c  Add drag with cold, stationary impurity neutrals
+                  if (ifld > nhsp) then
+                    resmo(ix,iy,ifld) = resmo(ix,iy,ifld) - cfupimpg*
+     .                    0.25*mi(ifld)*(ni(ix,iy,ifld)+ni(ix2,iy,ifld))*
+     .                     ( nucxi(ix,iy,ifld)+nucxi(ix2,iy,ifld)+
+     .                       nueli(ix,iy,ifld)+nueli(ix2,iy,ifld) )*
+     .                       up(ix,iy,ifld)*volv(ix,iy)
+                  endif
+               endif
+
+               if (isupgon(1) .eq. 1) then
+
+c     If we are solving the parallel neutral mom eq. we need different/addtnl
+c     source terms. Beware that cngmom and cmwall should be zero so that the
+c     main ions do not get coupled twice to the neutrals!
+c     The CX, ionization, recomb. friction for the parallel momentum eqs
+c     for the neutrals and main ions are included here.
+c     Assumes the neutrals have index iigsp and corresponding ions index 1
+
+                  if (ifld .eq. 1) then
+c     The main ions, momentum coupling:
+                     resmo(ix,iy,ifld) = resmo(ix,iy,ifld)
+     .                   + cfneut * cfneutsor_mi * cfupcx*0.25*volv(ix,iy)*
+     .                       (nucx(ix,iy,1)+nucx(ix2,iy,1))*
+     .                       (nm(ix,iy,iigsp)+nm(ix2,iy,iigsp))*
+     .                       (up(ix,iy,iigsp)-up(ix,iy,1))
+     .                   + cfneut * cfneutsor_mi * 0.25*volv(ix,iy)*
+     .                       (  (nuiz(ix,iy,1)+nuiz(ix2,iy,1))*
+     .                          (nm(ix,iy,iigsp)+nm(ix2,iy,iigsp))*
+     .                          up(ix,iy,iigsp)
+     .                        - (nurc(ix,iy,1)+nurc(ix2,iy,1))*
+     .                          (nm(ix,iy,1)+nm(ix2,iy,1))*up(ix,iy,1)
+     .                       )
+                  elseif ((isupgon(1) .eq. 1) .and. ifld .eq. iigsp) then
+c     The neutral species, momentum coupling AND other source terms:
+                      resmo(ix,iy,iigsp) =   # TR resmo(ix,iy,ifld) #IJ 2016
+     .                    - cmneut * cmneutsor_mi * uesor_up(ix,iy,1) 
+     .                    -sx(ix,iy) * rrv(ix,iy) * 
+     .                       cpgx*( cftiexclg*(ni(ix2,iy,iigsp)*ti(ix2,iy)-
+     .                                ni(ix,iy,iigsp)*ti(ix,iy))+
+     .                              (1.0-cftiexclg)*
+     .                               (ni(ix2,iy,iigsp)*tg(ix2,iy,1)-
+     .                                ni(ix,iy,iigsp)*tg(ix,iy,1)) ) 
+     .                    -cfupcx*0.25*volv(ix,iy)*
+     .                       (nucx(ix,iy,1)+nucx(ix2,iy,1))*
+     .                       (nm(ix,iy,iigsp)+nm(ix2,iy,iigsp))*
+     .                       (up(ix,iy,iigsp)-up(ix,iy,1))
+     .                    -0.25*volv(ix,iy)*(
+     .                       (nuiz(ix,iy,1)+nuiz(ix2,iy,1))*
+     .                       (nm(ix,iy,iigsp)+nm(ix2,iy,iigsp))*
+     .                                            up(ix,iy,iigsp)
+     .                       -(nurc(ix,iy,1)+nurc(ix2,iy,1))*
+     .                       (nm(ix,iy,1)+nm(ix2,iy,1))*up(ix,iy,1) )
+                  endif
+               endif
+            end do
+        end do
+
+*  -- divergence of momentum flow --
+
+         if (isnonog.eq.1) then
+            do iy = j2, j5
+               do ix = i2, i5
+                  ix2 = ixp1(ix,iy)
+c ... IJ 2016/10/10 use cfneutdiv_fmg multiplier for neutrals 
+c                 if (ifld .ne. iigsp) then
+	          if(zi(ifld) > 1.e-20) then # IJ 2016; depends if ion or neut
+                    resmo(ix,iy,ifld) = resmo(ix,iy,ifld)
+     .                 + (fmixy(ix2,iy,ifld) - fmixy(ix,iy,ifld))
+                  else
+                    resmo(ix,iy,ifld) = resmo(ix,iy,ifld)
+     .                 + cfneutdiv*cfneutdiv_fmg*(fmixy(ix2,iy,ifld) - fmixy(ix,iy,ifld))
+c***	IJ 2017/09/21: Need to add similar fmgxy calculation for MC neutrals on nonorthogonal mesh *** 
+                  endif
+                end do
+            end do
+         endif
+
+         do iy = j2, j5
+            do ix = i2, i5
+               ix2 = ixp1(ix,iy)
+c IJ 2016/10/10 add cfneutdiv_fmg multiplier for neutrals to control fraction of momentum to add 
+c               if (ifld .ne. iigsp) then
+c ... IJ 2016 resmo contrib changes if ion or neut
+	       if(zi(ifld) > 1.e-20) then
+                 resmo(ix,iy,ifld) = resmo(ix,iy,ifld)
+     .                                 - (fmix(ix2,iy,ifld) - fmix(ix,iy  ,ifld)
+     .                        + fluxfacy*(fmiy(ix ,iy,ifld) - fmiy(ix,iy-1,ifld)) )
+               else
+                 resmo(ix,iy,ifld) = resmo(ix,iy,ifld)
+     .                      - cfneutdiv*cfneutdiv_fmg*(fmix(ix2,iy,ifld) - fmix(ix,iy  ,ifld)
+     .                        + fluxfacy*(fmiy(ix ,iy,ifld) - fmiy(ix,iy-1,ifld)) )
+                 if(cmneutdiv_fmg .ne. 0.0) then 
+                    jfld=1
+                    resmo(ix,iy,ifld) = resmo(ix,iy,ifld)
+     .                    - cmneutdiv*cmneutdiv_fmg*( (fmgx_ue(ix2,iy,jfld) - fmgx_ue(ix,iy  ,jfld))
+     .                        + fluxfacy*(fmgy_ue(ix ,iy,jfld) - fmgy_ue(ix,iy-1,jfld)) )
+     .                        * (ni(ix,iy,ifld)*ti(ix,iy))/(ni(ix,iy,ifld)*ti(ix,iy))
+                 endif
+              endif
+            end do
+        end do
+
+c  -- Include frictional drag in parallel flow here if isofric=1; otherwise
+c  -- it is included in frici from mombal or mombalni
+
+        if (isofric.eq.1 .and. nusp .gt.1) then
+*  -- w0 now accumulates friction coefficient --
+*     -- set w2 = vol*ti**(-1.5) --
+         do iy = j1, j6
+           do ix = i1, i6
+             fricnrl(ix,iy,ifld) = 0.  #diagnostic ~ ni*mi*nu*(up1-up2)
+             w0(ix,iy) = 0.0e0
+             w2(ix,iy) = vol(ix,iy) / (ti(ix,iy)*sqrt(ti(ix,iy)))
+           enddo
+         enddo
+
+*  -- consider all other species --
+
+         do jfld = 1, nusp
+           if (jfld .ne. ifld) then
+*     -- common factor in collision frequency --
+             awoll = zi(ifld)**2 * zi(jfld)**2 *
+     .            (qe**4/(12*pi**2*eps0**2)) *
+     .            sqrt (2*pi*mi(ifld)*mi(jfld)/(mi(ifld)+mi(jfld)))
+
+*     -- frictional coupling --
+             do iy = j1, j6
+               do ix = i1, i5
+                 ix2 = ixp1(ix,iy)
+                 t0 = ni(ix,iy,ifld) * ni(ix,iy,jfld) * w2(ix,iy)
+                 t1 = ni(ix2,iy,ifld)*ni(ix2,iy,jfld)*w2(ix2,iy)
+                 awll = awoll*loglambda(ix,iy)
+                 tv  = awll*(t0+t1)/2
+                 resmo(ix,iy,ifld) = resmo(ix,iy,ifld) +
+     .                        tv * (up(ix,iy,jfld)-up(ix,iy,ifld))
+                 fricnrl(ix,iy,ifld) = fricnrl(ix,iy,ifld) +
+     .                tv*(up(ix,iy,jfld)-up(ix,iy,ifld))/vol(ix,iy)
+                 w0(ix,iy) = w0(ix,iy) - tv
+               enddo
+             enddo
+           endif
+         enddo
+        endif   # if test on isofric.eq.1
+        end do
+        end if
+
+
+
+      END SUBROUTINE calc_momentum_residuals
 
 c-----------------------------------------------------------------------
       subroutine pandf (xc, yc, neq, time, yl, yldot)
@@ -3185,59 +3768,7 @@ c         call scale_mcn
       endif
 c----------------------------------------------------------------------c
 
-*  -- compute the residual if isnion = 1 --
-
-      do ifld = 1, nfsp
-       do iy = j2, j5
-         do ix = i2, i5
-	   if(isnionxy(ix,iy,ifld) == 1) then
-              resco(ix,iy,ifld) = 
-     .           snic(ix,iy,ifld)+sniv(ix,iy,ifld)*ni(ix,iy,ifld) +
-     .           volpsor(ix,iy,ifld) +
-     .           cfneut * cfneutsor_ni * cnsor * psor(ix,iy,ifld) +
-     .           cfneut * cfneutsor_ni * cnsor * psorxr(ix,iy,ifld) +
-     .           cfneut * cfneutsor_ni * cnsor * psori(ix,iy,ifld) -
-     .           nuvl(ix,iy,ifld)*vol(ix,iy)*ni(ix,iy,ifld) +
-     .           voljcsor(ix,iy)/qe
-           endif
-c           if (ifld .ne. iigsp) then
-	       if(zi(ifld) .ne. 0) then # IJ 2016 skip if neutral zi(ifld)=0
-              resco(ix,iy,ifld) = resco(ix,iy,ifld) + cmneut * uesor_ni(ix,iy,ifld)
-           else # IJ 2016 zi==0, assume neutral->ifld and ion->ifld-1
-              resco(ix,iy,ifld) = resco(ix,iy,ifld) - cmneut * uesor_ni(ix,iy,ifld-1)
-           endif
-          end do
-        end do
-
-       do iy = j2, j5
-         do ix = i2, i5
-	       if(isnionxy(ix,iy,ifld) == 1) then
-              ix1 = ixm1(ix,iy)
-	        if(zi(ifld) .ne. 0) then # IJ 2016 skip if neutral  zi(ifld)=0
-                 resco(ix,iy,ifld) = resco(ix,iy,ifld)
-     .                                   - ( (fnix(ix,iy,ifld) - fnix(ix1,iy, ifld))
-     .                            + fluxfacy*(fniy(ix,iy,ifld) - fniy(ix,iy-1,ifld)) )
-              else ## zi==0
-                 resco(ix,iy,ifld) = resco(ix,iy,ifld)
-     .              - cfneutdiv*cfneutdiv_fng*( (fnix(ix,iy,ifld)-fnix(ix1,iy, ifld))
-     .                               + fluxfacy*(fniy(ix,iy,ifld)-fniy(ix,iy-1,ifld)) )
-           
-c ... IJ 2016/10/19 add MC neutral flux if flags set
-                 if (get_neutral_moments .and. cmneutdiv_fng .ne. 0.0) then 
-                    jfld=1  ## assume main ions in ifld=1
-                    sng_ue(ix,iy,jfld) = - ( (fngx_ue(ix,iy,jfld) - fngx_ue(ix1,iy, jfld))
-     .                        +   fluxfacy*(fngy_ue(ix,iy,jfld) - fngy_ue(ix,iy-1,jfld)) )
-     .                        *( (ng(ix,iy,jfld)*ti(ix,iy))/(ng(ix,iy,jfld)*ti(ix,iy)) )
-c                   if (ix .eq. 1 .and. iy .eq. 1) write(*,*) 'sng_ue', ifld, jfld
-                    resco(ix,iy,ifld) = resco(ix,iy,ifld) + 
-     .                                  cmneutdiv*cmneutdiv_fng*sng_ue(ix,iy,jfld)
-                 endif
-              endif
-           endif
-          end do
-        end do
-       enddo       # end of ifld loop
-
+        call calc_ion_particle_residuals
 *********************************************************************
 c  Here we do the neutral gas diffusion model
 c  The diffusion is flux limited using the thermal flux
@@ -3246,453 +3777,9 @@ c  The diffusion is flux limited using the thermal flux
 ccc         if(isngon .eq. 1) call neudif
 
 *****************************************************************
-*****************************************************************
-*  Here starts the old MOMBAL_B2
-*****************************************************************
+        call calc_ion_momentum(xc, yc)
 
-
-*  ---------------------------------------------------------------------
-*  loop over all species.
-*  ---------------------------------------------------------------------
-
-      if(isupon(ifld) .ne. 0) then
-      do ifld = 1, nusp
-*     ------------------------------------------------------------------
-*     compute the residual.
-*     ------------------------------------------------------------------
-
-*  -- evaluate flox and conx --
-
-         do iy = j4, j8
-            flox(0,iy) = 0.0e0
-            conx(0,iy) = 0.0e0
-            do ix = i2, i6
-               ix1 = ixm1(ix,iy)
-               if (isimpon.ge.5 .and. ifld.eq.1) then
-                   #up(,,1) is total mass vel, whereas uu(,,i) for each ion
-                  uuv =0.5*( (up(ix1,iy,ifld)*rrv(ix1,iy)+
-     .                        up(ix,iy,ifld)*rrv(ix,iy)) +
-     .                     (v2(ix1,iy,ifld)+v2(ix,iy,ifld))*rbfbt(ix,iy)-
-     .                     (vytan(ix1,iy,ifld)+vytan(ix,iy,ifld)) )
-               else
-                  uuv = 0.5 * (uu(ix1,iy,ifld)+uu(ix,iy,ifld))
-               endif
-               flox(ix,iy) = cmfx * nm(ix,iy,ifld) * uuv *
-     .                          vol(ix,iy) * gx(ix,iy)
-ccc Distance between veloc. cell centers:
-               if (isgxvon .eq. 0) then     # dx(ix)=1/gx(ix)
-                 conx(ix,iy) = visx(ix,iy,ifld) * vol(ix,iy) * gx(ix,iy)
-     .                            * gx(ix,iy)
-               elseif (isgxvon .eq. 1) then # dx(ix)=.5/gxf(ix-1) + .5/gxf(ix)
-                 conx(ix,iy) = visx(ix,iy,ifld) * vol(ix,iy) * gx(ix,iy)
-     .               * 2*gxf(ix,iy)*gxf(ix1,iy)/(gxf(ix,iy)+gxf(ix1,iy))
-               endif
-            end do
-         end do
-
-*  -- evaluate floy and cony without averaging over two ix cells --
-
-         do  iy = j1, j5
-            if (nxpt == 1 .or. iy <= iysptrx1(1)) then
-              iysepu = iysptrx1(1)
-              if (ndomain > 1) iysepu = iysptrxg(mype+1)  # and ixpt1,2u??
-              ixpt1u = ixpt1(1)
-              ixpt2u = ixpt2(1)
-            else  # nxpt=2 and iy > iysptrx1(1), use second separatrix
-              iysepu = iysptrx1(2)
-              ixpt1u = ixpt1(2)
-              ixpt2u = ixpt2(2)
-            endif
-            do ix = i4, i8
-               ix2 = ixp1(ix,iy)
-               ix4 = ixp1(ix,iy+1)
-               cony(ix,iy) = .5 * syv(ix,iy) *
-     .                       (ave(visy(ix,iy,ifld)*gy(ix,iy),
-     .                           visy(ix,iy+1,ifld)*gy(ix,iy+1)) +
-     .                        ave(visy(ix2,iy,ifld)*gy(ix2,iy),
-     .                            visy(ix4,iy+1,ifld) * gy(ix4,iy+1)))
-               if (iy==iysepu .and. (ix==ixpt1u .or. ix==ixpt2u)) then
-                 cony(ix,iy) = syv(ix,iy) *
-     .                       ( ave(visy(ix,iy,ifld)*gy(ix,iy),
-     .                             visy(ix,iy+1,ifld)*gy(ix,iy+1)) )
-                 floy(ix,iy) = (cmfy/2) * syv(ix,iy) *(
-     .                    ave(nm(ix,iy,ifld),nm(ix,iy+1,ifld)) )*
-     .                                         vy(ix,iy,ifld)
-                 if (ifld==1) then  # add user-specified convection
-                   floy(ix,iy) = floy(ix,iy)+(cmfy/2)*syv(ix,iy) *(
-     .                    ave(nm(ix,iy,ifld),nm(ix,iy+1,ifld)) )*
-     .                                                 vyup_use(ix,iy)
-                 endif
-               elseif(isugfm1side == 1 .and. zi(ifld) == 0.) then
-                 floy(ix,iy) = (cmfy/4) * syv(ix,iy) *(
-     .                    ave(nm(ix,iy,ifld),nm(ix,iy+1,ifld)) +
-     .                    ave(nm(ix2,iy,ifld),nm(ix4,iy+1,ifld))) *
-     .                       ( vy(ix,iy,ifld) + vy(ix,iy,ifld) )
-               else
-                 floy(ix,iy) = (cmfy/4) * syv(ix,iy) *(
-     .                    ave(nm(ix,iy,ifld),nm(ix,iy+1,ifld)) +
-     .                    ave(nm(ix2,iy,ifld),nm(ix4,iy+1,ifld))) *
-     .                       ( vy(ix,iy,ifld) + vy(ix2,iy,ifld) )
-                 if (ifld==1) then  # add user-specified convection
-                    floy(ix,iy) = floy(ix,iy)+(cmfy/4)*syv(ix,iy) *(
-     .                    ave(nm(ix,iy,ifld),nm(ix,iy+1,ifld)) +
-     .                    ave(nm(ix2,iy,ifld),nm(ix4,iy+1,ifld))) *
-     .                       ( vyup_use(ix,iy) + vyup_use(ix2,iy) )
-                 endif
-               endif
-	     if(ishavisy == 1) then
-               cony(ix,iy) = .5 * syv(ix,iy) *
-     .                       (ave(visy(ix,iy,ifld)*gy(ix,iy),
-     .                           visy(ix,iy+1,ifld)*gy(ix,iy+1)) +
-     .                        ave(visy(ix2,iy,ifld)*gy(ix2,iy),
-     .                            visy(ix4,iy+1,ifld) * gy(ix4,iy+1)))
-             else
-               cony(ix,iy) = .25 * cfaccony*syv(ix,iy) *
-     .                       ( visy(ix,iy,ifld)*gy(ix,iy) +
-     .                         visy(ix,iy+1,ifld)*gy(ix,iy+1) +
-     .                         visy(ix2,iy,ifld)*gy(ix2,iy) +
-     .                         visy(ix4,iy+1,ifld)*gy(ix4,iy+1) )
-             endif
-
-            end do
-        end do
-
-*  -- compute the momentum transport --
-
-         call fd2tra (nx,ny,flox,floy,conx,cony,
-     .                up(0:nx+1,0:ny+1,ifld),fmix(0:nx+1,0:ny+1,ifld),
-     .                fmiy(0:nx+1,0:ny+1,ifld),1, methu)
-
-      if (isnonog .eq. 1) then
-
-c     Compute y-component fmixy of nonorthogonal diffusive momentum flux.
-c     The convective component is already already added through uu(ix,iy).
-c     Average fym, etc in ix to get staggered velocity-grid values fymv, etc.
-c     The density-stencil dxnog has to be averaged as well.
-         do iy = j2, j5
-            iy1 = max(iy-1,0)
-            do ix = i2, i5+1    # ixp1(i5,iy)
-               ix1 = ixm1(ix,iy)
-               ix3 = ixm1(ix,iy1)
-               ix5 = ixm1(ix,iy+1)
-               grdnv = ( 
-     .                  fymv (ix,iy,1)*up(ix ,iy1 ,ifld)+
-     .                  fy0v (ix,iy,1)*up(ix ,iy  ,ifld)+
-     .                  fypv (ix,iy,1)*up(ix ,iy+1,ifld)+
-     .                  fymxv(ix,iy,1)*up(ix3,iy1 ,ifld)+
-     .                  fypxv(ix,iy,1)*up(ix5,iy+1,ifld)-
-     .                  fymv (ix,iy,0)*up(ix3,iy1 ,ifld)-
-     .                  fy0v (ix,iy,0)*up(ix1,iy  ,ifld)-
-     .                  fypv (ix,iy,0)*up(ix5,iy+1,ifld)-
-     .                  fymxv(ix,iy,0)*up(ix ,iy1 ,ifld)-
-     .                  fypxv(ix,iy,0)*up(ix ,iy+1,ifld) )*2/
-     .                              (dxnog(ix,iy)+dxnog(ix1,iy))
-               if (isgxvon .eq. 0) then
-                  fmixy(ix,iy,ifld) = cfvisxy(ifld)*visy(ix,iy,ifld) *
-     .              ( grdnv/cos(0.5*(angfx(ix1,iy)+angfx(ix,iy))) - 
-     .               (up(ix,iy,ifld) - up(ix1,iy,ifld))*gx(ix,iy) ) *
-     .              0.5*(sx(ix1,iy)+sx(ix,iy))
-               elseif (isgxvon .eq. 1) then
-                  fmixy(ix,iy,ifld) = cfvisxy(ifld)*visy(ix,iy,ifld) *
-     .              ( grdnv/cos(0.5*(angfx(ix1,iy)+angfx(ix,iy))) - 
-     .               (up(ix,iy,ifld) - up(ix1,iy,ifld))*
-     .                     ( 2*gxf(ix,iy)*gxf(ix1,iy) /
-     .                        (gxf(ix,iy)+gxf(ix1,iy)) ) ) *
-     .                     0.5*(sx(ix1,iy)+sx(ix,iy))
-               endif
-c...  Now flux limit with flalfvgxy if ifld=2
-               if (ifld==2) then
-                 t0 = max(tg(ix,iy,1),tgmin*ev)
-                 vtn = sqrt(t0/mg(1))
-                 qfl = flalfvgxya(ix)*0.5*(sx(ix,iy)+sx(ix1,iy))*vtn**2*
-     .                                        nm(ix,iy,ifld) + cutlo
-                 fmixy(ix,iy,ifld) = fmixy(ix,iy,ifld) /
-     .                             sqrt(1+(fmixy(ix,iy,ifld)/qfl)**2)
-               endif
-
-            end do
-        end do
-      endif
-
-c...  Compute viscous drag from nonuniform B-field, then add to smoc
-      if (isupdrag .eq. 1 .and. ifld .eq. 1) then
-        do iy = j2, j5
-          do ix = i2, i5
-            ix1 = ixm1(ix,iy)
-            ix2 = ixp1(ix,iy)
-c ...   First, the short mfp drag 
-            b_ctr = 0.5*(btot(ix,iy)+btot(ix2,iy)) 
-                    # derviatives dbds_m and dbds_p are one-sided
-            dbds_m = (btot(ix,iy) - btot(ix1,iy))*
-     .                                      gxf(ix1,iy)*rrv(ix1,iy)
-            dbds_p = (btot(ix2,iy) - btot(ix,iy))*
-     .                                        gxf(ix,iy)*rrv(ix,iy)
-            eta_h0 = visx(ix,iy,1)/b_ctr**2.5
-            eta_hm = 0.5*(visx(ix,iy,1)+visx(ix1,iy,1))/
-     .                                              btot(ix,iy)**2.5
-            eta_hp = 0.5*(visx(ix2,iy,1)+visx(ix,iy,1))/
-     .                                              btot(ix2,iy)**2.5
-            drag_1 = -2*eta_h0*0.5*(up(ix2,iy,1)-up(ix1,iy,1))*
-     .                            (btot(ix2,iy)-btot(ix,iy))*
-     .                                   (gxf(ix,iy)*rrv(ix,iy))**2
-            drag_2 = up(ix,iy,1)*(eta_hp*dbds_p - eta_hm*dbds_m)*
-     .                                        gxf(ix,iy)*rrv(ix,iy)
-c ...   now for the trapped particle drag (sloppy)
-            nu_ii = ni(ix,iy,1)*(2*mp/mi(1))**0.5/
-     .                                   (3e12*(ti(ix,iy)*ev)**1.5)
-            drag_3 = -mi(1)*ni(ix,iy,1)*up(ix,iy,1)*nu_ii*frac_pt
-            mf_path = (2*ti(ix,iy)/mi(1))**0.5 / nu_ii
-            frac_col = 1 / (1 + (mf_path/con_leng)**2)
-            smoc(ix,iy,1) = smoc(ix,iy,1) + (0.6666667*frac_col*
-     .                      b_ctr**2.5*(drag_1 + drag_2) +
-     .                      (1 - frac_col)*drag_3) * volv(ix,iy)
-          enddo
-        enddo
-      endif
-      
-c...  Compute total viscosity for nonuniform B-field; put in visvol_v,q
-      if (cfvisxneov+cfvisxneoq > 0.) call upvisneo
-
-c...  Now fix the fluxes touching the x-point(s):
-
-
-         do k = 1, nxpt   # loop over all x-points
-           k1 = k      # region argument of ixpt1 that touches this x-point
-           k2 = k-1    # region argument of ixpt2 that touches this x-point
-           if (k==1) k2 = nxpt
-
-           if (nxpt==2) then      # set ghxpt,gvxpt,sxyxpt for full double null
-              if (k==1) then      # this is the lower x-point
-                 ghxpt = ghxpt_lower
-                 gvxpt = gvxpt_lower
-                 sxyxpt = sxyxpt_lower
-              elseif (k==2) then  # this is the upper x-point
-                 ghxpt = ghxpt_upper
-                 gvxpt = gvxpt_upper
-                 sxyxpt = sxyxpt_upper
-              endif
-           endif
-
-	   if( ((2*(yc-iysptrx1(k1))-1)/4 .le. 1) .or. j1 == 0 ) then
-           if( ((2*(xc-ixpt1(k1))-1)/4)*((2*(xc-ixpt2(k2))-1)/4).eq.0 .or. 
-     .                                                        i1.eq.0 ) then
-           if(isnfmiy .eq. 1) then
-
-           fmiy(ixpt1(k1),iysptrx1(k1),ifld) = 0.
-           fmiy(ixpt2(k2),iysptrx2(k2),ifld) = 0.
-           nixpt(ifld,k1) = 0.125 * ( 
-     .           ni(ixpt1(k1),iysptrx1(k1)  ,ifld) + ni(ixpt1(k1)+1,iysptrx1(k1)  ,ifld)
-     .         + ni(ixpt1(k1),iysptrx1(k1)+1,ifld) + ni(ixpt1(k1)+1,iysptrx1(k1)+1,ifld)
-     .         + ni(ixpt2(k2),iysptrx2(k2)  ,ifld) + ni(ixpt2(k2)+1,iysptrx2(k2)  ,ifld)
-     .         + ni(ixpt2(k2),iysptrx2(k2)+1,ifld) + ni(ixpt2(k2)+1,iysptrx2(k2)+1,ifld) )
-           visyxpt(ifld,k1) = 0.125 * ( 
-     .        visy(ixpt1(k1),iysptrx1(k1)  ,ifld) + visy(ixpt1(k1)+1,iysptrx1(k1)  ,ifld)
-     .      + visy(ixpt1(k1),iysptrx1(k1)+1,ifld) + visy(ixpt1(k1)+1,iysptrx1(k1)+1,ifld)
-     .      + visy(ixpt2(k2),iysptrx2(k2)  ,ifld) + visy(ixpt2(k2)+1,iysptrx2(k2)  ,ifld)
-     .      + visy(ixpt2(k2),iysptrx2(k2)+1,ifld) + visy(ixpt2(k2)+1,iysptrx2(k2)+1,ifld) )
-           upxpt(ifld,k1) = 0.25 * (
-     .           up(ixpt1(k1),iysptrx1(k1)  ,ifld) + up(ixpt2(k2),iysptrx2(k2)  ,ifld)
-     .         + up(ixpt1(k1),iysptrx1(k1)+1,ifld) + up(ixpt2(k2),iysptrx2(k2)+1,ifld) )
-           vyvxpt(ifld,k1) = (0.707*0.25) * (
-     .           vy(ixpt1(k1)  ,iysptrx1(k1),ifld) - vy(ixpt2(k2)  ,iysptrx2(k2),ifld)
-     .         - vy(ixpt1(k1)+1,iysptrx1(k1),ifld) + vy(ixpt2(k2)+1,iysptrx2(k2),ifld) )
-           vyhxpt(ifld,k1) = (0.707*0.25) * (
-     .         - vy(ixpt1(k1)  ,iysptrx1(k1),ifld) + vy(ixpt2(k2)  ,iysptrx2(k2),ifld)
-     .         - vy(ixpt1(k1)+1,iysptrx1(k1),ifld) + vy(ixpt2(k2)+1,iysptrx2(k2),ifld) )
-cccMER The convective contributions to fmihxpt and fmivxpt seem to have an
-cccMER erroneous multiplicative factor -1/2 (from original code) ???
-           fmihxpt(ifld,k1) = cfnfmiy*( - cmfy*(mi(ifld)/2)*sxyxpt*nixpt(ifld,k1)*
-     .                     vyhxpt(ifld,k1)*upxpt(ifld,k1)
-     .                   - sxyxpt*visyxpt(ifld,k1)*(up(ixpt2(k2),iysptrx2(k2)+1,ifld)
-     .                     - up(ixpt1(k1),iysptrx1(k1)+1,ifld))*ghxpt )
-           fmivxpt(ifld,k1) = cfnfmiy*(- cmfy*(mi(ifld)/2)*sxyxpt*nixpt(ifld,k1)*
-     .                     vyvxpt(ifld,k1)*upxpt(ifld,k1)
-     .                   - sxyxpt*visyxpt(ifld,k1)*(up(ixpt2(k2),iysptrx2(k2),ifld)
-     .                     - up(ixpt1(k1),iysptrx1(k1),ifld))*gvxpt )
-           smoc(ixpt1(k1),iysptrx1(k1)+1,ifld) = smoc(ixpt1(k1),iysptrx1(k1)+1,ifld) 
-     .                                - fmihxpt(ifld,k1)
-           smoc(ixpt2(k2),iysptrx2(k2)+1,ifld) = smoc(ixpt2(k2),iysptrx2(k2)+1,ifld) 
-     .                                + fmihxpt(ifld,k1)
-           smoc(ixpt1(k1),iysptrx1(k1)  ,ifld) = smoc(ixpt1(k1),iysptrx1(k1)  ,ifld) 
-     .                                - fmivxpt(ifld,k1)
-           smoc(ixpt2(k2),iysptrx2(k2)  ,ifld) = smoc(ixpt2(k2),iysptrx2(k2)  ,ifld) 
-     .                                + fmivxpt(ifld,k1)
-         
-           endif # end if-test on isnfmiy
-           endif # end if-test on xc
-           endif # end if-test on yc
-
-         enddo # end do-loop over nxpt x-points
-
-*  -- source term and pressure gradient --
-
-         do iy = j2, j5
-            do ix = i2, i5
-               ix2 = ixp1(ix,iy)
-               if (zi(ifld) .ne. 0) then  # additions only for charged ions
-                  dp1 =  cngmom(ifld)*(1/fac2sp)*
-     .                      ( ng(ix2,iy,1)*tg(ix2,iy,1)-
-     .                        ng(ix ,iy,1)*tg(ix ,iy,1) ) 
-                  resmo(ix,iy,ifld) = 0.
-                  resmo(ix,iy,ifld) = 
-     .                  smoc(ix,iy,ifld)
-     .                + smov(ix,iy,ifld) * up(ix,iy,ifld)
-     .                - cfneut * cfneutsor_mi * sx(ix,iy) * rrv(ix,iy) * dp1
-     .                - cfneut * cfneutsor_mi * cmwall(ifld)*0.5*(ng(ix,iy,1)+ng(ix2,iy,1))
-     .                      * mi(ifld)*up(ix,iy,ifld)*0.5
-     .                      *(nucx(ix,iy,1)+nucx(ix2,iy,1))*volv(ix,iy)
-     .                + cmneut * cmneutsor_mi * uesor_up(ix,iy,ifld)
-     .                + cfmsor*(msor(ix,iy,ifld) + msorxr(ix,iy,ifld)) #### IJ 2017: needs *cfneut for multi-charge state ions & MC neutrals?
-     .                + volmsor(ix,iy,ifld)
-     .                + cfvisxneov*visvol_v(ix,iy,ifld)
-     .                + cfvisxneoq*visvol_q(ix,iy,ifld)
-c  Add drag with cold, stationary impurity neutrals
-                  if (ifld > nhsp) then
-                    resmo(ix,iy,ifld) = resmo(ix,iy,ifld) - cfupimpg*
-     .                    0.25*mi(ifld)*(ni(ix,iy,ifld)+ni(ix2,iy,ifld))*
-     .                     ( nucxi(ix,iy,ifld)+nucxi(ix2,iy,ifld)+
-     .                       nueli(ix,iy,ifld)+nueli(ix2,iy,ifld) )*
-     .                       up(ix,iy,ifld)*volv(ix,iy)
-                  endif
-               endif
-
-               if (isupgon(1) .eq. 1) then
-
-c     If we are solving the parallel neutral mom eq. we need different/addtnl
-c     source terms. Beware that cngmom and cmwall should be zero so that the
-c     main ions do not get coupled twice to the neutrals!
-c     The CX, ionization, recomb. friction for the parallel momentum eqs
-c     for the neutrals and main ions are included here.
-c     Assumes the neutrals have index iigsp and corresponding ions index 1
-
-                  if (ifld .eq. 1) then
-c     The main ions, momentum coupling:
-                     resmo(ix,iy,ifld) = resmo(ix,iy,ifld)
-     .                   + cfneut * cfneutsor_mi * cfupcx*0.25*volv(ix,iy)*
-     .                       (nucx(ix,iy,1)+nucx(ix2,iy,1))*
-     .                       (nm(ix,iy,iigsp)+nm(ix2,iy,iigsp))*
-     .                       (up(ix,iy,iigsp)-up(ix,iy,1))
-     .                   + cfneut * cfneutsor_mi * 0.25*volv(ix,iy)*
-     .                       (  (nuiz(ix,iy,1)+nuiz(ix2,iy,1))*
-     .                          (nm(ix,iy,iigsp)+nm(ix2,iy,iigsp))*
-     .                          up(ix,iy,iigsp)
-     .                        - (nurc(ix,iy,1)+nurc(ix2,iy,1))*
-     .                          (nm(ix,iy,1)+nm(ix2,iy,1))*up(ix,iy,1)
-     .                       )
-                  elseif ((isupgon(1) .eq. 1) .and. ifld .eq. iigsp) then
-c     The neutral species, momentum coupling AND other source terms:
-                      resmo(ix,iy,iigsp) =   # TR resmo(ix,iy,ifld) #IJ 2016
-     .                    - cmneut * cmneutsor_mi * uesor_up(ix,iy,1) 
-     .                    -sx(ix,iy) * rrv(ix,iy) * 
-     .                       cpgx*( cftiexclg*(ni(ix2,iy,iigsp)*ti(ix2,iy)-
-     .                                ni(ix,iy,iigsp)*ti(ix,iy))+
-     .                              (1.0-cftiexclg)*
-     .                               (ni(ix2,iy,iigsp)*tg(ix2,iy,1)-
-     .                                ni(ix,iy,iigsp)*tg(ix,iy,1)) ) 
-     .                    -cfupcx*0.25*volv(ix,iy)*
-     .                       (nucx(ix,iy,1)+nucx(ix2,iy,1))*
-     .                       (nm(ix,iy,iigsp)+nm(ix2,iy,iigsp))*
-     .                       (up(ix,iy,iigsp)-up(ix,iy,1))
-     .                    -0.25*volv(ix,iy)*(
-     .                       (nuiz(ix,iy,1)+nuiz(ix2,iy,1))*
-     .                       (nm(ix,iy,iigsp)+nm(ix2,iy,iigsp))*
-     .                                            up(ix,iy,iigsp)
-     .                       -(nurc(ix,iy,1)+nurc(ix2,iy,1))*
-     .                       (nm(ix,iy,1)+nm(ix2,iy,1))*up(ix,iy,1) )
-                  endif
-               endif
-            end do
-        end do
-
-*  -- divergence of momentum flow --
-
-         if (isnonog.eq.1) then
-            do iy = j2, j5
-               do ix = i2, i5
-                  ix2 = ixp1(ix,iy)
-c ... IJ 2016/10/10 use cfneutdiv_fmg multiplier for neutrals 
-c                 if (ifld .ne. iigsp) then
-	          if(zi(ifld) > 1.e-20) then # IJ 2016; depends if ion or neut
-                    resmo(ix,iy,ifld) = resmo(ix,iy,ifld)
-     .                 + (fmixy(ix2,iy,ifld) - fmixy(ix,iy,ifld))
-                  else
-                    resmo(ix,iy,ifld) = resmo(ix,iy,ifld)
-     .                 + cfneutdiv*cfneutdiv_fmg*(fmixy(ix2,iy,ifld) - fmixy(ix,iy,ifld))
-c***	IJ 2017/09/21: Need to add similar fmgxy calculation for MC neutrals on nonorthogonal mesh *** 
-                  endif
-                end do
-            end do
-         endif
-
-         do iy = j2, j5
-            do ix = i2, i5
-               ix2 = ixp1(ix,iy)
-c IJ 2016/10/10 add cfneutdiv_fmg multiplier for neutrals to control fraction of momentum to add 
-c               if (ifld .ne. iigsp) then
-c ... IJ 2016 resmo contrib changes if ion or neut
-	       if(zi(ifld) > 1.e-20) then
-                 resmo(ix,iy,ifld) = resmo(ix,iy,ifld)
-     .                                 - (fmix(ix2,iy,ifld) - fmix(ix,iy  ,ifld)
-     .                        + fluxfacy*(fmiy(ix ,iy,ifld) - fmiy(ix,iy-1,ifld)) )
-               else
-                 resmo(ix,iy,ifld) = resmo(ix,iy,ifld)
-     .                      - cfneutdiv*cfneutdiv_fmg*(fmix(ix2,iy,ifld) - fmix(ix,iy  ,ifld)
-     .                        + fluxfacy*(fmiy(ix ,iy,ifld) - fmiy(ix,iy-1,ifld)) )
-                 if(cmneutdiv_fmg .ne. 0.0) then 
-                    jfld=1
-                    resmo(ix,iy,ifld) = resmo(ix,iy,ifld)
-     .                    - cmneutdiv*cmneutdiv_fmg*( (fmgx_ue(ix2,iy,jfld) - fmgx_ue(ix,iy  ,jfld))
-     .                        + fluxfacy*(fmgy_ue(ix ,iy,jfld) - fmgy_ue(ix,iy-1,jfld)) )
-     .                        * (ni(ix,iy,ifld)*ti(ix,iy))/(ni(ix,iy,ifld)*ti(ix,iy))
-                 endif
-              endif
-            end do
-        end do
-
-c  -- Include frictional drag in parallel flow here if isofric=1; otherwise
-c  -- it is included in frici from mombal or mombalni
-
-        if (isofric.eq.1 .and. nusp .gt.1) then
-*  -- w0 now accumulates friction coefficient --
-*     -- set w2 = vol*ti**(-1.5) --
-         do iy = j1, j6
-           do ix = i1, i6
-             fricnrl(ix,iy,ifld) = 0.  #diagnostic ~ ni*mi*nu*(up1-up2)
-             w0(ix,iy) = 0.0e0
-             w2(ix,iy) = vol(ix,iy) / (ti(ix,iy)*sqrt(ti(ix,iy)))
-           enddo
-         enddo
-
-*  -- consider all other species --
-
-         do jfld = 1, nusp
-           if (jfld .ne. ifld) then
-*     -- common factor in collision frequency --
-             awoll = zi(ifld)**2 * zi(jfld)**2 *
-     .            (qe**4/(12*pi**2*eps0**2)) *
-     .            sqrt (2*pi*mi(ifld)*mi(jfld)/(mi(ifld)+mi(jfld)))
-
-*     -- frictional coupling --
-             do iy = j1, j6
-               do ix = i1, i5
-                 ix2 = ixp1(ix,iy)
-                 t0 = ni(ix,iy,ifld) * ni(ix,iy,jfld) * w2(ix,iy)
-                 t1 = ni(ix2,iy,ifld)*ni(ix2,iy,jfld)*w2(ix2,iy)
-                 awll = awoll*loglambda(ix,iy)
-                 tv  = awll*(t0+t1)/2
-                 resmo(ix,iy,ifld) = resmo(ix,iy,ifld) +
-     .                        tv * (up(ix,iy,jfld)-up(ix,iy,ifld))
-                 fricnrl(ix,iy,ifld) = fricnrl(ix,iy,ifld) +
-     .                tv*(up(ix,iy,jfld)-up(ix,iy,ifld))/vol(ix,iy)
-                 w0(ix,iy) = w0(ix,iy) - tv
-               enddo
-             enddo
-           endif
-         enddo
-        endif   # if test on isofric.eq.1
-        end do
-        end if
-
+        call calc_momentum_residuals
 
 
 *****************************************************************
