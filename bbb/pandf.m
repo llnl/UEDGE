@@ -1215,13 +1215,10 @@ c ..          switch to right plate(s)
       integer iy, ix, ifld, igsp, j2pwr, j5pwr, i2pwr, i5pwr, 
      .  ix1, ix2, jg, ifld_lcs, jz, ifld_fcs, izch,  z1fac, 
      .  iyp1, iym1, iy1
-      real rdumx, dr1, dr2, rdumy, psordisold, nucxiold(100), 
-     .  nueliold(100), nucxold(100), nurcold(100), nuizold(100), 
-     .  nuixold(100), nuelgold(100), psorgold(100), psorrgold(100), 
-     .  psorcxgold(100), ne_sgvi, t0, t1, tsimp, nevol, ngvol, krecz, kcxrz, 
-     .  kionz0, kionz, kcxrzig, niz_floor, pscx0, massfac, kionm, krecm, kcxrm, 
-     .  pxri, tsnpg, t1old, t2old, t1new, t2new, vyiy0, vyiym1, 
-     .  v2ix0, v2ixm1, t2, nexface, nizm_floor, tv
+      real rdumx, dr1, dr2, rdumy, ne_sgvi, t0, t1, tsimp, nevol, ngvol, 
+     .  krecz, kcxrz, kionz0, kionz, kcxrzig, niz_floor, pscx0, massfac, 
+     .  kionm, krecm, kcxrm, pxri, tsnpg, t1old, t2old, t1new, t2new, 
+     .  vyiy0, vyiym1, v2ix0, v2ixm1, t2, nexface, nizm_floor, tv
       real rsa, rra, rcx, tick, svdiss, sv_crumpet, tock, ave
       external rsa, rra, rcx, svdiss, sv_crumpet
       ave(t0,t1) = 2*t0*t1 / (cutlo+t0+t1)
@@ -1324,31 +1321,6 @@ c ... get optical-depth to outer (iy=ny+1) bdry; selection of min rtau
 *     The following is a temporary recycling model.
 
 *  -- recalculate particle source psor if ifixpsor=0 --
-
-c...  Initialize save-variables if this is a Jacobian (xc,yc > -1)
-         if (xc .ge. 0 .and. yc .ge. 0) then
-            psordisold = psordis(xc,yc, ifld)
-cc            write(*,*) 'Just after psordisold; xc,yc=',xc,yc
-            do ifld = 1, nfsp
-               psorold(ifld) = psorc(xc,yc,ifld)
-               psorxrold(ifld) = psorxr(xc,yc,ifld)
-               msorold(ifld) = msor(xc,yc,ifld)
-               msorxrold(ifld) = msorxr(xc,yc,ifld)
-               nucxiold(ifld) = nucxi(xc,yc,ifld)
-               nueliold(ifld) = nueli(xc,yc,ifld)
-            enddo
-            do igsp = 1, ngsp
-               nucxold(igsp) = nucx(xc,yc,igsp)
-               nurcold(igsp) = nurc(xc,yc,igsp)
-               nuizold(igsp) = nuiz(xc,yc,igsp)
-               nuixold(igsp) = nuix(xc,yc,igsp)
-               nuelgold(igsp) = nuelg(xc,yc,igsp)
-               psorgold(igsp) = psorgc(xc,yc,igsp)
-               psorrgold(igsp) = psorrgc(xc,yc,igsp)
-               psorcxgold(igsp) = psorcxgc(xc,yc,igsp)
-            enddo
-         endif
-
 c...  The particle source can be frozen if ifixpsor.ne.0
       if(ifixpsor .eq. 0) then
             
@@ -1366,20 +1338,12 @@ c     Ionization of neutral hydrogen by electrons and recombination--
                   nuiz(ix,iy,igsp) = chioniz *  ne(ix,iy) * (
      .                           rsa(te(ix,iy),ne_sgvi,rtau(ix,iy),0)
      .                         + sigvi_floor )
-                  if (xc .ge. 0) then        # limit Jacobian element
-                     nuiz(ix,iy,igsp) = fnnuiz*nuiz(ix,iy,igsp) +
-     .                               (1-fnnuiz)*nuizold(igsp)
-                  endif
                elseif (icnuiz .eq. 1) then
                   nuiz(ix,iy,igsp) = cnuiz
                endif
                if (isrecmon == 1) then
                   nurc(ix,iy,igsp) = cfrecom * ne(ix,iy) 
      .                         * rra(te(ix,iy),ne(ix,iy),rtau(ix,iy),1)
-                  if (xc .ge. 0) then        # limit Jacobian element
-                     nurc(ix,iy,igsp) = fnnuiz*nurc(ix,iy,igsp) +
-     .                             (1-fnnuiz)*nurcold(igsp)
-                  endif
                else
                    nurc(ix,iy,igsp) = 0.
                endif
@@ -2314,6 +2278,31 @@ c ... value at ix-1.
 ccc      if(isphion+isphiofft .eq. 1)  call calc_currents
 
         call calc_elec_velocities
+     
+
+c...  Initialize save-variables if this is a Jacobian (xc,yc > -1)
+         if (xc .ge. 0 .and. yc .ge. 0) then
+            psordisold = psordis(xc,yc, ifld)
+cc            write(*,*) 'Just after psordisold; xc,yc=',xc,yc
+            do ifld = 1, nfsp
+               psorold(ifld) = psorc(xc,yc,ifld)
+               psorxrold(ifld) = psorxr(xc,yc,ifld)
+               msorold(ifld) = msor(xc,yc,ifld)
+               msorxrold(ifld) = msorxr(xc,yc,ifld)
+               nucxiold(ifld) = nucxi(xc,yc,ifld)
+               nueliold(ifld) = nueli(xc,yc,ifld)
+            enddo
+            do igsp = 1, ngsp
+               nucxold(igsp) = nucx(xc,yc,igsp)
+               nurcold(igsp) = nurc(xc,yc,igsp)
+               nuizold(igsp) = nuiz(xc,yc,igsp)
+               nuixold(igsp) = nuix(xc,yc,igsp)
+               nuelgold(igsp) = nuelg(xc,yc,igsp)
+               psorgold(igsp) = psorgc(xc,yc,igsp)
+               psorrgold(igsp) = psorrgc(xc,yc,igsp)
+               psorcxgold(igsp) = psorcxgc(xc,yc,igsp)
+            enddo
+         endif
 
         call calc_volumetric_sources(xc, yc)
 *****************************************************************
