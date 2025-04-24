@@ -2559,9 +2559,310 @@ c...       reduce eqp when (te-ti)/(te+ti) << 1
      .                (a-ti(ix,iy))**2 + (alfeqp*(a+ti(ix,iy)))**2 )
         end do
       end do
-
-
       END SUBROUTINE calc_ei_equipartition
+
+      SUBROUTINE calc_gas_heatconductivities
+      IMPLICIT NONE
+      Use(Dim)
+      Use(Selec)
+      Use(Compla)
+      Use(Comgeo)
+      Use(UEpar)
+      Use(Phyvar)
+      Use(Comtra)
+      Use(Coefeq)
+      Use(Conduc)
+      integer igsp, iy, iy1, ix, ix1
+      real tgavex, tgavey, noavex, niavex, naavex, noavey, niavey, 
+     .  naavey, nuelmolx, qflx, cshx, qshx, nuelmoly, qfly, cshy, qshy
+
+*********************************************************
+c ... Gas thermal coefficients, initially for molecules *
+*********************************************************
+*
+c ... Gas thermal conductivity coeffs - from self-collisions
+*****************************************************************
+
+      if (nisp >= 2) then  # uses ni(,,2), so must have atoms
+       do igsp = 1, ngsp
+        do iy = j1, j6
+        iy1 = min(iy,ny)
+          do ix = i1, i6
+            ix1 = ixp1(ix,iy)
+            tgavex = max( (tg(ix,iy,igsp)*gx(ix,iy) +
+     .                              tg(ix1,iy,igsp)*gx(ix1,iy)) /
+     .                             (gx(ix,iy) + gx(ix1,iy)), temin*ev )
+            tgavey=max(0.5*(tgy0(ix,iy,igsp)+tgy1(ix,iy,igsp)),temin*ev)
+            noavex = ( ng(ix,iy,igsp)*gx(ix,iy) +
+     .                                   ng(ix1,iy,igsp)*gx(ix1,iy)) /
+     .                                   (gx(ix,iy) + gx(ix1,iy))
+            niavex = ( ni(ix,iy,1)*gx(ix,iy) +
+     .                                   ni(ix1,iy,1)*gx(ix1,iy)) /
+     .                                   (gx(ix,iy) + gx(ix1,iy))
+            naavex = ( ni(ix,iy,2)*gx(ix,iy) +
+     .                                   ni(ix1,iy,2)*gx(ix1,iy)) /
+     .                                   (gx(ix,iy) + gx(ix1,iy))
+            noavey = 0.5*(ngy0(ix,iy1,igsp) + ngy1(ix,iy1,igsp))
+            niavey = 0.5*(niy0(ix,iy1,1) + niy1(ix,iy1,1))
+            naavey = 0.5*(niy0(ix,iy1,2) + niy1(ix,iy1,2))
+            nuelmolx = noavex*kelhmhm + niavex*kelhmhg + 
+     .                 naavex*kelhmhg
+            qflx = flalftmx*sqrt(tgavex/mg(igsp))*noavex*tgavex
+            cshx = cftgcond*noavex*tgavex/(mg(igsp)*nuelmolx)  #assume K not fcn Tg
+            qshx = cshx * (tg(ix,iy,igsp)-tg(ix1,iy,igsp)) * gxf(ix,iy)
+            hcxg(ix,iy,igsp) = cshx / 
+     .                     (1.+ (abs(qshx/qflx))**flgamtg)**(1./flgamtg)
+            hcxg(ix,iy,igsp)=(1.-cfhcxgc(igsp))*hcxg(ix,iy,igsp)+
+     .                     cfhcxgc(igsp)*noavex*kxg_use(ix,iy,igsp)
+c..   Now radial direction
+            nuelmoly = noavey*kelhmhm + niavey*kelhmhg + 
+     .                 naavey*kelhmhg
+            qfly = flalftmy*sqrt(tgavey/mg(igsp))*noavey*tgavey
+            cshy = cftgcond*noavey*tgavey/(mg(igsp)*nuelmoly)  #assume Kel_s not fcn Tg
+            qshy = cshy*(tgy0(ix,iy1,igsp)-tgy1(ix,iy1,igsp))/
+     .                                                  dynog(ix,iy)
+            hcyg(ix,iy,igsp) = cshy / 
+     .                     (1 + (abs(qshy/qfly))**flgamtg)**(1./flgamtg)
+            hcyg(ix,iy,igsp)=(1-cfhcygc(igsp))*hcyg(ix,iy,igsp)+
+     .                     cfhcygc(igsp)*noavey*kyg_use(ix,iy,igsp)
+          enddo
+        enddo
+        if (igsp.eq.1 .and. isupgon(igsp).eq.1) then 
+          hcxg(:,:,igsp) = hcxn(:,:)
+          hcyg(:,:,igsp) = hcyn(:,:)
+        endif
+       enddo
+      endif
+
+      END SUBROUTINE calc_gas_heatconductivities
+
+
+      SUBROUTINE calc_ion_transport
+      IMPLICIT NONE
+      Use(Dim)
+      Use(UEpar)
+      Use(Selec)
+      Use(Compla)
+      Use(Comgeo)
+      Use(Comflo)
+      Use(Share)
+      Use(Coefeq)
+      Use(Bfield)
+      Use(Indices_domain_dcl)
+      Use(Xpoint_indices)
+      Use(Comtra)
+      Use(Bcond)
+      integer ifld, methnx, methny, iy, ix, ix2, iym1, iyp1, iyp2
+      real dndym1, dndy0, dndyp1, d2ndy20, d2ndy2p1, d3ndy3, 
+     .  fniycboave, sycore, corecells, t0, t1, t2
+   
+*****************************************************************
+*****************************************************************
+*  Here starts the old routine PARBAL
+*****************************************************************
+      do ifld = 1, nfsp
+*  ---------------------------------------------------------------------
+*     compute flux, residual
+*     The residual is: res := snic + sniv * ni - outflow(ni).
+*  ---------------------------------------------------------------------
+
+*  -- compute fnix --
+
+         methnx = mod(methn, 10)
+         methny = methn/10
+         do iy = j4, j8
+            do ix = i1, i5
+              if ( zi(ifld).eq.0. .and. ineudif.ne.0 .and.
+     .                                   1.-rrv(ix,iy) > 1.e-4 ) then
+                 fnix(ix,iy,ifld) = fngx(ix,iy,1)
+              else
+               ix2 = ixp1(ix,iy)
+
+               if (methnx .eq. 2) then   # central differencing
+                  t2 = ( ni(ix, iy,ifld) + ni(ix2,iy,ifld) ) / 2
+
+               elseif (methnx .eq. 3) then   # upwind differencing
+
+                  if( uu(ix,iy,ifld) .ge. 0.) then
+                     t2 = ni(ix,iy,ifld)
+                  else
+                     t2 = ni(ix2,iy,ifld)
+                  endif
+
+               elseif (methnx .eq. 6) then   # log central differencing
+                  t2 = exp(0.5*
+     .                ( log(ni(ix,iy,ifld)) + log(ni(ix2,iy,ifld)) ))
+
+               else   # interp. ave or harmonic ave depending on wind*grad
+
+                  t0 = ( ni(ix, iy,ifld)*gx(ix, iy) +
+     .                   ni(ix2,iy,ifld)*gx(ix2,iy) ) / 
+     .                                      ( gx(ix,iy)+gx(ix2,iy) )
+                  t1 = ( gx(ix,iy)+gx(ix2,iy) ) * ni(ix,iy,ifld) *
+     .                   ni(ix2,iy,ifld) / ( cutlo + ni(ix,iy,ifld)*
+     .                   gx(ix2,iy) + ni(ix2,iy,ifld)*gx(ix,iy) )
+                  if( uu(ix,iy,ifld)*(ni(ix,iy,ifld)-ni(ix2,iy,ifld)) 
+     .                                                     .ge. 0.) then
+                     t2 = t0
+                  else
+                     t2 = t1
+                  endif
+
+               endif
+
+               fnix(ix,iy,ifld) = cnfx*uu(ix,iy,ifld) * sx(ix,iy) * t2
+               fnixcb(ix,iy,ifld)=cnfx*sx(ix,iy) * t2 * 0.5*
+     .                 (rbfbt(ix,iy) + rbfbt(ix2,iy))*v2cb(ix,iy,ifld)
+                  fnix(ix,iy,ifld) = fnix(ix,iy,ifld)/sqrt( 1 +
+     .              (nlimix(ifld)*ni(ix ,iy,ifld)/ni(ix2,iy,ifld))**2 +
+     .              (nlimix(ifld)*ni(ix2,iy,ifld)/ni(ix ,iy,ifld))**2 )
+              endif
+            end do
+           if ((isudsym==1.or.geometry.eq.'dnXtarget') .and. nxc > 1) then
+              fnix(nxc-1,iy,ifld)=0.
+              fnix(nxc,  iy,ifld)=0.
+              fnix(nxc+1,iy,ifld)=0.
+              uu(nxc-1,iy,ifld) = 0.
+              uu(nxc  ,iy,ifld) = 0.
+              uu(nxc+1,iy,ifld) = 0.
+              vytan(nxc-1,iy,ifld) = 0.
+              vytan(nxc  ,iy,ifld) = 0.
+              vytan(nxc+1,iy,ifld) = 0.
+ 
+           endif
+           if (islimon.ne.0 .and. iy.ge.iy_lims) fnix(ix_lim,iy,ifld)=0.
+           if (nxpt==2 .and. ixmxbcl==1) fnix(ixrb(1)+1,iy,ifld)=0.
+        end do
+
+*  -- compute fniy  --
+
+         do iy = j1, j5
+            do ix = i4, i8
+               if (zi(ifld).eq.0.) then #inertial gas must follow ion index
+                  fniy(ix,iy,ifld) = fngy(ix,iy,ifld-1)
+               else
+                  if (methny .eq. 2) then   # central differencing
+                     t2 = ( niy0(ix,iy,ifld) + niy1(ix,iy,ifld) ) / 2
+
+                  elseif (methny .eq. 3) then   # upwind differencing
+
+                     if( vy(ix,iy,ifld) .ge. 0.) then
+                        t2 = niy0(ix,iy,ifld)
+                     else
+                        t2 = niy1(ix,iy,ifld)
+                     endif
+
+                  elseif (methny .eq. 6) then   # log central differencing
+                     t2 = exp( 0.5*
+     .                   (log(niy0(ix,iy,ifld))+log(niy1(ix,iy,ifld))) )
+
+                  else    # interp. ave or harmonic ave depending on wind*grad
+
+                     t0 = ( niy0(ix,iy,ifld)*gy(ix,iy  ) +
+     .                    niy1(ix,iy,ifld)*gy(ix,iy+1) ) / 
+     .                    ( gy(ix,iy)+gy(ix,iy+1) )
+                     t1 = ( gy(ix,iy)+gy(ix,iy+1) ) * niy0(ix,iy,ifld)*
+     .                    niy1(ix,iy,ifld) / ( cutlo + niy0(ix,iy,ifld)*
+     .                    gy(ix,iy+1) + niy1(ix,iy,ifld)*gy(ix,iy) )
+                     if( (niy0(ix,iy,ifld)-niy1(ix,iy,ifld))*
+     .                    vy(ix,iy,ifld) .ge. 0.) then
+                        t2 = t0
+                     else
+                        t2 = t1
+                     endif
+                  
+                  endif
+               
+                  fniy(ix,iy,ifld) = cnfy*vy(ix,iy,ifld)*sy(ix,iy)*t2
+                  fniycb(ix,iy,ifld) = cnfy*vycb(ix,iy,ifld)*sy(ix,iy)*t2
+                  if (vy(ix,iy,ifld)*(ni(ix,iy,ifld)-ni(ix,iy+1,ifld))
+     .                                                      .lt. 0.) then
+                     fniy(ix,iy,ifld) = fniy(ix,iy,ifld)/( 1 +
+     .                               (nlimiy(ifld)/ni(ix,iy+1,ifld))**2 +
+     .                               (nlimiy(ifld)/ni(ix,iy  ,ifld))**2 )
+                  endif
+c...  Note: nonorthogonality comes in through calc. of vy
+               endif
+            end do
+        end do
+
+c ... cosmetic setting of fniy - not used         
+         do ix = i4, i8
+            fniy(ix,ny+1,ifld) = 0.0e0
+         enddo
+
+        end do
+
+c ... Add rad flux of 4th order diff operator; damp grid-scale oscillations
+      do ifld = 1, nfsp
+        if (abs(dif4order(ifld)) > 1.e-50) then
+          do iy = j2p, j5m   #limits to range iy=1:ny-1 for fniy4ord
+            iym1 = max(iy-1,0)
+            iyp1 = min(iy+1,ny+1)
+            iyp2 = min(iy+2,ny+1)
+            do ix = i4, i8
+              dndym1 = (ni(ix,iy,ifld)-ni(ix,iym1,ifld))*gyf(ix,iym1)
+              dndy0 = (ni(ix,iyp1,ifld)-ni(ix,iy,ifld))*gyf(ix,iy)
+              dndyp1 = (ni(ix,iyp2,ifld)-ni(ix,iyp1,ifld))*gyf(ix,iyp1)
+              d2ndy20 = (dndy0 - dndym1)*gy(ix,iy)
+              d2ndy2p1 = (dndyp1 - dndy0)*gy(ix,iyp1)
+              d3ndy3 = (d2ndy2p1 - d2ndy20)*gyf(ix,iy)
+              fniy4ord(ix,iy,ifld) = dif4order(ifld)*d3ndy3*sy(ix,iy)/
+     .                                                  gyf(ix,iy)**2
+              fniy(ix,iy,ifld) = fniy(ix,iy,ifld) + fniy4ord(ix,iy,ifld)
+            enddo
+          enddo
+        endif
+      enddo
+
+c ... Setup a correction to surface-flux for grad_B and grad_P effects at iy=0
+      do ifld = 1, nfsp
+        do ix = i4, i8
+           fniycbo(ix,ifld) = 0.0
+        enddo
+         do ix = i4, i8
+            fniycbo(ix,ifld) = ( ni(ix,0,ifld)*sy(ix,0) ) *
+     .                         ( (1-cfniybbo)*cfybf*vycb(ix,0,ifld) -
+     .                            cfniydbo*(1-cfydd)*vycp(ix,0,ifld) )
+         enddo
+      enddo
+
+c ... Normalize core flux to zero to avoid introducing artifical core source/sink
+      do ifld = 1, nfsp
+          if (isfniycbozero(ifld) .gt. 0) then 
+            fniycboave = 0
+            sycore = 0
+            do ix = ixpt1(1)+1, ixpt2(1)
+              fniycboave = fniycboave + fniycbo(ix, ifld)
+            end do
+            corecells =  (ixpt2(1) - ixpt1(1))
+            if (geometry == 'dnull') then
+                do ix = ixpt1(2)+1, ixpt2(2)
+                  fniycboave = fniycboave + fniycbo(ix, ifld)
+                end do
+                corecells =  corecells + (ixpt2(2) - ixpt1(2))
+            end if 
+c ... TODO: Add double-null fix here (now only does one half-mesh...)            
+            fniycboave = fniycboave / corecells
+            do ix = ixpt1(1)+1, ixpt2(1)
+              fniycbo(ix, ifld) = fniycbo(ix, ifld) - isfniycbozero(ifld)*fniycboave
+            end do
+          else if (isfniycbozero(ifld) .lt. 0) then 
+            do ix = ixpt1(1)+1, ixpt2(1)
+              fniycbo(ix, ifld) = 0
+            end do
+            if (geometry == 'dnull') then
+                do ix = ixpt1(2)+1, ixpt2(2)
+                  fniycbo(ix, ifld) = 0
+                end do
+            end if
+          end if
+      end do
+             
+ 
+      END SUBROUTINE calc_ion_transport
+
+
 
 c-----------------------------------------------------------------------
       subroutine pandf (xc, yc, neq, time, yl, yldot)
@@ -2860,273 +3161,13 @@ cc            write(*,*) 'Just after psordisold; xc,yc=',xc,yc
         call calc_plasma_heatconductivities
 
         call calc_ei_equipartition
-*********************************************************
-c ... Gas thermal coefficients, initially for molecules *
-*********************************************************
-*
-c ... Gas thermal conductivity coeffs - from self-collisions
-*****************************************************************
 
-      if (nisp >= 2) then  # uses ni(,,2), so must have atoms
-       do igsp = 1, ngsp
-        do iy = j1, j6
-        iy1 = min(iy,ny)
-          do ix = i1, i6
-            ix1 = ixp1(ix,iy)
-            tgavex = max( (tg(ix,iy,igsp)*gx(ix,iy) +
-     .                              tg(ix1,iy,igsp)*gx(ix1,iy)) /
-     .                             (gx(ix,iy) + gx(ix1,iy)), temin*ev )
-            tgavey=max(0.5*(tgy0(ix,iy,igsp)+tgy1(ix,iy,igsp)),temin*ev)
-            noavex = ( ng(ix,iy,igsp)*gx(ix,iy) +
-     .                                   ng(ix1,iy,igsp)*gx(ix1,iy)) /
-     .                                   (gx(ix,iy) + gx(ix1,iy))
-            niavex = ( ni(ix,iy,1)*gx(ix,iy) +
-     .                                   ni(ix1,iy,1)*gx(ix1,iy)) /
-     .                                   (gx(ix,iy) + gx(ix1,iy))
-            naavex = ( ni(ix,iy,2)*gx(ix,iy) +
-     .                                   ni(ix1,iy,2)*gx(ix1,iy)) /
-     .                                   (gx(ix,iy) + gx(ix1,iy))
-            noavey = 0.5*(ngy0(ix,iy1,igsp) + ngy1(ix,iy1,igsp))
-            niavey = 0.5*(niy0(ix,iy1,1) + niy1(ix,iy1,1))
-            naavey = 0.5*(niy0(ix,iy1,2) + niy1(ix,iy1,2))
-            nuelmolx = noavex*kelhmhm + niavex*kelhmhg + 
-     .                 naavex*kelhmhg
-            qflx = flalftmx*sqrt(tgavex/mg(igsp))*noavex*tgavex
-            cshx = cftgcond*noavex*tgavex/(mg(igsp)*nuelmolx)  #assume K not fcn Tg
-            qshx = cshx * (tg(ix,iy,igsp)-tg(ix1,iy,igsp)) * gxf(ix,iy)
-            hcxg(ix,iy,igsp) = cshx / 
-     .                     (1.+ (abs(qshx/qflx))**flgamtg)**(1./flgamtg)
-            hcxg(ix,iy,igsp)=(1.-cfhcxgc(igsp))*hcxg(ix,iy,igsp)+
-     .                     cfhcxgc(igsp)*noavex*kxg_use(ix,iy,igsp)
-c..   Now radial direction
-            nuelmoly = noavey*kelhmhm + niavey*kelhmhg + 
-     .                 naavey*kelhmhg
-            qfly = flalftmy*sqrt(tgavey/mg(igsp))*noavey*tgavey
-            cshy = cftgcond*noavey*tgavey/(mg(igsp)*nuelmoly)  #assume Kel_s not fcn Tg
-            qshy = cshy*(tgy0(ix,iy1,igsp)-tgy1(ix,iy1,igsp))/
-     .                                                  dynog(ix,iy)
-            hcyg(ix,iy,igsp) = cshy / 
-     .                     (1 + (abs(qshy/qfly))**flgamtg)**(1./flgamtg)
-            hcyg(ix,iy,igsp)=(1-cfhcygc(igsp))*hcyg(ix,iy,igsp)+
-     .                     cfhcygc(igsp)*noavey*kyg_use(ix,iy,igsp)
-          enddo
-        enddo
-        if (igsp.eq.1 .and. isupgon(igsp).eq.1) then 
-          hcxg(:,:,igsp) = hcxn(:,:)
-          hcyg(:,:,igsp) = hcyn(:,:)
-        endif
-       enddo
-      endif
-
+        call calc_gas_heatconductivities
 c ... Call routine to evaluate gas energy fluxes
 ****************************************************************
       call engbalg
 
-
-*****************************************************************
-*****************************************************************
-*  Here starts the old routine PARBAL
-*****************************************************************
-      do ifld = 1, nfsp
-*  ---------------------------------------------------------------------
-*     compute flux, residual
-*     The residual is: res := snic + sniv * ni - outflow(ni).
-*  ---------------------------------------------------------------------
-
-*  -- compute fnix --
-
-         methnx = mod(methn, 10)
-         methny = methn/10
-         do iy = j4, j8
-            do ix = i1, i5
-              if ( zi(ifld).eq.0. .and. ineudif.ne.0 .and.
-     .                                   1.-rrv(ix,iy) > 1.e-4 ) then
-                 fnix(ix,iy,ifld) = fngx(ix,iy,1)
-              else
-               ix2 = ixp1(ix,iy)
-
-               if (methnx .eq. 2) then   # central differencing
-                  t2 = ( ni(ix, iy,ifld) + ni(ix2,iy,ifld) ) / 2
-
-               elseif (methnx .eq. 3) then   # upwind differencing
-
-                  if( uu(ix,iy,ifld) .ge. 0.) then
-                     t2 = ni(ix,iy,ifld)
-                  else
-                     t2 = ni(ix2,iy,ifld)
-                  endif
-
-               elseif (methnx .eq. 6) then   # log central differencing
-                  t2 = exp(0.5*
-     .                ( log(ni(ix,iy,ifld)) + log(ni(ix2,iy,ifld)) ))
-
-               else   # interp. ave or harmonic ave depending on wind*grad
-
-                  t0 = ( ni(ix, iy,ifld)*gx(ix, iy) +
-     .                   ni(ix2,iy,ifld)*gx(ix2,iy) ) / 
-     .                                      ( gx(ix,iy)+gx(ix2,iy) )
-                  t1 = ( gx(ix,iy)+gx(ix2,iy) ) * ni(ix,iy,ifld) *
-     .                   ni(ix2,iy,ifld) / ( cutlo + ni(ix,iy,ifld)*
-     .                   gx(ix2,iy) + ni(ix2,iy,ifld)*gx(ix,iy) )
-                  if( uu(ix,iy,ifld)*(ni(ix,iy,ifld)-ni(ix2,iy,ifld)) 
-     .                                                     .ge. 0.) then
-                     t2 = t0
-                  else
-                     t2 = t1
-                  endif
-
-               endif
-
-               fnix(ix,iy,ifld) = cnfx*uu(ix,iy,ifld) * sx(ix,iy) * t2
-               fnixcb(ix,iy,ifld)=cnfx*sx(ix,iy) * t2 * 0.5*
-     .                 (rbfbt(ix,iy) + rbfbt(ix2,iy))*v2cb(ix,iy,ifld)
-                  fnix(ix,iy,ifld) = fnix(ix,iy,ifld)/sqrt( 1 +
-     .              (nlimix(ifld)*ni(ix ,iy,ifld)/ni(ix2,iy,ifld))**2 +
-     .              (nlimix(ifld)*ni(ix2,iy,ifld)/ni(ix ,iy,ifld))**2 )
-              endif
-            end do
-           if ((isudsym==1.or.geometry.eq.'dnXtarget') .and. nxc > 1) then
-              fnix(nxc-1,iy,ifld)=0.
-              fnix(nxc,  iy,ifld)=0.
-              fnix(nxc+1,iy,ifld)=0.
-              uu(nxc-1,iy,ifld) = 0.
-              uu(nxc  ,iy,ifld) = 0.
-              uu(nxc+1,iy,ifld) = 0.
-              vytan(nxc-1,iy,ifld) = 0.
-              vytan(nxc  ,iy,ifld) = 0.
-              vytan(nxc+1,iy,ifld) = 0.
- 
-           endif
-           if (islimon.ne.0 .and. iy.ge.iy_lims) fnix(ix_lim,iy,ifld)=0.
-           if (nxpt==2 .and. ixmxbcl==1) fnix(ixrb(1)+1,iy,ifld)=0.
-        end do
-
-*  -- compute fniy  --
-
-         do iy = j1, j5
-            do ix = i4, i8
-               if (zi(ifld).eq.0.) then #inertial gas must follow ion index
-                  fniy(ix,iy,ifld) = fngy(ix,iy,ifld-1)
-               else
-                  if (methny .eq. 2) then   # central differencing
-                     t2 = ( niy0(ix,iy,ifld) + niy1(ix,iy,ifld) ) / 2
-
-                  elseif (methny .eq. 3) then   # upwind differencing
-
-                     if( vy(ix,iy,ifld) .ge. 0.) then
-                        t2 = niy0(ix,iy,ifld)
-                     else
-                        t2 = niy1(ix,iy,ifld)
-                     endif
-
-                  elseif (methny .eq. 6) then   # log central differencing
-                     t2 = exp( 0.5*
-     .                   (log(niy0(ix,iy,ifld))+log(niy1(ix,iy,ifld))) )
-
-                  else    # interp. ave or harmonic ave depending on wind*grad
-
-                     t0 = ( niy0(ix,iy,ifld)*gy(ix,iy  ) +
-     .                    niy1(ix,iy,ifld)*gy(ix,iy+1) ) / 
-     .                    ( gy(ix,iy)+gy(ix,iy+1) )
-                     t1 = ( gy(ix,iy)+gy(ix,iy+1) ) * niy0(ix,iy,ifld)*
-     .                    niy1(ix,iy,ifld) / ( cutlo + niy0(ix,iy,ifld)*
-     .                    gy(ix,iy+1) + niy1(ix,iy,ifld)*gy(ix,iy) )
-                     if( (niy0(ix,iy,ifld)-niy1(ix,iy,ifld))*
-     .                    vy(ix,iy,ifld) .ge. 0.) then
-                        t2 = t0
-                     else
-                        t2 = t1
-                     endif
-                  
-                  endif
-               
-                  fniy(ix,iy,ifld) = cnfy*vy(ix,iy,ifld)*sy(ix,iy)*t2
-                  fniycb(ix,iy,ifld) = cnfy*vycb(ix,iy,ifld)*sy(ix,iy)*t2
-                  if (vy(ix,iy,ifld)*(ni(ix,iy,ifld)-ni(ix,iy+1,ifld))
-     .                                                      .lt. 0.) then
-                     fniy(ix,iy,ifld) = fniy(ix,iy,ifld)/( 1 +
-     .                               (nlimiy(ifld)/ni(ix,iy+1,ifld))**2 +
-     .                               (nlimiy(ifld)/ni(ix,iy  ,ifld))**2 )
-                  endif
-c...  Note: nonorthogonality comes in through calc. of vy
-               endif
-            end do
-        end do
-
-c ... cosmetic setting of fniy - not used         
-         do ix = i4, i8
-            fniy(ix,ny+1,ifld) = 0.0e0
-         enddo
-
-        end do
-
-c ... Add rad flux of 4th order diff operator; damp grid-scale oscillations
-      do ifld = 1, nfsp
-        if (abs(dif4order(ifld)) > 1.e-50) then
-          do iy = j2p, j5m   #limits to range iy=1:ny-1 for fniy4ord
-            iym1 = max(iy-1,0)
-            iyp1 = min(iy+1,ny+1)
-            iyp2 = min(iy+2,ny+1)
-            do ix = i4, i8
-              dndym1 = (ni(ix,iy,ifld)-ni(ix,iym1,ifld))*gyf(ix,iym1)
-              dndy0 = (ni(ix,iyp1,ifld)-ni(ix,iy,ifld))*gyf(ix,iy)
-              dndyp1 = (ni(ix,iyp2,ifld)-ni(ix,iyp1,ifld))*gyf(ix,iyp1)
-              d2ndy20 = (dndy0 - dndym1)*gy(ix,iy)
-              d2ndy2p1 = (dndyp1 - dndy0)*gy(ix,iyp1)
-              d3ndy3 = (d2ndy2p1 - d2ndy20)*gyf(ix,iy)
-              fniy4ord(ix,iy,ifld) = dif4order(ifld)*d3ndy3*sy(ix,iy)/
-     .                                                  gyf(ix,iy)**2
-              fniy(ix,iy,ifld) = fniy(ix,iy,ifld) + fniy4ord(ix,iy,ifld)
-            enddo
-          enddo
-        endif
-      enddo
-
-c ... Setup a correction to surface-flux for grad_B and grad_P effects at iy=0
-      do ifld = 1, nfsp
-        do ix = i4, i8
-           fniycbo(ix,ifld) = 0.0
-        enddo
-         do ix = i4, i8
-            fniycbo(ix,ifld) = ( ni(ix,0,ifld)*sy(ix,0) ) *
-     .                         ( (1-cfniybbo)*cfybf*vycb(ix,0,ifld) -
-     .                            cfniydbo*(1-cfydd)*vycp(ix,0,ifld) )
-         enddo
-      enddo
-
-c ... Normalize core flux to zero to avoid introducing artifical core source/sink
-      do ifld = 1, nfsp
-          if (isfniycbozero(ifld) .gt. 0) then 
-            fniycboave = 0
-            sycore = 0
-            do ix = ixpt1(1)+1, ixpt2(1)
-              fniycboave = fniycboave + fniycbo(ix, ifld)
-            end do
-            corecells =  (ixpt2(1) - ixpt1(1))
-            if (geometry == 'dnull') then
-                do ix = ixpt1(2)+1, ixpt2(2)
-                  fniycboave = fniycboave + fniycbo(ix, ifld)
-                end do
-                corecells =  corecells + (ixpt2(2) - ixpt1(2))
-            end if 
-c ... TODO: Add double-null fix here (now only does one half-mesh...)            
-            fniycboave = fniycboave / corecells
-            do ix = ixpt1(1)+1, ixpt2(1)
-              fniycbo(ix, ifld) = fniycbo(ix, ifld) - isfniycbozero(ifld)*fniycboave
-            end do
-          else if (isfniycbozero(ifld) .lt. 0) then 
-            do ix = ixpt1(1)+1, ixpt2(1)
-              fniycbo(ix, ifld) = 0
-            end do
-            if (geometry == 'dnull') then
-                do ix = ixpt1(2)+1, ixpt2(2)
-                  fniycbo(ix, ifld) = 0
-                end do
-            end if
-          end if
-      end do
-             
-
+        call calc_ion_transport
 
 c----------------------------------------------------------------------c
 c          SCALE SOURCE TERMS FROM MONTE-CARLO-NEUTRALS MODEL
