@@ -975,6 +975,7 @@ c ... If isybdrywd = 1, make vey diffusive, just like vy
       real nbarx, ltmax, lmfpe, flxlimf, pondomfpare_use, nexface, 
      .cutlo3, tsimp, argx, ueb
       real tick
+      cutlo3 = cutlo**0.3
     
 
 c ... Calc friction forces from Braginskii; no individ chg-states;isimpon < 5.
@@ -4721,8 +4722,6 @@ c    yldot is the RHS of ODE solver or RHS=0 for Newton solver (NKSOL)
      .     zeffave, noavex, noavey, tiavey, tgavey, rrfac, visxtmp,
      .     vttn, vttp, neavex, feexflr, feixflr,
      .     naavex,naavey,nuelmolx,nuelmoly,fniycboave, corecells, sycore
-      real fqpo, fqpom, friceo, friceom, upeo, upeom, fricio(100), 
-     .     friciom(100), upio(100), upiom(100), uupo(100), uupom(100)
       real nevol, ngvol, kionz, krecz, kcxrz, kionm, krecm, kcxrm, nzbg,
      .     niz_floor, hflux, zflux, psorv, kionz0, pscx0, pxri, kcxrzig,
      .     nizm_floor, argx, massfac, ae, geyym, geyy0, geyyp, dgeyy0,
@@ -4850,7 +4849,6 @@ ccc      save
      .                                       (gy(ix,iy)+gy(ix,iy+1))
       interp_xf(ix,iy,t0,t1) =(t0*gx(ix,iy) + t1*gx(ixp1(ix,iy),iy)) /
      .                                (gx(ix,iy)+gx(ixp1(ix,iy),iy))
-      cutlo3 = cutlo**0.3
 
 c   TODO: Move checks to initialization to avoid checking every loop
 c  Check array sizes

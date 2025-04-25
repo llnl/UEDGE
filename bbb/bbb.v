@@ -2983,7 +2983,15 @@ pradold         real    /0/      +threadprivate # Temp storage for
 eeliold         real    /0/      +threadprivate # Temp storage for 
 erlizold        real    /0/      +threadprivate # Temp storage for 
 erlrcold        real    /0/      +threadprivate # Temp storage for
+fqpom        real    /0/      +threadprivate # Temp storage for
+friceom        real    /0/      +threadprivate # Temp storage for
+upeom        real    /0/      +threadprivate # Temp storage for
+fqpo        real    /0/      +threadprivate # Temp storage for
+friceo        real    /0/      +threadprivate # Temp storage for
+upeo        real    /0/      +threadprivate # Temp storage for
 psordisold      real    /0/  +threadprivate # Temp storage for
+pwribkgold        real    /0/      +threadprivate # Temp storage for
+pwrebkgold        real    /0/      +threadprivate # Temp storage for
 psorrgold(100) _real    /100*0/  +threadprivate # Temp storage for
 psorcxgold(100) _real    /100*0/  +threadprivate # Temp storage for
 psorgold(100) _real    /100*0/  +threadprivate # Temp storage for
@@ -2994,8 +3002,12 @@ nuixold(100) _real    /100*0/  +threadprivate # Temp storage for
 nucxiold(100) _real    /100*0/  +threadprivate # Temp storage for
 nueliold(100) _real    /100*0/  +threadprivate # Temp storage for
 nuelgold(100) _real    /100*0/  +threadprivate # Temp storage for
-pwribkgold        real    /0/      +threadprivate # Temp storage for
-pwrebkgold        real    /0/      +threadprivate # Temp storage for
+friciom(100) _real    /100*0/  +threadprivate # Temp storage for
+upiom(100) _real    /100*0/  +threadprivate # Temp storage for
+uupom(100) _real    /100*0/  +threadprivate # Temp storage for
+fricio(100) _real    /100*0/  +threadprivate # Temp storage for
+upio(100) _real    /100*0/  +threadprivate # Temp storage for
+uupo(100) _real    /100*0/  +threadprivate # Temp storage for
 psorold(1:nisp)		_real	[part/s]   +threadprivate # unpert. ioniz. sources
 psorxrold(1:nisp)	_real	[part/s]   +threadprivate # unpert. recom. & cx sources
 msorold(1:nisp)		_real	[kg-m/s**2]   +threadprivate # unpert. ioniz. mom. sources
