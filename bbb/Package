@@ -6,6 +6,8 @@ VDF = bbb.v
 NVDF = ../com/com.v
 
 SM = boundary.m convert.m geometry.m griddubl.m pandf.m \
+     pandf_gas_energy.m	pandf_jacobian.m pandf_plasma_continuity.m \
+     pandf_gas_continuity.m	pandf_plasma_momentum.m pandf_plasma_energy.m \
      oderhs.m odesetup.m odesolve.m potencur.m turbulence.m \
      ext_neutrals.m
 

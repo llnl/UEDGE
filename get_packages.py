@@ -104,3 +104,5 @@ for subroutine, entries in subroutines.items():
         print("Missing local vars:")
         print("   " + ", ".join(entries['missing_localvars']) )
         
+for sr, item in subroutines.items():
+    print(sr)
