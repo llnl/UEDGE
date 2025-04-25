@@ -302,3 +302,98 @@ c ... Output argument:
 
       return
       end
+c-----------------------------------------------------------------------
+      subroutine turbdif (ix, iy, ixmp3, iyp1, ifld)
+c ... For a grid cell outside the separatrix, calculate anomalous
+c     diffusivity due to turbulence and return it via common array
+c     diffusivwrk.  In addition, this subroutine computes values for
+c     arrays chinorml and chinormh.
+      implicit none
+
+c ... Input arguments:
+      integer ix, iy, ixmp3, iyp1
+      integer ifld
+
+c ... Common blocks:
+      Use(Dim)              # nx,ny,nisp
+      Use(Xpoint_indices)   # iysptrx
+      Use(Comgeo)           # gyf,linelen
+      Use(Compla)           # ney0,ney1,nity0,nity1,
+                            # tiy0,tiy1,tey0,tey1,priy0,priy1,mi
+      Use(Gradients)        # gtey,gpiy
+      Use(Bfield)           # btot
+      Use(Comtra)           # diffusivwrk
+      Use(Turbulence)       # lambdan,lambdat,isturbnloc
+      Use(Turbulence_diagnostics)   # chinorml,chinormh
+
+c ... Local variables:
+      integer ix0
+      real drdr0, glte, lte, glpi, lpi, teyf, tiyf
+      real neyf, nityf, priyf, btotyf, zavg
+      real ted, tid, densd
+
+      if (iy .gt. iysptrx) then
+c...  For a full double-null configuration, iysptrx refers to the last
+c...  closed flux surface (see definition in subroutine nphygeo).
+
+c ... Select local or midplane value of ix.
+         if (isturbnloc .ne. 1) then
+           ix0 = ix
+         else
+           ix0 = ixmp3
+         endif
+
+c ... Compute mean Z at the center of the y-face.
+         neyf = 0.5 * (ney1(ix0,iy) + ney0(ix0,iy))
+         nityf = 0.5 * (nity1(ix0,iy) + nity0(ix0,iy))
+         zavg = neyf / nityf
+
+c ... Compute radial scale lengths of Te and ion pressure based on
+c     y-face values and midplane grid spacing.
+         drdr0 = gyf(ixmp3,iy) / gyf(ix0,iy)
+         tiyf = 0.5 * (tiy1(ix0,iy) + tiy0(ix0,iy))
+         teyf = 0.5 * (tey1(ix0,iy) + tey0(ix0,iy))
+         glte = abs(gtey(ix0,iy)) * drdr0 / teyf
+         glte = max(glte, 1.)
+         lte = 1. / glte
+         priyf = 0.5 * (priy1(ix0,iy,ifld) + priy0(ix0,iy,ifld))
+         glpi = abs(gpiy(ix0,iy,ifld)) * drdr0 / priyf
+         glpi = max(glpi, 1.)
+         lpi = 1. / glpi
+
+c ... Reduce local temperatures to values approximating those at divertor
+c     plates.  Similarly increase the local density to approximate plate
+c     value.  (This procedure is preliminary to a more rigorous one of
+c     using variables at plates.)
+c ... Compute values at divertor plates in either of two ways:
+c     for local calculation of anomalous diffusivity, use input variables
+c     lambdan and lambdat to get approximations to plate values ...
+         if (isturbnloc .ne. 1) then
+           ted = teyf / lambdat
+           tid = tiyf / lambdat
+           densd = lambdan * neyf
+c     or for nonlocal calculation of diffusivity, use average of values
+c     at the two plates.
+         else
+           ted = 0.25 * (tey1(0   ,iy) + tey0(0   ,iy) +
+     .                   tey1(nx+1,iy) + tey0(nx+1,iy))
+           tid = 0.25 * (tiy1(0   ,iy) + tiy0(0   ,iy) +
+     .                   tiy1(nx+1,iy) + tiy0(nx+1,iy))
+           densd = 0.25 * (ney1(0   ,iy) + ney0(0   ,iy) +
+     .                     ney1(nx+1,iy) + ney0(nx+1,iy))
+         endif
+
+c ... Compute anomalous diffusivity.
+         btotyf = 0.5 * (btot(ix0,iy) + btot(ix0,iyp1))
+         call turb_diffus (btotyf, lte, lpi, teyf, tiyf, neyf,
+     .                     ted, tid, densd, mi(ifld), zavg, linelen,
+     .                     diffusivwrk(ix,iy),
+     .                     chinorml(ix,iy), chinormh(ix,iy))
+      endif
+
+      return
+      end
+c---- end of subroutine turbdif ----------------------------------------
+c-----------------------------------------------------------------------
+
+

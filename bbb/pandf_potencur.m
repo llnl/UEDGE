@@ -671,3 +671,398 @@ c ... for all ny+1; could generalize to double null
       return
       end
 c-----------------------------------------------------------------------
+
+      SUBROUTINE calc_driftterms
+      IMPLICIT NONE
+      Use(Selec)
+      Use(Compla)
+      Use(Phyvar)
+      Use(UEpar)
+      Use(Dim)
+      Use(Coefeq)
+      Use(Bcond)
+      Use(Conduc)
+      Use(Share)
+      Use(Comtra)
+      Use(Comgeo)
+      Use(Bfield)
+      Use(Comflo)
+      Use(Noggeo)
+      Use(Gradients)
+      Use(Indices_domain_dcl)
+      Use(Xpoint_indices)
+      integer iy, ix, ix1, ifld, iy1, ix6, ix4, ix3, ix2, jx, iyp1, iym1,
+     .iy2
+      real teev, nexface, t0, t1, dgeyy1, difnimix, dgeyy0, geyy0, geyym,
+     .geyyp, grdnv, qion, lambd_ci, lambd_ce, temp1, temp2, temp3, temp4,
+     .v2dia
+      real ave, etaper
+      ave(t0,t1) = 2*t0*t1 / (cutlo+t0+t1)
+      etaper(ix,iy) = 3.234e-9*loglambda(ix,iy)/(max(te(ix,iy),temin*ev)
+     .                                          /(1000.*ev))**(1.5)
+
+
+************************************************************************
+*  Transverse Drifts in y-direction and in 2-direction 
+*  (normal to B and y)
+************************************************************************
+*  ---------------------------------------------------------------------
+*  compute drifts
+*  ---------------------------------------------------------------------
+
+c ... Compute log_lambda
+      do iy = j1, j6
+        do ix = i1, i6
+          ix1 = ixp1(ix,iy)
+          teev = 0.5*(te(ix,iy)+te(ix1,iy))/ev
+          nexface = 0.5*(ne(ix,iy)+ne(ix1,iy))
+          if (islnlamcon == 1) then
+            loglambda(ix,iy) = lnlam  # set to constant
+          elseif (teev < 50.) then    # Braginskii formula, teev<50
+            loglambda(ix,iy) = 23.4-1.15*log10(1.e-6*nexface)+
+     .                              3.45*log10(teev)
+          else                        #teev > 50
+            loglambda(ix,iy) = 25.3-1.15*log10(1.e-6*nexface)+
+     .              2.33167537087122D+00*log10(teev)
+          endif
+          ctaui(ix,iy,1) = 2.1e13*sqrt(mi(1)/mp)/ loglambda(ix,iy)
+          ctaue(ix,iy,1) = 3.5e11/loglambda(ix,iy) #both for zi=1
+        enddo
+      enddo
+
+c ... Calculate collis. factors eta1 and rtaue for the simple Braginski model
+      do iy = j1, j6
+        do ix = i1, i6
+           eta1(ix,iy) = cfeta1*0.3*nm(ix,iy,1)*ti(ix,iy)*
+     .                   (1/(qe*btot(ix,iy))) / omgci_taui
+           rtaue(ix,iy) = cfrtaue*(1/(qe*btot(ix,iy))) / omgce_taue
+           dclass_i(ix,iy) = cfcl_i*eta1(ix,iy)/(0.3*nm(ix,iy,1))
+           dclass_e(ix,iy) = cfcl_e*te(ix,iy)*rtaue(ix,iy)
+        enddo
+      enddo
+
+*  -- loop over species number --
+
+      do ifld = 1, nfsp
+c --- If this is the neutral species (zi(ifld).eq.0)) we dont want velocities
+        if(zi(ifld) > 1.e-10) then  # if not, skip to end of 100 loop
+         qion = zi(ifld)*qe
+         do iy = j1, j5
+            iyp1 = min(iy+1,ny+1)
+            iym1 = max(iy-1,0)
+            do ix = i1, i6
+              ix3 = ixm1(ix,iy)
+              ix4 = ixm1(ix,iy+1)
+              temp1 = 
+     .                ( ex(ix ,iy) + ex(ix ,iy+1) +
+     .                  ex(ix3,iy) + ex(ix4,iy+1) )
+c... sknam: grad P from priv, prev
+              temp1 = (-4.0)*(phiv(ix,iy) - phiv(ix3,iy))*gxc(ix,iy)
+              temp2 = 4.0*(priv(ix,iy,ifld) - priv(ix3,iy,ifld))*gxc(ix,iy) 
+              temp3 = 4.0*(prev(ix,iy) - prev(ix3,iy))*gxc(ix,iy) 
+ 
+c...MER NOTE: For a full double-null configuration, the following test will
+c...  use the radial index of the innermost separatrix (see iysptrx definition
+c...  in subroutine nphygeo)
+              if ( isxpty(ix,iy)==0 .and. iysptrx.gt.0 ) then
+                temp1 = (-4.0)*(phiv(ix,iy) - phiv(ix3,iy))*gxc(ix,iy)
+                temp2 = 4.0*(priv(ix,iy,ifld) - priv(ix3,iy,ifld))*gxc(ix,iy) 
+                temp3 = 4.0*(prev(ix,iy) - prev(ix3,iy))*gxc(ix,iy) 
+              endif
+c...    Calc collisionality factors nu_s/(1 + nu_s) = 1/(1 + lambda_s)
+              lambd_ci = 1e16*(ti(ix,iy)/ev)**2/nit(ix,iy)  # approx
+              lambd_ce = 2e16*(te(ix,iy)/ev)**2/ne(ix,iy)   # approx
+              coll_fi(ix,iy) = cfnus_i/(cfnus_i + (lambd_ci/(lconi(ix,iy))))
+              coll_fe(ix,iy) = cfnus_e/(cfnus_e + (lambd_ce/(lcone(ix,iy))))
+              vyce(ix,iy,ifld) = 0.125 * temp1
+     .                          * ( rbfbt2(ix,iy) + rbfbt2(ix,iy+1) )
+              vycb(ix,iy,ifld) = ( cfcurv*( 0.5*(ti(ix,iy)+ti(ix,iyp1)) +
+     .                mi(ifld)*(0.25*(up(ix,iy,ifld)+up(ix,iyp1,ifld)+
+     .                         up(ix3,iy,ifld)+up(ix4,iyp1,ifld)))**2 )*
+     .                                       curvrby(ix,iy)/qion +
+     .                   cfgradb*0.5*( ti(ix,iy)+ti(ix,iyp1) )*
+     .                               gradby(ix,iy)/qion )*coll_fi(ix,iy)
+              veycb(ix,iy) = ( -cfcurv*0.5*(te(ix,iy)+te(ix,iyp1))*
+     .                                               curvrby(ix,iy)/qe -
+     .                   cfgradb*0.5*( te(ix,iy)+te(ix,iyp1) )*
+     .                                  gradby(ix,iy)/qe )*coll_fe(ix,iy)
+
+              vycp(ix,iy,ifld) = -0.25 * temp2
+     .               * (rbfbt2(ix,iy)+rbfbt2(ix,iy+1)) /
+     .            (qion*(niy0(ix,iy,ifld)+niy1(ix,iy,ifld)))
+              veycp(ix,iy) =  0.25 * temp3
+     .               * (rbfbt2(ix,iy)+rbfbt2(ix,iy+1)) /
+     .                    (qe*(ney0(ix,iy)+ney1(ix,iy)))
+c...   zero the vy-diamagnetic velocity on the y guard-cell faces
+              vycp(ix,0,ifld) = 0.
+              vycp(ix,ny,ifld) = 0.
+              veycp(ix,0) = 0.
+              veycp(ix,ny) = 0.
+
+c...  Precompute radial velocities from fixed BOUT turbulence fluxes
+              vy_cft(ix,iy,ifld) = 2*fniyos_use(ix,iy,ifld)/
+     .                            (niy0(ix,iy,ifld)+niy1(ix,iy,ifld))
+              vyte_cft(ix,iy) = 2*feeyosn_use(ix,iy)/
+     .                            (tey0(ix,iy)+tey1(ix,iy))
+              vyti_cft(ix,iy) = 2*feiyosn_use(ix,iy)/
+     .                            (tiy0(ix,iy)+tiy1(ix,iy))
+              vyrd(ix,iy,ifld) = - 2. * gpry(ix,iy) /
+     .                       (btot(ix,iy)**2/etaper(ix,iy) +
+     .                        btot(ix,iy+1)**2/etaper(ix,iy+1) )
+              vydd(ix,iy,ifld) = vcony(ifld) + vy_use(ix,iy,ifld) +
+     .                                         vy_cft(ix,iy,ifld) -
+     .                         (difpr(ifld) + difp_use(ix,iy,ifld)) * 
+     .                    ( 2*gpry(ix,iy)/(pr(ix,iy+1) + pr(ix,iy)) -
+     .                      3.0*gtey(ix,iy)/(tey1(ix,iy)+tey0(ix,iy)) )
+c ...   Note that the density grad. term for vydd added below
+           if (cfrtaue.ne.0.) then  #special classical mom. transfer term
+              vycr(ix,iy) = -0.5*(rtaue(ix,iy)+rtaue(ix,iyp1)) * (
+     .                        (gpiy(ix,iy,1) + gpey(ix,iy))/
+     .                        (0.5*(niy1(ix,iy,1)+niy0(ix,iy,1))) -
+     .                          1.5*gtey(ix,iy) )
+           endif
+           if (cfeta1.ne.0. .and. iy.le.ny-1 .and. iy.gt.0) then  
+                                             #special classical vis. term
+              geyym = 2*gpiy(ix,iym1,1)/(ney1(ix,iym1)+ney0(ix,iym1))-
+     .                qe*ey(ix,iym1)
+              geyy0 = 2*gpiy(ix,iy,1)/(ney1(ix,iy)+ney0(ix,iy)) -
+     .                qe*ey(ix,iy)
+              geyyp = 2*gpiy(ix,iyp1,1)/(ney1(ix,iyp1)+ney0(ix,iyp1))-
+     .                qe*ey(ix,iyp1)
+              dgeyy0 = (geyy0-geyym)*eta1(ix,iy)*gy(ix,iy)
+              dgeyy1 = (geyyp-geyy0)*eta1(ix,iyp1)*gy(ix,iyp1)
+              vycf(ix,iy) = 2*(dgeyy1-dgeyy0)*gy(ix,iy) /
+     .                                 ( (ney1(ix,iy)+ney0(ix,iy))*
+     .                     (qe*0.5*(btot(ix,iy)+btot(ix,iym1)))**2 )
+           endif
+
+              diffusivwrk(ix,iy)=fcdif*difni(ifld)+dif_use(ix,iy,ifld)
+          end do
+        end do
+
+c
+c ... Compute diffusive part of radial velocity.
+c .. Needs further cleaning; no turbulence model used now TDR 9/1/15
+         do iy = j1, j5
+            do ix = i1, i6
+              difnimix = diffusivwrk(ix,iy)
+
+c ... Alter diffusivity in the SOL by mixing fixed diffusivity
+c     with anomalous diffusivity computed in subroutine turb_diffus but
+c     reduced by the factor difnit(ifld).  The mixing ratio is given by
+c     cdifnit.  Diffusivity is unaltered if difnit(ifld) = 0.
+c...MER NOTE: For a full double-null configuration, the SOL is defined to
+c...  be the region outside the innermost separatrix (see iysptrx definition
+c...  in subroutine nphygeo)
+cc              if (difnit(ifld) .gt. 1.e-20 .and. zi(ifld) .eq. 1.
+cc     .                                 .and. iy .gt. iysptrx) then
+cc                 difnimix = (1. - cdifnit) * 
+cc     .                      (fcdif*difni(ifld) + dif_use(ix,iy,ifld)) +
+cc     .                               cdifnit * difnit(ifld) * difnimix
+cc              endif
+
+              vydd(ix,iy,ifld) = vydd(ix,iy,ifld) 
+     .           -1. * difnimix * (
+     .            2*(1-isvylog)*( (niy1(ix,iy,ifld) - niy0(ix,iy,ifld)) /
+     .              dynog(ix,iy) ) / (niy1(ix,iy,ifld)+niy0(ix,iy,ifld))+
+     .              isvylog*(log(niy1(ix,iy,ifld)) - 
+     .                            log(niy0(ix,iy,ifld))) /dynog(ix,iy) )
+
+c ... Compute total radial velocity.
+              vy(ix,iy,ifld) = cfydd *bfacyrozh(ix,iy) *
+     .                                 vycp(ix,iy,ifld) + 
+     .                         cfrd  * vyrd(ix,iy,ifld) +
+     .                                 vydd(ix,iy,ifld) + 
+     .                         cfyef * vyce(ix,iy,ifld) +
+     .                         cfybf * vycb(ix,iy,ifld) +
+     .                        cfvycf * vycf(ix,iy) + 
+     .                        cfvycr * vycr(ix,iy)
+c ... Compute radial vel v_grad_P eng eqn terms;cfydd+cfybf=1 or 0
+              vygp(ix,iy,ifld) = (cfydd+cfybf)*bfacyrozh(ix,iy) *
+     .                                         vycp(ix,iy,ifld) + 
+     .                                 cfrd  * vyrd(ix,iy,ifld) +
+     .                                         vydd(ix,iy,ifld) + 
+     .                                 cfyef * vyce(ix,iy,ifld) +
+     .                                cfvycf * vycf(ix,iy) + 
+     .                                cfvycr * vycr(ix,iy)
+              if (isybdrywd == 1) then  #make vy diffusive in wall cells
+                 if (iy==0 .and. matwalli(ix) > 0) then
+                    vy(ix,iy,ifld) = vydd(ix,iy,ifld)
+                 elseif (iy==ny .and. matwallo(ix) > 0) then
+                    vy(ix,iy,ifld) = vydd(ix,iy,ifld)
+                 endif
+              endif
+            enddo  #loop over iy
+         enddo     #loop over ix
+
+	    do iy = j1, j6
+	      do ix = i1, i6
+	      iy1 = max(0,iy-1)            # does iy=0 properly
+              iy2 = min(ny+1,iy+1) # use ex*fqx since phi(0,) may be large 
+	      ix2 = ixp1(ix,iy)
+	      ix4 = ixp1(ix,iy1)
+              ix6 = ixp1(ix,iy2)
+              do jx = 1, nxpt
+                 if (ix==ixlb(jx) .and. ixmnbcl==1) then
+                    temp1 =  (-4.)* (phiv(ix,iy) - phiv(ix,iy1))*gyc(ix,iy)
+                    temp2 = 4.*(priv(ix,iy,ifld) - priv(ix,iy1,ifld))*gyc(ix,iy)
+                    temp3 = 4.*(prev(ix,iy) - prev(ix,iy1))*gyc(ix,iy)
+                    temp4 = 2.5*(tiv(ix,iy) - tiv(ix,iy1))*gyc(ix,iy)
+                 elseif (ix==ixrb(jx) .and. ixmxbcl==1) then
+                    temp1 =  (-4.)* (phiv(ix,iy) - phiv(ix,iy1))*gyc(ix,iy)
+                    temp2 = 4.*(priv(ix,iy,ifld) - priv(ix,iy1,ifld))*gyc(ix,iy)
+                    temp3 = 4.*(prev(ix,iy) - prev(ix,iy1))*gyc(ix,iy)
+                    temp4 = 2.5*(tiv(ix,iy) - tiv(ix,iy1))*gyc(ix,iy)
+                 else  # not a boundary
+                    temp1 =  (-4.)* (phiv(ix,iy) - phiv(ix,iy1))*gyc(ix,iy)
+                    temp2 = 4.*(priv(ix,iy,ifld) - priv(ix,iy1,ifld))*
+     .                                                       gyc(ix,iy)
+                    temp3 = 4.*(prev(ix,iy) - prev(ix,iy1))* gyc(ix,iy)
+                    temp4 = 2.5*(tiv(ix,iy) - tiv(ix,iy1))*gyc(ix,iy)
+                endif
+              enddo  #vis end do-loop over nxpt mesh regions
+c...MER NOTE: For a full double-null configuration, the following test will
+c...  use the radial index of the innermost separatrix (see iysptrx definition
+c...  in subroutine nphygeo)
+              if ( isxptx(ix,iy)==0 .and. iysptrx.gt.0 ) then
+                 temp1 =  (-4.)* (phiv(ix,iy) - phiv(ix,iy1))*gyc(ix,iy)
+                 temp2 = 4.*(priv(ix,iy,ifld) - priv(ix,iy1,ifld))*
+     .                                                       gyc(ix,iy)
+              endif
+
+              v2ce(ix,iy,ifld) = - 0.5 * temp1
+     .             / ( btot(ix,iy) + btot(ix2,iy) )
+              v2cb(ix,iy,ifld) =(cfcurv*( 0.5*(tiv(ix,iy)+tiv(ix,iy1)) +
+     .                 mi(ifld)*up(ix,iy,ifld)**2 )*curvrb2(ix,iy) +
+     .                     cfgradb*0.5*( tiv(ix,iy)+tiv(ix,iy1) )*
+     .                            gradb2(ix,iy))/qion
+              ve2cb(ix,iy) = -(cfcurv*0.5*(tev(ix,iy)+tev(ix,iy1))*
+     .                                                 curvrb2(ix,iy) +
+     .                          cfgradb*0.5*(tev(ix,iy)+tev(ix,iy1))*
+     .                            gradb2(ix,iy))/qe
+              v2cd(ix,iy,ifld) = temp2
+     .                    / ((btot(ix,iy)+btot(ix2,iy))*qion*
+     .                           (ni(ix,iy,ifld)+ni(ix2,iy,ifld)))
+              ve2cd(ix,iy,1) = -temp3
+     .                    / ((btot(ix,iy)+btot(ix2,iy))*qe*
+     .                           (ni(ix,iy,ifld)+ni(ix2,iy,ifld)))
+              q2cd(ix,iy,ifld) = (priv(ix,iy,ifld)+priv(ix,iy1,ifld))*temp4
+     .                    / ( (btot(ix,iy)+btot(ix2,iy))*qion )
+
+c...  Calculate plate electr diamag flux used to find sheath potential
+              do jx = 1, nxpt
+                 if (ix==ixlb(jx) .and. ixmnbcl==1) then
+                 # use ix=ixlb+1 values to avoid BC variations
+                    v2dia = -0.5*( gpey(ixlb(jx)+1,iy)+gpey(ixlb(jx)+1,iy1) ) /
+     .                          ( btot(ixlb(jx)+1,iy)*qe*ne(ixlb(jx)+1,iy) )
+                    fdiaxlb(iy,jx) = ne(ixlb(jx)+1,iy) * sx(ixlb(jx),iy) *
+     .                              v2dia * rbfbt(ixlb(jx)+1,iy)
+                 endif
+                 if (ix==ixrb(jx) .and. ixmxbcl==1) then
+                    v2dia = -0.5*( gpey(ixrb(jx),iy)+gpey(ixrb(jx),iy1) ) /
+     .                          ( btot(ixrb(jx),iy)*qe*ne(ixrb(jx),iy) )
+                    fdiaxrb(iy,jx) = ne(ixrb(jx),iy) * sx(ixrb(jx),iy) *
+     .                              v2dia * rbfbt(ixrb(jx),iy)
+                 endif
+              enddo  # end do-loop over nxpt mesh regions
+
+              v2rd(ix,iy,ifld) = - 2. * gprx(ix,iy) /
+     .           ( btot(ix,iy)/(etaper(ix,iy)*rbfbt2(ix,iy)) +
+     .             btot(ix2,iy)/(etaper(ix2,iy)*rbfbt2(ix2,iy)) )
+              v2dd(ix,iy,ifld) = - 2. * difpr2(ifld) * gprx(ix,iy) /
+     .                                ( pr(ix2,iy)/rbfbt(ix2,iy) +
+     .                                  pr(ix,iy)/rbfbt(ix,iy) ) -
+     .            2. * (fcdif*difni2(ifld) + dif2_use(ix,iy,ifld)) * 
+     .                               (ni(ix2,iy,ifld)-ni(ix,iy,ifld)) /
+     .                      (ni(ix2,iy,ifld)/(rbfbt(ix2,iy)*gx(ix2,iy))+
+     .                          ni(ix,iy,ifld)/(rbfbt(ix,iy)*gx(ix,iy)))
+              v2(ix,iy,ifld) = cf2dd * bfacxrozh(ix,iy) *
+     .                                 v2cd(ix,iy,ifld) + 
+     .                         cfrd  * v2rd(ix,iy,ifld) +
+     .                                 v2dd(ix,iy,ifld) + 
+     .                         cf2ef * v2ce(ix,iy,ifld) +
+     .                         cf2bf * v2cb(ix,iy,ifld)
+c ...         Compute v2 for v2x_gradx_P eng terms; cf2dd+cf2bf=1 or 0
+              v2xgp(ix,iy,ifld) =  0.5*(rbfbt(ix,iy)+rbfbt(ix2,iy)) * (
+     .                 (cf2dd+cf2bf) * bfacxrozh(ix,iy) *
+     .                                 v2cd(ix,iy,ifld) + 
+     .                         cfrd  * v2rd(ix,iy,ifld) +
+     .                                 v2dd(ix,iy,ifld) + 
+     .                         cf2ef * v2ce(ix,iy,ifld) )
+         if (isnonog.eq.1 .and. iy.le.ny) then
+c            grdnv = ( 1/( fym (ix,iy,1)/ni(ix2,iy1,ifld) +
+c     .                    fy0 (ix,iy,1)/ni(ix2,iy ,ifld) +
+c     .                    fyp (ix,iy,1)/ni(ix2,iy2,ifld) +
+c     .                    fymx(ix,iy,1)/ni(ix ,iy1,ifld) +
+c     .                    fypx(ix,iy,1)/ni(ix, iy2,ifld) ) -
+c     .                1/( fym (ix,iy,0)/ni(ix ,iy1,ifld) +
+c     .                    fy0 (ix,iy,0)/ni(ix ,iy ,ifld) +
+c     .                    fyp (ix,iy,0)/ni(ix ,iy2,ifld) + 
+c     .                    fymx(ix,iy,0)/ni(ix4,iy1,ifld) +
+c     .                    fypx(ix,iy,0)/ni(ix6,iy2,ifld) ) )
+c     .                                                 / dxnog(ix,iy)
+cc            grdnv = ( exp( fym (ix,iy,1)*log(ni(ix2,iy1,ifld)) + 
+cc     .                     fy0 (ix,iy,1)*log(ni(ix2,iy ,ifld)) +
+cc     .                     fyp (ix,iy,1)*log(ni(ix2,iy2,ifld)) +
+cc     .                     fymx(ix,iy,1)*log(ni(ix ,iy1,ifld)) +
+cc     .                     fypx(ix,iy,1)*log(ni(ix, iy2,ifld)) ) 
+cc     .               -exp( fym (ix,iy,0)*log(ni(ix ,iy1,ifld)) + 
+cc     .                     fy0 (ix,iy,0)*log(ni(ix ,iy ,ifld)) +
+cc     .                     fyp (ix,iy,0)*log(ni(ix ,iy2,ifld)) +
+cc     .                     fymx(ix,iy,0)*log(ni(ix4,iy1,ifld)) +
+cc     .                     fypx(ix,iy,0)*log(ni(ix6,iy2,ifld)) ) ) /
+cc     .                                                    dxnog(ix,iy)
+            grdnv = (    ( fym (ix,iy,1)*log(ni(ix2,iy1,ifld)) + 
+     .                     fy0 (ix,iy,1)*log(ni(ix2,iy ,ifld)) +
+     .                     fyp (ix,iy,1)*log(ni(ix2,iy2,ifld)) +
+     .                     fymx(ix,iy,1)*log(ni(ix ,iy1,ifld)) +
+     .                     fypx(ix,iy,1)*log(ni(ix, iy2,ifld)) ) 
+     .                  -( fym (ix,iy,0)*log(ni(ix ,iy1,ifld)) + 
+     .                     fy0 (ix,iy,0)*log(ni(ix ,iy ,ifld)) +
+     .                     fyp (ix,iy,0)*log(ni(ix ,iy2,ifld)) +
+     .                     fymx(ix,iy,0)*log(ni(ix4,iy1,ifld)) +
+     .                     fypx(ix,iy,0)*log(ni(ix6,iy2,ifld)) ) ) /
+     .                                                      dxnog(ix,iy)
+            vytan(ix,iy,ifld)=(fcdif*difni(ifld) + dif_use(ix,iy,ifld)) *
+     .                                      (grdnv/cos(angfx(ix,iy)) - 
+     .                       (log(ni(ix2,iy,ifld)) - log(ni(ix,iy,ifld)))
+     .                                                 * gxf(ix,iy) )
+            if (islimon.eq.1.and. ix.eq.ix_lim.and. iy.ge.iy_lims) then
+              vytan(ix,iy,ifld) = 0.
+            endif
+            if (nxpt==2 .and. ix==ixrb(1)+1 .and. ixmxbcl==1) then
+c             non-physical interface between upper target plates for dnull
+              vytan(ix,iy,ifld) = 0.
+            endif
+         endif
+
+         end do
+        end do
+         do ix = i1, i6
+            vy(ix,ny+1,ifld) = 0.0   
+         end do
+        else    # test on zi > 1.e-10 to skip whole loop
+        endif
+        end do  # Giant loop over ifld (species)
+
+
+c ... Need to calculate new currents (fqp) after saving old & before frice,i
+      if(isphion+isphiofft .eq. 1)  call calc_currents
+
+c ... Add anomalous perp vis vy using calc_currents result - awkward,change
+      if (cfvyavis > 0.) then
+        do ifld = 1, 1  # nfsp  # only good for ifld=1
+          do iy = max(j1,2), min(j5,ny-1)
+            do ix = max(i1,2), min(i6,nx-1)
+              vyavis(ix,iy,ifld) = fqya(ix,iy)*2/(
+     .                  qe*(niy1(ix,iy,1)+niy0(ix,iy,1))*sy(ix,iy) )
+              vy(ix,iy,ifld) = vy(ix,iy,ifld) + cfvyavis*vyavis(ix,iy,ifld)
+            enddo
+          enddo
+        enddo
+      endif          
+
+
+      END SUBROUTINE calc_driftterms
+
+

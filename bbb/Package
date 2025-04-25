@@ -5,10 +5,10 @@ VDF = bbb.v
 
 NVDF = ../com/com.v
 
-SM = boundary.m convert.m geometry.m griddubl.m pandf.m \
+SM = pandf_boundary.m convert.m geometry.m griddubl.m pandf.m \
      pandf_gas_energy.m	pandf_jacobian.m pandf_plasma_continuity.m \
      pandf_gas_continuity.m	pandf_plasma_momentum.m pandf_plasma_energy.m \
-     oderhs.m odesetup.m odesolve.m potencur.m turbulence.m \
+     oderhs.m odesetup.m odesolve.m pandf_potencur.m turbulence.m \
      ext_neutrals.m
 
 SC = exmain.c

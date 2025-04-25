@@ -24,8 +24,8 @@ $(BUILDDIR)/apipydep: $(BUILDDIR)/compydep api/apifcn.F api/apip93.F api/apisorc
 	$(FORTHON) -a $(INSTALLARGS)  -a $(FCOMP) $(DEBUG) --interfacefile api/api.v -d com -f api/apifcn.F api api/apip93.F api/apisorc.F api/fimp.F api/fmombal.F api/inelrates.F api/sputt.F
 	touch $@
 
-$(BUILDDIR)/bbbpydep: $(BUILDDIR)/compydep bbb/boundary.F bbb/convert.F bbb/geometry.F bbb/griddubl.F bbb/oderhs.F bbb/pandf.F bbb/pandf_gas_energy.F	bbb/pandf_jacobian.F bbb/pandf_plasma_continuity.F bbb/pandf_gas_continuity.F bbb/pandf_plasma_momentum.F bbb/pandf_plasma_energy.F bbb/odesetup.F bbb/odesolve.F bbb/potencur.F bbb/turbulence.F bbb/ext_neutrals.F bbb/bbb.v com/com.v
-	$(FORTHON) -a $(INSTALLARGS)  -a $(FCOMP) $(DEBUG) --interfacefile bbb/bbb.v --macros com/com.v $(READLINE) -d com -f bbb/boundary.F bbb bbb/convert.F bbb/geometry.F bbb/griddubl.F bbb/pandf.F bbb/pandf_gas_energy.F	bbb/pandf_jacobian.F bbb/pandf_plasma_continuity.F bbb/pandf_gas_continuity.F bbb/pandf_plasma_momentum.F bbb/pandf_plasma_energy.F bbb/oderhs.F bbb/odesetup.F bbb/odesolve.F bbb/potencur.F bbb/turbulence.F bbb/ext_neutrals.F
+$(BUILDDIR)/bbbpydep: $(BUILDDIR)/compydep bbb/pandf_boundary.F bbb/convert.F bbb/geometry.F bbb/griddubl.F bbb/oderhs.F bbb/pandf.F bbb/pandf_gas_energy.F	bbb/pandf_jacobian.F bbb/pandf_plasma_continuity.F bbb/pandf_gas_continuity.F bbb/pandf_plasma_momentum.F bbb/pandf_plasma_energy.F bbb/odesetup.F bbb/odesolve.F bbb/pandf_potencur.F bbb/turbulence.F bbb/ext_neutrals.F bbb/bbb.v com/com.v
+	$(FORTHON) -a $(INSTALLARGS)  -a $(FCOMP) $(DEBUG) --interfacefile bbb/bbb.v --macros com/com.v $(READLINE) -d com -f bbb/pandf_boundary.F bbb bbb/convert.F bbb/geometry.F bbb/griddubl.F bbb/pandf.F bbb/pandf_gas_energy.F	bbb/pandf_jacobian.F bbb/pandf_plasma_continuity.F bbb/pandf_gas_continuity.F bbb/pandf_plasma_momentum.F bbb/pandf_plasma_energy.F bbb/oderhs.F bbb/odesetup.F bbb/odesolve.F bbb/pandf_potencur.F bbb/turbulence.F bbb/ext_neutrals.F
 	touch $@
 
 $(BUILDDIR)/ppppydep: $(BUILDDIR)/compydep $(BUILDDIR)/bbbpydep ppp/parallel.F90 ppp/omp_parallel.F90 ppp/debug_parallel.F90 ppp/ppp.v com/com.v bbb/bbb.v
