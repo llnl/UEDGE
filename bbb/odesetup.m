@@ -6620,6 +6620,9 @@ c ---------------------------------------------------------------------c
       Use(Rccoef)              # isoutwall
       Use(Coefeq)              # oldseec, override, cftiexclg
       Use(Flags)               # iprint
+      Use(ParallelEval)
+      Use(MCN_sources)
+      Use(Imprad)
 c_mpi      Use(MpiVars)  #module defined in com/mpivarsmod.F.in
 
       integer ifake  #forces Forthon scripts to put implicit none above here
@@ -6710,6 +6713,32 @@ c   Check model switches for UEDGE updates/bugs
             write(*,*) "Please change cftiexclg=1 when not using a separate"
             write(*,*) "atom energy equation. "
             write(*,*) ""
+      endif
+
+c...    TODO: checks used to be on nigmx, a local parameter set in
+c...        pandf while these checks were located there. Checks moved
+c...        here to save time, nigmx obsolete. Probably need a more
+c...        elegant way to control species array sizes...
+      if (ngsp > 100 .or. nisp > 100) then
+         call xerrab("***PANDF in oderhs.m: increase nigmx, recompile")
+      endif
+
+c... Roadblockers for  call to pandf through openmp structures (added by J.Guterl)
+      if (
+     .  (isimpon.gt.0 .and. 
+     .      ((isimpon.ne.6) .and. (isimpon.ne.2) .and. 
+     .          (isimpon.ne.7))
+     .  ) .and. (ParallelJac.gt.0 .or. ParallelPandf1.gt.0)) then
+          call xerrab('Only isimpon=0, 2, 6, or 7 is validated with openmp.
+     .      Contact the UEDGE team to use other  options with openmp.')
+      endif
+
+      if (
+     .      (ismcnon.gt.0) .and. 
+     .      (ParallelJac.gt.0 .or. ParallelPandf1.gt.0)
+     .  ) then
+            call xerrab('Only ismcnon=0 is validated with openmp.
+     .      Contact the UEDGE team to use other options with openmp.')
       endif
 
 

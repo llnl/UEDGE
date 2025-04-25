@@ -4834,172 +4834,22 @@ c    yldot is the RHS of ODE solver or RHS=0 for Newton solver (NKSOL)
 *  -- input arguments
       integer xc, yc, neq      
       real time, yl(*),yldot(*)
-
-*  -- set local array dimension
-      integer nigmx
-      parameter (nigmx=100)
-
-*  -- slocal variables
-      integer ifld, jfld, zn, k, k1, k2, jx, ixt, ixt1, ixr, ixr1, iixt,
-     .        ixt0
-      real fxet, fxit, qr, vt0, vt1, vtn, vtn2, 
-     .     tsfe, tsjf, niavex, niavey, teave, tiave, tgavex,
-     .     zeffave, noavex, noavey, tiavey, tgavey, rrfac, visxtmp,
-     .     vttn, vttp, neavex, feexflr, feixflr,
-     .     naavex,naavey,nuelmolx,nuelmoly,fniycboave, corecells, sycore
-      real nevol, ngvol, kionz, krecz, kcxrz, kionm, krecm, kcxrm, nzbg,
-     .     niz_floor, hflux, zflux, psorv, kionz0, pscx0, pxri, kcxrzig,
-     .     nizm_floor, argx, massfac, ae, geyym, geyy0, geyyp, dgeyy0,
-     .     dgeyy1, te_diss, wallfac, z1fac, bpolmin, rt2nus, epstmp, tv2
-      real awoll,awll
-      integer izch, ihyd, iimp, jg, jz, nsm1, ifld_fcs, ifld_lcs
-      real uuv, ne_sgvi, nbarx, argth, fac_rad, ffyi, ffyo
-      real grdnv, qflx, qfly, cshx, cshy, qshx, qshy, lxtec, lxtic
-      real lmfpn, lmfppar, lmfpperp
-      real temp1, temp2, temp3, temp4, cutlo3, lambd_ci, lambd_ce
-      real upxavep1,upxave0,upxavem1,upf0,upfm1
-      real teev,nexface,loglmcc,nmxface
-      integer iy1, ixmp2, iyp1, iyp2, iym1, 
-     .        methnx, methny, iy2, i2pwr, i5pwr, j2pwr, j5pwr,
-     .        iysepu, ixpt1u, ixpt2u
-      integer iy0, jy, jylo, jyhi, iy_min, iy_max
-      real diffustotal
-      real difnimix, kyemix, kyimix, v2dia, bscalf, bpfac
-      real rdum,rdumaray(1),afqp,ltmax,lmfpe,lmfpi,flxlimf
-      real rdumx,rdumy,dr1,dr2,qion
-      real b_ctr,dbds_m,dbds_p,eta_h0,eta_hm,eta_hp,drag_1,drag_2,
-     .     drag_3,mf_path,nu_ii,frac_col,fniy_recy
-      real thetacc,dupdx,dupdy
-      real dndym1,dndy0,dndyp1,d2ndy20,d2ndy2p1,d3ndy3
-      real dtdym1,dtdy0,dtdyp1,d2tdy20,d2tdy2p1,d3tdy3,nhi_nha
-      integer idum, idumaray(1)
-      real tsimpfe, tsimp, tsnpg, ueb
-      integer impflag
-      # former Aux module variables
-      integer ix,iy,igsp,iv,iv1,iv2,iv3,ix1,ix2,ix3,ix4,ix5,ix6
-      real tv,t0,t1,t2,a,t1old,t1new,t2old,t2new
-      # new helper variables
-      real up1cc, upgcc, vycc, v2cc
-cnxg      data igs/1/
-
-      Use(Dim)      # nx,ny,nhsp,nusp,nzspt,nzsp,nisp,ngsp,nxpt
-      Use(Xpoint_indices)      # ixlb,ixpt1,ixpt2,ixrb,iysptrx1,iysptrx2
-                               # iysptrx
-      Use(Timing)   # istimingon,ttotfe,ttotjf,ttimpfe,ttimpjf,ttnpg
-      Use(Share)    # nxpt,nxomit,geometry,nxc,cutlo,islimon,ix_lim,iy_lims
-                    # istabon,isudsym
-      Use(Math_problem_size)   # neqmx,numvar
-      Use(Phyvar)   # pi,me,mp,ev,qe,rt8opi
-      Use(UEpar)    # methe,methu,methn,methi,methg,concap,lnlam,
-                    # convis,icnuiz,icnucx,cnuiz,cnucx,isrecmon,
-                    # ngbackg,ingb,eion,ediss,afix,coef,ce,ci,
-                    # dp1,qfl,csh,qsh,mfl,msh,cs,fxe,ctaue,fxi,ctaui,
-                    # zcoef,coef1,nurlxu,isphiofft,isintlog,isgxvon
-                    # isgpye,frnnuiz,nzbackg,inzb,nlimix,nlimiy,
-                    # isofric,isteaven
-                    # isnionxy,isuponxy,isteonxy,istionxy,isngonxy,isphionxy,
-                    # isupon,isteon,istion,isphion
-      Use(Aux)      # ixmp
-      Use(Coefeq)
-      Use(Bcond)    # albedoo,albedoi,isfixlb,isfixrb
-                    # xcnearlb,xcnearrb,openbox
-      Use(Parallv)  # nxg,nyg
-      Use(Rccoef)   # recylb,recyrb,recycw,recycz,sputtr
-      Use(Fixsrc)
-      Use(Selec)    # i1,i2,i3,i4,i5,i6,i7,i8,xlinc,xrinc,ixs1,
-                    # j1,j1p,j2,j2p,j3,j4,j5,j6,j5p,j6p,j7,j8,j5m
-      Use(Comgeo)   # isxptx,isxpty
-      Use(Noggeo)   # fym,fy0,fyp,fymx,fypx,angfx,fxm,fx0,fxp,fxmy,fxpy
-      Use(Compla)   # znucl,rtaux,rtauy,rtau,rt_scal
-      Use(Comflo)
-      Use(Conduc)   # lmfplim
-      Use(Rhsides)
-      Use(Indexes)  
-      Use(Ynorm)    # isflxvar,nnorm,ennorm,fnorm,n0,n0g
-      Use(Poten)    # bcee,bcei,cthe,cthi
-      Use(Comtra)   # parvis,travis,difni,difnit,difpr,difni2,
-                    # difpr2,vcony,flalfe,flalfi,flgam,kxe,kxecore,
-                    # kye,kyet,kxi,kxicore,kxn,kyi,kyit,kyn,feqp,
-                    # flalfgx,flalfgy,flalfv,flalfvgx,flalfvgy,
-                    # flalftgx,flalftgy,alfeqp,facbni,facbni2,facbee,
-                    # facbei,isbohmcalc,diffusivity,diffusivwrk,
-                    # diffusivloc,isdifxg_aug,isdifyg_aug,sigvi_floor,
-                    # facbup
-      Use(Bfield)   # btot,rbfbt,rbfbt2
-      Use(Locflux)
-      Use(Wkspace)
-      Use(Gradients)
-      Use(Imprad)   # isimpon,nzloc,impradloc,prad,pradz,na,ntau,nratio,
-                    # afrac,atau,ismctab,rcxighg,pwrze
-
-      Use(Volsrc)   # pwrsore,pwrsori,volpsor
-      Use(Model_choice)   # iondenseqn
-      Use(Time_dep_nwt)   # ylodt
-      Use(Cfric)          # frice,frici
-      Use(Turbulence)     # isturbnloc,isturbcons,diffuslimit,diffuswgts
-      Use(Turbulence_diagnostics)   # chinorml,chinormh
-      Use(MCN_dim)
-      Use(MCN_sources)	  # uesor_ni,uesor_up,uesor_ti,uesor_te
-      Use(Ext_neutrals)          # isextneuton, extneutopt
-      Use(PNC_params)            # dtneut, dtold
-      Use(PNC_data)              # ni_pnc, etc.
-      Use(Reduced_ion_interface) # misotope,natomic
-      Use(Indices_domain_dcl)    # ixmxbcl
-      Use(Indices_domain_dcg)    # ndomain
-      Use(Npes_mpi)              # mype
-      Use(RZ_grid_info)  		 # bpol
-      Use(Interp)				 # ngs, tgs 
-      Use(ParallelEval)          # ParallelJac,ParallelPandf1
       Use(PandfTiming)
-      Use(Jacobian_restore)
-
-*  -- procedures for atomic and molecular rates --
-      integer zmax,znuc
-      real dene,denz(0:1),radz(0:1)
-      real rsa, rra, rqa, rcx, emissbs, erl1, erl2, radneq, radimpmc
-      real radmc, svdiss, vyiy0, vyiym1, v2ix0, v2ixm1, sv_crumpet
-      external rsa, rra, rqa, rcx, emissbs, erl1, erl2, radneq, radimpmc
-      real tgupyface, ngupyface, n1upyface, ng2upyface
-      external radmc, svdiss, sv_crumpet
-      real tick,tock
+      Use(MCN_sources)
+      Use(UEpar)
+      Use(ParallelEval)
+      real tick,tock, tsfe, tsjf, ttotfe, ttotjf
       external tick, tock
-	  
-ccc      save
-*  -- procedures --
-      real ave, etaper, interp_yf, interp_xf
-      ave(t0,t1) = 2*t0*t1 / (cutlo+t0+t1)
-      etaper(ix,iy) = 3.234e-9*loglambda(ix,iy)/(max(te(ix,iy),temin*ev)
-     .                                          /(1000.*ev))**(1.5)
-      interp_yf(ix,iy,t0,t1) = (t0*gy(ix,iy) + t1*gy(ix,iy+1)) /
-     .                                       (gy(ix,iy)+gy(ix,iy+1))
-      interp_xf(ix,iy,t0,t1) =(t0*gx(ix,iy) + t1*gx(ixp1(ix,iy),iy)) /
-     .                                (gx(ix,iy)+gx(ixp1(ix,iy),iy))
 
-c   TODO: Move checks to initialization to avoid checking every loop
-c  Check array sizes
-      if (ngsp > nigmx .or. nisp > nigmx) then
-         call xerrab("***PANDF in oderhs.m: increase nigmx, recompile")
-      endif
 c... Timing of pandf components (added by J. Guterl)
         if (TimingPandf.gt.0
-     . .and. yl(neq+1) .lt. 0 .and. ParallelPandf1.eq.0) then
+     .      .and. yl(neq+1) .lt. 0 .and. ParallelPandf1.eq.0
+     .) then
         TimingPandfOn=1
-        else
+      else
         TimingPandfOn=0
-        endif
-        if (TimingPandfOn.gt.0) TimePandf=tick()
-c... Roadblockers for  call to pandf through openmp structures (added by J.Guterl)
-      if ((isimpon.gt.0 .and. ((isimpon.ne.6) .and. (isimpon.ne.2) .and. 
-     .(isimpon.ne.7))) .and. (ParallelJac.gt.0 .or. ParallelPandf1.gt.0)) then
-      call xerrab('Only isimpon=0, 2, 6, or 7 is validated with openmp.
-     .Contact the UEDGE team to use other  options with openmp.')
       endif
-
-      if ((ismcnon.gt.0) .and. (ParallelJac.gt.0 .or. ParallelPandf1.gt.0)) then
-      call xerrab('Only ismcnon=0 is validated with openmp.
-     .Contact the UEDGE team to use other options with openmp.')
-      endif
-
+      if (TimingPandfOn.gt.0) TimePandf=tick()
 
 ************************************************************************
 *  -- initialization --
@@ -5020,12 +4870,12 @@ c ... Get initial value of system cpu timer.
 ************************************************************************
 c... First, we convert from the 1-D vector yl to the plasma variables.
 ************************************************************************
-         if (TimingPandfOn.gt.0) TimeConvert0=tick()
-         call convsr_vo (xc, yc, yl)  # pre 9/30/97 was one call to convsr
-         if (TimingPandfOn.gt.0) TotTimeConvert0=TotTimeConvert0+tock(TimeConvert0)
-         if (TimingPandfOn.gt.0) TimeConvert1=tick()
-         call convsr_aux (xc, yc)
-         if (TimingPandfOn.gt.0) TotTimeConvert1=TotTimeConvert1+tock(TimeConvert1)
+      if (TimingPandfOn.gt.0) TimeConvert0=tick()
+      call convsr_vo (xc, yc, yl)  # pre 9/30/97 was one call to convsr
+      if (TimingPandfOn.gt.0) TotTimeConvert0=TotTimeConvert0+tock(TimeConvert0)
+      if (TimingPandfOn.gt.0) TimeConvert1=tick()
+      call convsr_aux (xc, yc)
+      if (TimingPandfOn.gt.0) TotTimeConvert1=TotTimeConvert1+tock(TimeConvert1)
 
       call calc_diffusivities
 
@@ -5038,23 +4888,22 @@ c... First, we convert from the 1-D vector yl to the plasma variables.
 ************************************************************************
 ccc      if(isphion+isphiofft .eq. 1)  call calc_currents
 
-        call calc_elec_velocities
+      call calc_elec_velocities
      
+      call calc_volumetric_sources(xc, yc)
 
-        call calc_volumetric_sources(xc, yc)
+      call calc_viscosities
 
-        call calc_viscosities
+      call calc_plasma_heatconductivities
 
-        call calc_plasma_heatconductivities
+      call calc_ei_equipartition
 
-        call calc_ei_equipartition
-
-        call calc_gas_heatconductivities
+      call calc_gas_heatconductivities
 c ... Call routine to evaluate gas energy fluxes
 ****************************************************************
       call engbalg
 
-        call calc_ion_transport
+      call calc_ion_transport
 
 c----------------------------------------------------------------------c
 c          SCALE SOURCE TERMS FROM MONTE-CARLO-NEUTRALS MODEL
@@ -5065,28 +4914,24 @@ c     evaluated.  Since they scale with fnix at the divertor plates,
 c     the call to scale_mcn must occur AFTER fnix has been calculated.
 
 
-      if (ismcnon .ne. 0) then
-c 	     write(*,*) 'TEST ISMCNON START: ismcnon=',ismcnon
-c         call scale_mcn
-         call scale_mcnsor
-      endif
+      if (ismcnon .ne. 0) call scale_mcnsor
 c----------------------------------------------------------------------c
 
-        call calc_ion_particle_residuals
+      call calc_ion_particle_residuals
 *********************************************************************
 c  Here we do the neutral gas diffusion model
 c  The diffusion is flux limited using the thermal flux
 **********************************************************************
 
-ccc         if(isngon .eq. 1) call neudif
+      call calc_ion_momentum(xc, yc)
 
-        call calc_ion_momentum(xc, yc)
-        call calc_momentum_residuals()
+      call calc_momentum_residuals()
 
-        call calc_ion_energy
+      call calc_ion_energy
 
-        call calc_ion_energy_residuals(xc, yc)
-        call calc_rhs(yldot)
+      call calc_ion_energy_residuals(xc, yc)
+
+      call calc_rhs(yldot)
 
 c  POTEN calculates the electrostatic potential, and BOUNCON calculates the 
 c  equations for the boundaries. For the vodpk solver, the B.C. are ODEs 
