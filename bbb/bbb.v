@@ -2856,12 +2856,6 @@ del_smoz  	real		#maximum absolute change in vertical ion momentum source
 del_sei  	real		#maximum absolute change in ion energy source 
 del_see    	real		#maximum absolute change in electron energy source
 
-***** Save_terms:
-#Arrays to hold unperturbed values of particle-source terms
-psorold(1:nisp)		_real	[part/s]   +threadprivate # unpert. ioniz. sources
-psorxrold(1:nisp)	_real	[part/s]   +threadprivate # unpert. recom. & cx sources
-msorold(1:nisp)		_real	[kg-m/s**2]   +threadprivate # unpert. ioniz. mom. sources
-msorxrold(1:nisp)	_real	[kg-m/s**2]   +threadprivate # unpert. recom. & cx mom. sources
 
 ***** Time_dep_nwt:
 #Old variables and time step for Newton iteration
@@ -2981,6 +2975,33 @@ lenplufac      integer  /100/ # fudge factor to multiply neq by to get an
 lenplumx       integer        # maximum number of nonzeros in the
                               # factored preconditioner matrix
                               # lenplumx = nnzmx + lenplufac*neq.
+
+
+***** Jacobian_restore:
+#Temporary terms for resetting the Jacobian after perturbation
+pradold         real    /0/      +threadprivate # Temp storage for 
+eeliold         real    /0/      +threadprivate # Temp storage for 
+erlizold        real    /0/      +threadprivate # Temp storage for 
+erlrcold        real    /0/      +threadprivate # Temp storage for
+psordisold      real    /0/  +threadprivate # Temp storage for
+psorrgold(100) _real    /100*0/  +threadprivate # Temp storage for
+psorcxgold(100) _real    /100*0/  +threadprivate # Temp storage for
+psorgold(100) _real    /100*0/  +threadprivate # Temp storage for
+nuizold(100) _real    /100*0/  +threadprivate # Temp storage for
+nucxold(100) _real    /100*0/  +threadprivate # Temp storage for
+nurcold(100) _real    /100*0/  +threadprivate # Temp storage for
+nuixold(100) _real    /100*0/  +threadprivate # Temp storage for
+nucxiold(100) _real    /100*0/  +threadprivate # Temp storage for
+nueliold(100) _real    /100*0/  +threadprivate # Temp storage for
+nuelgold(100) _real    /100*0/  +threadprivate # Temp storage for
+pwribkgold        real    /0/      +threadprivate # Temp storage for
+pwrebkgold        real    /0/      +threadprivate # Temp storage for
+psorold(1:nisp)		_real	[part/s]   +threadprivate # unpert. ioniz. sources
+psorxrold(1:nisp)	_real	[part/s]   +threadprivate # unpert. recom. & cx sources
+msorold(1:nisp)		_real	[kg-m/s**2]   +threadprivate # unpert. ioniz. mom. sources
+msorxrold(1:nisp)	_real	[kg-m/s**2]   +threadprivate # unpert. recom. & cx mom. sources
+
+
 ***** Ilutv:
 #Control parameters for ILUT preconditioner
 tolilut        real   /1.e-3/ # threshold tolerance for ILUT.

@@ -482,7 +482,7 @@ cc      call gallot("Rccoef",0)
       call gchange("Oldpla",0)
       call gallot("Rhsides",0)
       call gchange("MCN_sources",0)
-      call gallot("Save_terms",0)
+      call gallot("Jacobian_restore",0)
       call gchange("Conduc",0)   # preserves nuiz, eeli, etc for icnuiz=2
       call gallot("Locflux",0)
       call gallot("Gradients",0)
@@ -805,7 +805,7 @@ c-----------------------------------------------------------------------
       Use(Jacobian) # isjacstnlon
       Use(Rccoef)   # feixextlb,rb;feiyexti,o
       Use(Rhsides)  # psorc, psorxr, msor, msorxr
-      Use(Save_terms) # psorcold, etc
+      Use(Jacobian_restore) # psorcold, etc
       Use(Cut_indices)	# ixcut1,iycut1,ixcut2,iycut2,ixcut3,iycut3
                         # ixcut4,iycut4
       Use(Gradients) #eymask1d
