@@ -172,7 +172,13 @@ c            write(*,*) parvis
       Use(Indices_domain_dcl)
       Use(Xpoint_indices)
       Use(Turbulence)
+      Use(Imprad)
       
+c ... Set variable controlling upper limit of species loops that
+c     involve ion-density sources, fluxes, and/or velocities.
+      nfsp = nisp
+      if (isimpon .eq. 3 .or. isimpon .eq. 4) nfsp = nhsp
+
       if ( (xc .lt. 0) .or. 
      .     ((0<=yc).and.(yc-yinc<=0)).and.isjaccorall==1 ) then  
                                               # use full ix range near yc=0
@@ -949,7 +955,7 @@ c ... If isybdrywd = 1, make vey diffusive, just like vy
 
       END SUBROUTINE calc_elec_velocities
 
-      SUBROUTINE calc_friction(xc)
+      SUBROUTINE calc_friction(xc, yc)
       IMPLICIT NONE
       Use(Imprad)
       Use(Selec)
@@ -970,13 +976,38 @@ c ... If isybdrywd = 1, make vey diffusive, just like vy
       Use(Timing)
       Use(Bfield)
       Use(Bcond)
-      integer xc
+      Use(Jacobian_restore)
+      integer xc, yc
       integer iy, ix, ix2, ix1, jx, ifld, ixt0, ixt, ixt1
       real nbarx, ltmax, lmfpe, flxlimf, pondomfpare_use, nexface, 
      .cutlo3, tsimp, argx, ueb
       real tick
       cutlo3 = cutlo**0.3
     
+ 
+c ... Save values returned by Hirshman mombal for Jacobian calc. to
+c ... minimize calls - restore the "m" or ix-1 values at the end of pandf
+c ... The Jacobian ix loop can then be reduced to only include ix-1 and ix
+c ... Suffix "o" refers to "old" value at ix, and suffix "om" means "old" 
+c ... value at ix-1.
+
+      if (xc.ge.0 .and. yc.ge.0) then
+         ix1 = ixm1(xc,yc)
+         fqpom = fqp(ix1,yc)
+         friceom = frice(ix1,yc)
+         upeom = upe(ix1,yc)
+         fqpo = fqp(xc,yc)
+         friceo = frice(xc,yc)
+         upeo = upe(xc,yc)
+         do ifld = 1, nfsp
+            friciom(ifld) = frici(ix1,yc,ifld)    # dimension req. nfsp<101
+            upiom(ifld) = upi(ix1,yc,ifld)
+            uupom(ifld) = uup(ix1,yc,ifld)
+            fricio(ifld) = frici(xc,yc,ifld)
+            upio(ifld) = upi(xc,yc,ifld)
+            uupo(ifld) = uup(xc,yc,ifld)
+         enddo
+      endif
 
 c ... Calc friction forces from Braginskii; no individ chg-states;isimpon < 5.
 
@@ -1211,6 +1242,7 @@ c ..          switch to right plate(s)
       Use(Gradients)
       Use(Cfric)
       Use(Comflo)
+      Use(Jacobian_restore)
       integer xc, yc
       integer iy, ix, ifld, igsp, j2pwr, j5pwr, i2pwr, i5pwr, 
      .  ix1, ix2, jg, ifld_lcs, jz, ifld_fcs, izch,  z1fac, 
@@ -1228,6 +1260,30 @@ c ..          switch to right plate(s)
 *  ---------------------------------------------------------------------
 *  Coefficients for the source terms.
 *  ---------------------------------------------------------------------
+
+c...  Initialize save-variables if this is a Jacobian (xc,yc > -1)
+         if (xc .ge. 0 .and. yc .ge. 0) then
+            psordisold = psordis(xc,yc, ifld)
+cc            write(*,*) 'Just after psordisold; xc,yc=',xc,yc
+            do ifld = 1, nfsp
+               psorold(ifld) = psorc(xc,yc,ifld)
+               psorxrold(ifld) = psorxr(xc,yc,ifld)
+               msorold(ifld) = msor(xc,yc,ifld)
+               msorxrold(ifld) = msorxr(xc,yc,ifld)
+               nucxiold(ifld) = nucxi(xc,yc,ifld)
+               nueliold(ifld) = nueli(xc,yc,ifld)
+            enddo
+            do igsp = 1, ngsp
+               nucxold(igsp) = nucx(xc,yc,igsp)
+               nurcold(igsp) = nurc(xc,yc,igsp)
+               nuizold(igsp) = nuiz(xc,yc,igsp)
+               nuixold(igsp) = nuix(xc,yc,igsp)
+               nuelgold(igsp) = nuelg(xc,yc,igsp)
+               psorgold(igsp) = psorgc(xc,yc,igsp)
+               psorrgold(igsp) = psorrgc(xc,yc,igsp)
+               psorcxgold(igsp) = psorcxgc(xc,yc,igsp)
+            enddo
+         endif
 
       do iy = j2, j5
          do ix = i2, i5
@@ -4684,10 +4740,79 @@ c  the perturbed variables are reset below to get Jacobian correct
 
       END SUBROUTINE calc_rhs
 
+      SUBROUTINE jacobian_reset(xc, yc)
+      IMPLICIT NONE
+      Use(Selec)
+      Use(Imprad)
+      Use(Rhsides)
+      Use(Jacobian_restore)
+      Use(Conduc)
+      Use(Comflo)
+      Use(Cfric)
+      Use(Compla)
+      Use(Dim)
+      Use(MCN_sources)
+      Use(Lsode)
+      Use(Comtra)
+      Use(PNC_params)
+      integer ix1, ifld, igsp, xc, yc
+c...  Finally, reset some source terms if this is a Jacobian evaluation
+            ix1 = ixm1(xc,yc)
+            if(isimpon.gt.0) pwrzec(xc,yc) = pradold
+            pwrebkg(xc,yc) = pwrebkgold
+            pwribkg(xc,yc) = pwribkgold
+            erliz(xc,yc) = erlizold
+            erlrc(xc,yc) = erlrcold
+            eeli(xc,yc) = eeliold
+            fqp(ix1,yc) = fqpom
+            fqp(xc,yc) = fqpo
+            frice(ix1,yc) = friceom
+            frice(xc,yc) = friceo
+            upe(ix1,yc) = upeom
+            upe(xc,yc) = upeo
+c ...       TODO: Make psordisold ifld-dependent?
+            psordis(xc,yc,ifld) = psordisold
+            do ifld = 1, nfsp
+               psorc(xc,yc,ifld) = psorold(ifld)
+               psorxr(xc,yc,ifld) = psorxrold(ifld)
+               frici(ix1,yc,ifld) = friciom(ifld)
+               frici(xc,yc,ifld) = fricio(ifld)
+               upi(ix1,yc,ifld) = upiom(ifld)
+               upi(xc,yc,ifld) = upio(ifld)
+               uup(ix1,yc,ifld) = uupom(ifld)
+               uup(xc,yc,ifld) = uupo(ifld)
+               nucxi(xc,yc,ifld) = nucxiold(ifld)
+               nueli(xc,yc,ifld) = nueliold(ifld)
+            enddo
+            do igsp = 1, ngsp
+               nucx(xc,yc,igsp) = nucxold(igsp)
+               nurc(xc,yc,igsp) = nurcold(igsp)
+               nuiz(xc,yc,igsp) = nuizold(igsp)
+               nuelg(xc,yc,igsp) = nuelgold(igsp)
+               nuix(xc,yc,igsp) = nuixold(igsp)
+               psorgc(xc,yc,igsp) = psorgold(igsp)
+               psorrgc(xc,yc,igsp) = psorrgold(igsp)
+               psorcxgc(xc,yc,igsp) = psorcxgold(igsp)
+            enddo
+
+c ...   TODO: Don't know what this block is doing, and doing here...
+      if (ismcnon .eq. 4) then # test a different fluid model in the preconditioner
+         if (yl(neq+1) .gt. 0) then   # Precon eval
+            parvis=parvis/pnc_cfparvis
+            travis=travis/pnc_cftravis
+            do ifld=1,nisp
+              ni(:,:,ifld)=ni(:,:,ifld)/pnc_cfni(ifld)
+              up(:,:,ifld)=up(:,:,ifld)/pnc_cfup(ifld)
+            enddo
+         endif
+      end if #ismcnon
+
+
+      END SUBROUTINE jacobian_reset
 
 
 c-----------------------------------------------------------------------
-      subroutine pandf (xc, yc, neq, time, yl, yldot)
+      SUBROUTINE pandf (xc, yc, neq, time, yl, yldot)
 
 c... Calculates matrix A and the right-hand side depending on the values
 c... of xc, yc.
@@ -4704,7 +4829,7 @@ c    yl is the vector of unknowns
 c  Output variables:
 c    yldot is the RHS of ODE solver or RHS=0 for Newton solver (NKSOL)
 
-      implicit none
+      IMPLICIT NONE
 
 *  -- input arguments
       integer xc, yc, neq      
@@ -4902,41 +5027,11 @@ c... First, we convert from the 1-D vector yl to the plasma variables.
          call convsr_aux (xc, yc)
          if (TimingPandfOn.gt.0) TotTimeConvert1=TotTimeConvert1+tock(TimeConvert1)
 
-c ... Set variable controlling upper limit of species loops that
-c     involve ion-density sources, fluxes, and/or velocities.
-
-      nfsp = nisp
-      if (isimpon .eq. 3 .or. isimpon .eq. 4) nfsp = nhsp
-
       call calc_diffusivities
 
       call calc_driftterms
-    
-c ... Save values returned by Hirshman mombal for Jacobian calc. to
-c ... minimize calls - restore the "m" or ix-1 values at the end of pandf
-c ... The Jacobian ix loop can then be reduced to only include ix-1 and ix
-c ... Suffix "o" refers to "old" value at ix, and suffix "om" means "old" 
-c ... value at ix-1.
-
-      if (xc.ge.0 .and. yc.ge.0) then
-         ix1 = ixm1(xc,yc)
-         fqpom = fqp(ix1,yc)
-         friceom = frice(ix1,yc)
-         upeom = upe(ix1,yc)
-         fqpo = fqp(xc,yc)
-         friceo = frice(xc,yc)
-         upeo = upe(xc,yc)
-         do ifld = 1, nfsp
-            friciom(ifld) = frici(ix1,yc,ifld)    # dimension req. nfsp<101
-            upiom(ifld) = upi(ix1,yc,ifld)
-            uupom(ifld) = uup(ix1,yc,ifld)
-            fricio(ifld) = frici(xc,yc,ifld)
-            upio(ifld) = upi(xc,yc,ifld)
-            uupo(ifld) = uup(xc,yc,ifld)
-         enddo
-      endif
-
-      call calc_friction(xc)
+   
+      call calc_friction(xc, yc)
 ************************************************************************
 *     Calculate the currents fqx, fqy, fq2 and fqp, if isphion = 1
 *     or if isphiofft = 1.
@@ -4945,30 +5040,6 @@ ccc      if(isphion+isphiofft .eq. 1)  call calc_currents
 
         call calc_elec_velocities
      
-
-c...  Initialize save-variables if this is a Jacobian (xc,yc > -1)
-         if (xc .ge. 0 .and. yc .ge. 0) then
-            psordisold = psordis(xc,yc, ifld)
-cc            write(*,*) 'Just after psordisold; xc,yc=',xc,yc
-            do ifld = 1, nfsp
-               psorold(ifld) = psorc(xc,yc,ifld)
-               psorxrold(ifld) = psorxr(xc,yc,ifld)
-               msorold(ifld) = msor(xc,yc,ifld)
-               msorxrold(ifld) = msorxr(xc,yc,ifld)
-               nucxiold(ifld) = nucxi(xc,yc,ifld)
-               nueliold(ifld) = nueli(xc,yc,ifld)
-            enddo
-            do igsp = 1, ngsp
-               nucxold(igsp) = nucx(xc,yc,igsp)
-               nurcold(igsp) = nurc(xc,yc,igsp)
-               nuizold(igsp) = nuiz(xc,yc,igsp)
-               nuixold(igsp) = nuix(xc,yc,igsp)
-               nuelgold(igsp) = nuelg(xc,yc,igsp)
-               psorgold(igsp) = psorgc(xc,yc,igsp)
-               psorrgold(igsp) = psorrgc(xc,yc,igsp)
-               psorcxgold(igsp) = psorcxgc(xc,yc,igsp)
-            enddo
-         endif
 
         call calc_volumetric_sources(xc, yc)
 
@@ -5026,57 +5097,7 @@ c  the perturbed variables are reset below to get Jacobian correct
 
       call bouncon (neq, yl, yldot)
 
-c...  Finally, reset some source terms if this is a Jacobian evaluation
-         if (xc .ge. 0 .and. yc .ge. 0) then
-            ix1 = ixm1(xc,yc)
-            if(isimpon.gt.0) pwrzec(xc,yc) = pradold
-            pwrebkg(xc,yc) = pwrebkgold
-            pwribkg(xc,yc) = pwribkgold
-            erliz(xc,yc) = erlizold
-            erlrc(xc,yc) = erlrcold
-            eeli(xc,yc) = eeliold
-            fqp(ix1,yc) = fqpom
-            fqp(xc,yc) = fqpo
-            frice(ix1,yc) = friceom
-            frice(xc,yc) = friceo
-            upe(ix1,yc) = upeom
-            upe(xc,yc) = upeo
-c ...       TODO: Make psordisold ifld-dependent?
-            psordis(xc,yc,ifld) = psordisold
-            do ifld = 1, nfsp
-               psorc(xc,yc,ifld) = psorold(ifld)
-               psorxr(xc,yc,ifld) = psorxrold(ifld)
-               frici(ix1,yc,ifld) = friciom(ifld)
-               frici(xc,yc,ifld) = fricio(ifld)
-               upi(ix1,yc,ifld) = upiom(ifld)
-               upi(xc,yc,ifld) = upio(ifld)
-               uup(ix1,yc,ifld) = uupom(ifld)
-               uup(xc,yc,ifld) = uupo(ifld)
-               nucxi(xc,yc,ifld) = nucxiold(ifld)
-               nueli(xc,yc,ifld) = nueliold(ifld)
-            enddo
-            do igsp = 1, ngsp
-               nucx(xc,yc,igsp) = nucxold(igsp)
-               nurc(xc,yc,igsp) = nurcold(igsp)
-               nuiz(xc,yc,igsp) = nuizold(igsp)
-               nuelg(xc,yc,igsp) = nuelgold(igsp)
-               nuix(xc,yc,igsp) = nuixold(igsp)
-               psorgc(xc,yc,igsp) = psorgold(igsp)
-               psorrgc(xc,yc,igsp) = psorrgold(igsp)
-               psorcxgc(xc,yc,igsp) = psorcxgold(igsp)
-            enddo
-         endif
-
-      if (ismcnon .eq. 4) then # test a different fluid model in the preconditioner
-         if (yl(neq+1) .gt. 0) then   # Precon eval
-            parvis=parvis/pnc_cfparvis
-            travis=travis/pnc_cftravis
-            do ifld=1,nisp
-              ni(:,:,ifld)=ni(:,:,ifld)/pnc_cfni(ifld)
-              up(:,:,ifld)=up(:,:,ifld)/pnc_cfup(ifld)
-            enddo
-         endif
-      end if #ismcnon
+      if (xc .ge. 0 .and. yc .ge. 0) call jacobian_reset(xc, yc)
 
 c ... Accumulate cpu time spent here.
       if(xc .lt. 0) then
@@ -5086,7 +5107,7 @@ c ... Accumulate cpu time spent here.
       endif
       if (TimingPandfOn.gt.0) TotTimePandf=TotTimePandf+tock(TimePandf)
       return
-      end
+      END SUBROUTINE pandf
 c****** end of subroutine pandf ************
 c-----------------------------------------------------------------------
       subroutine mombal0 (nisp, nhsp, nzsp, minu, ziin,
