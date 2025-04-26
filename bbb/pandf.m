@@ -414,7 +414,7 @@ c  the perturbed variables are reset below to get Jacobian correct
 
       if (isphion.eq.1) call poteneq (neq, yl, yldot)
 
-      call bouncon (neq, yl, yldot)
+      call bouncon (neq, yldot)
 
       if (xc .ge. 0 .and. yc .ge. 0) call jacobian_reset(xc, yc)
 
