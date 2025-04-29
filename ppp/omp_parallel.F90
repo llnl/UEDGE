@@ -721,3 +721,41 @@ END SUBROUTINE OMPSplitIndex
     RETURN
   END SUBROUTINE MakeChunksPandf1
 #endif
+
+
+  SUBROUTINE chunk2d(nxl, nxu, nyl, nyu, chunks, nchunks)
+  IMPLICIT NONE
+  Use(Lsode)
+  integer, intent(in) :: nxl, nxu, nyl, nyu
+  integer, intent(out) :: nchunks, chunks(neq,3)
+    
+    call chunk3d(nxl, nxu, nyl, nyu, 0, 0, chunks, nchunks)
+
+  RETURN
+  END SUBROUTINE chunk2d
+  
+
+  SUBROUTINE chunk3d(nxl, nxu, nyl, nyu, nzl, nzu, chunks, nchunks)
+  IMPLICIT NONE
+  Use(Lsode)
+  integer, intent(in) :: nxl, nxu, nyl, nyu, nzl, nzu
+  integer, intent(out) :: nchunks, chunks(neq,3)
+  integer ii, dx, dy, dz
+    
+    dx = nxu -nxl +1
+    dy = nyu -nyl +1
+    dz = nzu -nzl +1
+    nchunks = dx*dy*dz
+
+c...    TODO OMP parallelize this loop?
+    DO ii = 0, nchunks-1
+        chunks(ii+1,3) = INT(ii/(dx*dy))
+        chunks(ii+1,2) = nyl + INT( (ii -(chunks(ii+1,3)*dx*dy))/dx)
+        chunks(ii+1,1) = nxl + MOD(ii, dx)
+        chunks(ii+1,3) = chunks(ii+1,3) + nzl
+    END DO
+  RETURN
+  END SUBROUTINE chunk3d
+  
+
+
