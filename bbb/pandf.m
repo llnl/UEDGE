@@ -4,8 +4,8 @@ c!include "../mppl.h"
 c!include "../sptodp.h"
 
 c-----------------------------------------------------------------------
-      subroutine Pandf1rhs_interface(neq, time, yl, yldot)
-c ... Interface for pandf1 rhs calculation for nksol only (added by. J.Guterl)
+      subroutine PandfRHS_interface(neq, time, yl, yldot)
+c ... Interface for pandf rhs calculation for nksol only (added by. J.Guterl)
           implicit none
           Use(Math_problem_size) # neqmx
           Use(ParallelEval)      # ParallelPandf1
@@ -18,10 +18,10 @@ c!omp         pandfitertag = "OMP iter="
 c!omp         call OMPPandf1Rhs(neq, time, yl, yldot)
 c!omp     else
               pandfitertag = "iter="
-              call pandf1(-1, -1, 0, neq, time, yl, yldot)
+              call pandf(-1, -1, neq, time, yl, yldot)
 c!omp     endif
 
-      end subroutine Pandf1rhs_interface
+      end subroutine PandfRHS_interface
 
 
       SUBROUTINE initialize_ranges(xc, yc)
@@ -276,15 +276,136 @@ c ... The factor (1-iseqalg(iv)) above forces yldot=0 for algebraic
 c ... equations, except up(nx,,); these yldot are subsequently set in
 c ... subroutine bouncon.
 
-
-c  POTEN calculates the electrostatic potential, and BOUNCON calculates the 
-c  equations for the boundaries. For the vodpk solver, the B.C. are ODEs 
-c  in time (rate equations).  Both bouncon and poten must be called before
-c  the perturbed variables are reset below to get Jacobian correct
-
-
       END SUBROUTINE calc_rhs
 
+      SUBROUTINE check_kaboom
+      IMPLICIT NONE      
+      Use(UEpar)
+      character*80 msgjm
+      integer nrcv, ierrjm, ijmgetmr
+c
+c     Check if "k" or "kaboom" has been typed to jump back to the parser
+c
+      if (((svrpkg.eq.'nksol') .or. (svrpkg.eq.'petsc')) .and. iskaboom.eq.1) then
+                              #can only call once - preserves 's' in vodpk
+        ierrjm = ijmgetmr(msgjm,80,1,nrcv)
+        if (ierrjm .eq. 0) then
+          if (msgjm(1:nrcv).eq.'kaboom' .or. msgjm(1:nrcv).eq.'k')then
+            call xerrab("")
+          endif
+        endif
+      endif
+      END SUBROUTINE check_kaboom
+
+
+      SUBROUTINE add_timestep
+      IMPLICIT NONE
+      Use(Time_dep_nwt)
+      Use(UEpar)
+      Use(Dim)
+      Use(Indices_domain_dcl)
+      Use(Indexes)
+      Use(Lsode)
+      Use(Compla)
+      Use(Ynorm)
+      integer ix,iy,igsp,iv,iv1,ifld,j2l,j5l,i2l,i5l
+c
+c ... Now add psuedo or real timestep for nksol method, but not both
+      if (nufak.gt.1.e5 .and. dtreal.lt.1.e-5) then
+         call xerrab('***Both 1/nufak and dtreal < 1.e5 - illegal***')
+      endif
+
+c...  Add a real timestep, dtreal, to the nksol equations 
+c...  NOTE!! condition yl(neq+1).lt.0 means a call from nksol, not jac_calc
+
+         if (isbcwdt .eq. 0) then  # omit b.c. eqns
+cccMER   NOTE: what about internal guard cells (for dnbot,dnull,limiter) ???
+            j2l = 1
+            j5l = ny
+            i2l = 1
+            i5l = nx
+         else                      # include b.c. eqns
+            j2l = (1-iymnbcl)
+            j5l = ny+1-(1-iymxbcl)
+            i2l = (1-ixmnbcl)
+            i5l = nx+1-(1-ixmxbcl)
+         endif           
+         do iy = j2l, j5l    # if j2l=j2, etc., omit the boundary equations
+            do ix = i2l, i5l
+              do ifld = 1, nisp
+                if(isnionxy(ix,iy,ifld) .eq. 1) then
+                  iv = idxn(ix,iy,ifld)
+                  yldot(iv) = (1.-fdtnixy(ix,iy,ifld))*yldot(iv)
+                  if(zi(ifld).eq.0. .and. ineudif.eq.3) then
+                    yldot(iv) = yldot(iv) - (1/n0(ifld))*
+     .                          (exp(yl(iv))-exp(ylodt(iv)))/dtuse(iv)
+                  else
+                    yldot(iv) =yldot(iv)-(yl(iv)-ylodt(iv))/dtuse(iv)
+                  endif
+                endif
+              enddo
+               if(ix.ne.nx+2*isbcwdt) then  
+                              # nx test - for algebr. eq. unless isbcwdt=1
+                  do ifld = 1, nusp
+                    if(isuponxy(ix,iy,ifld).eq.1) then
+                      iv = idxu(ix,iy,ifld)
+                      yldot(iv) = (1.-fdtupxy(ix,iy,ifld))*yldot(iv)
+                      yldot(iv) = yldot(iv)-(yl(iv)-ylodt(iv))/dtuse(iv)
+                    endif
+                  enddo
+               endif
+               if (isteonxy(ix,iy) == 1) then
+                 iv =  idxte(ix,iy)
+                 yldot(iv) = (1.-fdttexy(ix,iy))*yldot(iv)
+                 yldot(iv) = yldot(iv) - (yl(iv)-ylodt(iv))/dtuse(iv) 
+               endif
+               if (istionxy(ix,iy) == 1) then
+                 iv1 = idxti(ix,iy)
+                 yldot(iv1) = (1.-fdttixy(ix,iy))*yldot(iv1)
+                 yldot(iv1)=yldot(iv1) - (yl(iv1)-ylodt(iv1))/dtuse(iv1)
+               endif
+               do igsp = 1, ngsp
+                  if(isngonxy(ix,iy,igsp).eq.1) then
+                     iv = idxg(ix,iy,igsp)
+                     yldot(iv) = (1.-fdtngxy(ix,iy,igsp))*yldot(iv)
+                     if(ineudif.eq.3) then
+                       yldot(iv) = yldot(iv) - (1/n0g(igsp))*
+     .                            (exp(yl(iv))-exp(ylodt(iv)))/dtuse(iv)
+                     else
+                       yldot(iv) =yldot(iv)-(yl(iv)-ylodt(iv))/dtuse(iv)
+                     endif
+                  endif
+               enddo
+               do igsp = 1, ngsp
+                  if(istgonxy(ix,iy,igsp).eq.1) then
+                     iv = idxtg(ix,iy,igsp)
+                     yldot(iv) = (1.-fdttgxy(ix,iy,igsp))*yldot(iv)
+                     yldot(iv) =yldot(iv)-(yl(iv)-ylodt(iv))/dtuse(iv)
+                  endif
+               enddo
+               if (isphionxy(ix,iy).eq.1 .and. isbcwdt.eq.1) then
+                  iv = idxphi(ix,iy)
+                  yldot(iv) = (1.-fdtphixy(ix,iy))*yldot(iv)
+                  yldot(iv) = yldot(iv) - (yl(iv)-ylodt(iv))/dtuse(iv)
+               endif
+
+            enddo
+         enddo
+      
+C...  Now do an additional relaxation of the potential equations with
+c...  timestep dtphi
+        if (dtphi < 1e10) then
+          do iy = 0, ny+1
+            do ix = 0, nx+1
+              if (isphionxy(ix,iy) == 1) then
+                iv = idxphi(ix,iy)
+                yldot(iv) = yldot(iv) - (yl(iv)-ylodt(iv))/dtphi
+              endif
+            enddo
+          enddo
+        endif
+
+      END SUBROUTINE add_timestep
 c-----------------------------------------------------------------------
       SUBROUTINE pandf (xc, yc, neq, time, yl, yldot)
 
@@ -311,12 +432,20 @@ c    yldot is the RHS of ODE solver or RHS=0 for Newton solver (NKSOL)
       Use(PandfTiming)
       Use(MCN_sources)
       Use(UEpar)
+      Use(Ynorm)
       Use(ParallelEval)
+      Use(Time_dep_nwt)
       real tick,tock, tsfe, tsjf, ttotfe, ttotjf
       external tick, tock
 
+c     TODO: seems obsolete, consider removing in the future
+      call check_kaboom
+
+c     check if a "ctrl-c" has been type to interrupt - from basis
+      call ruthere
+
 c... Timing of pandf components (added by J. Guterl)
-        if (TimingPandf.gt.0
+      if (TimingPandf.gt.0
      .      .and. yl(neq+1) .lt. 0 .and. ParallelPandf1.eq.0
      .) then
         TimingPandfOn=1
@@ -426,6 +555,23 @@ c ... Accumulate cpu time spent here.
       endif
       if (TimingPandfOn.gt.0) TotTimePandf=TotTimePandf+tock(TimePandf)
       return
+
+c...  ====================== BEGIN OLD PANDF1 ==========================
+c
+c...  If isflxvar=0, we use ni,v,Te,Ti,ng as variables, and the ODEs need
+c...  to be modified as original equations are for d(nv)/dt, etc
+c...  If isflxvar=2, variables are ni,v,nTe,nTi,ng. Boundary equations and
+c...  potential equations are not reordered.
+
+      if (isflxvar.ne.1 .and. isrscalf.eq.1) call rscalf(yl,yldot)
+
+c...  Adds time-step relaxation to residuals
+      if(dtreal < 1.e15) then
+        if((svrpkg=='nksol' .and. yl(neq+1)<0) .or. svrpkg == 'petsc') then
+          call add_timestep
+        end if
+      end if
+
       END SUBROUTINE pandf
 c****** end of subroutine pandf ************
 
@@ -445,180 +591,4 @@ c-----------------------------------------------------------------------
       return
       end
 c---- end of subroutine timimpfj ---------------------------------------
-c-----------------------------------------------------------------------
-      subroutine pandf1(xc, yc, ieq, neq, time, yl, yldot)
-
-c ... Calculates matrix A and the right-hand side depending on the 
-c     values of xc, yc.
-c  Definitions for argument list
-c
-c  Input variables:
-c    xc is poloidal index of perturbed variablefor Jacobian calc, 
-c       or =-1 for full RHS evaluation
-c    yc is radial index for perturbed variable for Jacobian calc, 
-c       or =-1 for full RHS evaluation
-c    ieq is the eqn number for Jacobian eval; not presently used
-c    neq is the total number of variables
-c    time is the present physical time; useable by VODPK but not NKSOL
-c    yl is the vector of unknowns
-c  Output variables:
-c    yldot is the RHS of ODE solver or RHS=0 for Newton solver (NKSOL)
-
-      implicit none
-      Use(Dim)     # nusp,nisp,ngsp
-      Use(Math_problem_size)   # neqmx(for arrays not used here)
-      Use(UEpar)   # svrpkg,isbcwdt,isnionxy,isuponxy,isteonxy,istionxy,
-                   # isngonxy,isphionxy
-cc      Use(Selec)   # i2,i5,j2,j5
-      Use(Time_dep_nwt)   # nufak,dtreal,ylodt,dtuse
-      Use(Indexes) # idxn,idxg,idxu,dxti,idxte,idxphi
-      Use(Ynorm)   # isflxvar,isrscalf
-      Use(Share)    # geometry,nxc,isnonog,cutlo
-      Use(Indices_domain_dcl) # ixmnbcl,ixmxbcl,iymnbcl,iymxbcl
-      Use(Compla)  # zi
-      Use(Xpoint_indices)      # ixpt1,ixpt2,iysptrx
-
-*  -- arguments
-      integer xc, yc, ieq, neq     # ieq is the equation index for Jac. calc
-      real time, yl(neqmx),yldot(neq)
-
-*  -- local variables
-      integer ix,iy,igsp,iv,iv1,ifld,j2l,j5l,i2l,i5l
-      character*80 msgjm
-      integer nrcv, ierrjm, ijmgetmr
-
-ccc      save
-
-c
-c     Check if "k" or "kaboom" has been typed to jump back to the parser
-c
-      if (((svrpkg.eq.'nksol') .or. (svrpkg.eq.'petsc')) .and. iskaboom.eq.1) then
-                              #can only call once - preserves 's' in vodpk
-        ierrjm = ijmgetmr(msgjm,80,1,nrcv)
-        if (ierrjm .eq. 0) then
-          if (msgjm(1:nrcv).eq.'kaboom' .or. msgjm(1:nrcv).eq.'k')then
-            call xerrab("")
-          endif
-        endif
-      endif
-
-c     check if a "ctrl-c" has been type to interrupt - from basis
-      call ruthere
-
-c
-c  PANDF calculates the equations in the interior of the grid, plus calls
-c  bouncon for B.C. and poten for potential
-c
-      call pandf (xc, yc, neq, time, yl, yldot)
-c
-c...  If isflxvar=0, we use ni,v,Te,Ti,ng as variables, and the ODEs need
-c...  to be modified as original equations are for d(nv)/dt, etc
-c...  If isflxvar=2, variables are ni,v,nTe,nTi,ng. Boundary equations and
-c...  potential equations are not reordered.
-
-      if(isflxvar.ne.1 .and. isrscalf.eq.1) call rscalf(yl,yldot)
-c
-c ... Now add psuedo or real timestep for nksol method, but not both
-      if (nufak.gt.1.e5 .and. dtreal.lt.1.e-5) then
-         call xerrab('***Both 1/nufak and dtreal < 1.e5 - illegal***')
-      endif
-
-c...  Add a real timestep, dtreal, to the nksol equations 
-c...  NOTE!! condition yl(neq+1).lt.0 means a call from nksol, not jac_calc
-
-      if(dtreal < 1.e15) then
-       if((svrpkg=='nksol' .and. yl(neq+1)<0) .or. svrpkg == 'petsc') then
-         if (isbcwdt .eq. 0) then  # omit b.c. eqns
-cccMER   NOTE: what about internal guard cells (for dnbot,dnull,limiter) ???
-            j2l = 1
-            j5l = ny
-            i2l = 1
-            i5l = nx
-         else                      # include b.c. eqns
-            j2l = (1-iymnbcl)
-            j5l = ny+1-(1-iymxbcl)
-            i2l = (1-ixmnbcl)
-            i5l = nx+1-(1-ixmxbcl)
-         endif           
-         do iy = j2l, j5l    # if j2l=j2, etc., omit the boundary equations
-            do ix = i2l, i5l
-              do ifld = 1, nisp
-                if(isnionxy(ix,iy,ifld) .eq. 1) then
-                  iv = idxn(ix,iy,ifld)
-                  yldot(iv) = (1.-fdtnixy(ix,iy,ifld))*yldot(iv)
-                  if(zi(ifld).eq.0. .and. ineudif.eq.3) then
-                    yldot(iv) = yldot(iv) - (1/n0(ifld))*
-     .                          (exp(yl(iv))-exp(ylodt(iv)))/dtuse(iv)
-                  else
-                    yldot(iv) =yldot(iv)-(yl(iv)-ylodt(iv))/dtuse(iv)
-                  endif
-                endif
-              enddo
-               if(ix.ne.nx+2*isbcwdt) then  
-                              # nx test - for algebr. eq. unless isbcwdt=1
-                  do ifld = 1, nusp
-                    if(isuponxy(ix,iy,ifld).eq.1) then
-                      iv = idxu(ix,iy,ifld)
-                      yldot(iv) = (1.-fdtupxy(ix,iy,ifld))*yldot(iv)
-                      yldot(iv) = yldot(iv)-(yl(iv)-ylodt(iv))/dtuse(iv)
-                    endif
-                  enddo
-               endif
-               if (isteonxy(ix,iy) == 1) then
-                 iv =  idxte(ix,iy)
-                 yldot(iv) = (1.-fdttexy(ix,iy))*yldot(iv)
-                 yldot(iv) = yldot(iv) - (yl(iv)-ylodt(iv))/dtuse(iv) 
-               endif
-               if (istionxy(ix,iy) == 1) then
-                 iv1 = idxti(ix,iy)
-                 yldot(iv1) = (1.-fdttixy(ix,iy))*yldot(iv1)
-                 yldot(iv1)=yldot(iv1) - (yl(iv1)-ylodt(iv1))/dtuse(iv1)
-               endif
-               do igsp = 1, ngsp
-                  if(isngonxy(ix,iy,igsp).eq.1) then
-                     iv = idxg(ix,iy,igsp)
-                     yldot(iv) = (1.-fdtngxy(ix,iy,igsp))*yldot(iv)
-                     if(ineudif.eq.3) then
-                       yldot(iv) = yldot(iv) - (1/n0g(igsp))*
-     .                            (exp(yl(iv))-exp(ylodt(iv)))/dtuse(iv)
-                     else
-                       yldot(iv) =yldot(iv)-(yl(iv)-ylodt(iv))/dtuse(iv)
-                     endif
-                  endif
-               enddo
-               do igsp = 1, ngsp
-                  if(istgonxy(ix,iy,igsp).eq.1) then
-                     iv = idxtg(ix,iy,igsp)
-                     yldot(iv) = (1.-fdttgxy(ix,iy,igsp))*yldot(iv)
-                     yldot(iv) =yldot(iv)-(yl(iv)-ylodt(iv))/dtuse(iv)
-                  endif
-               enddo
-               if (isphionxy(ix,iy).eq.1 .and. isbcwdt.eq.1) then
-                  iv = idxphi(ix,iy)
-                  yldot(iv) = (1.-fdtphixy(ix,iy))*yldot(iv)
-                  yldot(iv) = yldot(iv) - (yl(iv)-ylodt(iv))/dtuse(iv)
-               endif
-
-            enddo
-         enddo
-      
-C...  Now do an additional relaxation of the potential equations with
-c...  timestep dtphi
-        if (dtphi < 1e10) then
-          do iy = 0, ny+1
-            do ix = 0, nx+1
-              if (isphionxy(ix,iy) == 1) then
-                iv = idxphi(ix,iy)
-                yldot(iv) = yldot(iv) - (yl(iv)-ylodt(iv))/dtphi
-              endif
-            enddo
-          enddo
-        endif
-
-       endif   #if-test on svrpkg and yl(neq+1)
-      endif    #if-test on dtreal
-
-      return
-      end
-c****** end of subroutine pandf1 ************
-
+   

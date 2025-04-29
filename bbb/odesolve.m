@@ -738,7 +738,7 @@ cxqx      CALL jacmap
 ctdr      call MPI_BARRIER(uedgeComm, ierr)
 
       if (ionecall .eq. 1) then
-         call pandf1 (-1, -1, 0, neq, 0., yl, yldot)
+         call pandf (-1, -1, neq, 0., yl, yldot)
 ccc      do iy = 0, ny+1
 ccc      write(*,*) 'uedriv vol(2,iy), iy, id =',vol(2,iy), iy, mype+1
 ccc      enddo

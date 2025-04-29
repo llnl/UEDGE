@@ -1002,7 +1002,7 @@ c ... Beginning of execution for call rhsnk (by nksol).
 c ... Calculate right-hand sides for interior and boundary points.
 ccc 10   call convsr_vo (-1,-1, yl)  # test new convsr placement
 ccc      call convsr_aux (-1,-1, yl) # test new convsr placement
- 10   call pandf1rhs_interface ( neq, tloc, yl, yldot)
+ 10   call pandfrhs_interface ( neq, tloc, yl, yldot)
 
  20   continue
       return
@@ -1156,7 +1156,7 @@ c     than that typical size.
          yl(iv) = yold + dyl
 
 c ... Calculate right-hand sides near location of perturbed variable.
-         call pandf1 (xc, yc, iv, neq, t, yl, wk)
+         call pandf (xc, yc, neq, t, yl, wk)
 
 c ... Calculate possibly nonzero Jacobian elements for this variable,
 c ... and store nonzero elements in compressed sparse column format.
@@ -1201,7 +1201,7 @@ cc               if (rdoff.ne.0.e0) jacelem=jacelem*(1.0e0+ranf()*rdoff)
                yldot_pert(ii) = wk(ii)      # for diagnostic only
                if (istopjac == 2) then
                  yl(iv) = yold
-                 call pandf1 (xc, yc, iv, neq, t, yl, wk)
+                 call pandf (xc, yc, neq, t, yl, wk)
                endif
                call remark("***** non-zero jac_elem at irstop,icstop")
                write(*,*) 'irstop = ', irstop, ', icstop = ', icstop
@@ -1212,7 +1212,7 @@ cc               if (rdoff.ne.0.e0) jacelem=jacelem*(1.0e0+ranf()*rdoff)
 
 c ... Restore dependent variable yl & assoicated plasma vars near perturbation
          yl(iv) = yold
-         call pandf1 (xc, yc, iv, neq, t, yl, wk)
+         call pandf (xc, yc, neq, t, yl, wk)
 
 c...  If this is the last variable before jumping to new cell, reset pandf 
 ccc  Call not needed because goto 18 svrpkg=daspk option disabled above

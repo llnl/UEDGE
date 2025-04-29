@@ -1184,7 +1184,7 @@ c ... Local variables:
       dtreal=dtreal_try
       dtuse=dtreal_try
 c      call convert() #convert ni,up, ti... to yl
-      call pandf1(-1, -1, 0, neq, 1., yl, yldot)
+      call pandf(-1, -1, neq, 1., yl, yldot)
       get_fnrm=sqrt(sum((yldot(1:neq)*sfscal(1:neq))**2))
       dtreal=dtreal_save
       

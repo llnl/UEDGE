@@ -254,7 +254,7 @@ SUBROUTINE LocalJacBuilder(ivmin,ivmax,neq, t, yl, yldot00,ml, mu,iJacCol,rJacEl
         yl(iv) = yold + dyl
 
         !Calculate right-hand sides near location of perturbed variable.
-        call pandf1 (xc, yc, iv, neq, t, yl, wk)
+        call pandf (xc, yc, neq, t, yl, wk)
 
         !Calculate possibly nonzero Jacobian elements for this variable,
         !and store nonzero elements in compressed sparse column format.
@@ -303,7 +303,7 @@ SUBROUTINE LocalJacBuilder(ivmin,ivmax,neq, t, yl, yldot00,ml, mu,iJacCol,rJacEl
             check: if (istopjac.gt.0 .and. ii.eq.irstop .and. iv.eq.icstop) then
                 if (istopjac == 2) then
                     yl(iv) = yold
-                    call pandf1 (xc, yc, iv, neq, t, yl, wk)
+                    call pandf (xc, yc, neq, t, yl, wk)
                 endif
                 call remark("***** non-zero jac_elem at irstop,icstop")
                 write(*,*) 'irstop = ', irstop, ', icstop = ', icstop
@@ -314,14 +314,14 @@ SUBROUTINE LocalJacBuilder(ivmin,ivmax,neq, t, yl, yldot00,ml, mu,iJacCol,rJacEl
         ! ... Restore dependent variable and plasma variables near its location.
         yl(iv) = yold
 
-        call pandf1 (xc, yc, iv, neq, t, yl, wk)
+        call pandf (xc, yc, neq, t, yl, wk)
 
         !...  If this is the last variable before jumping to new cell, reset pandf
         reset: if( isjacreset.ge.1) then
             yl_check(1:neq)=wk(1:neq)
             !JG this call to pandf1 can be safely ignored with ijacreset=0 (and save some time...)
             if (mod(iv,numvar).eq.0) then
-                call pandf1 (xc, yc, iv, neq, t, yl, wk)
+                call pandf (xc, yc, neq, t, yl, wk)
             endif
 
             do ii=ii1,ii2

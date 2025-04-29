@@ -1483,7 +1483,7 @@ c...  Initializes the variables for the daspk package if this is the
 c...  method chosen.
 
        if (svrpkg.eq.'daspk') then
-	 call pandf1(-1,-1,0,ipar(1),tv,yl,yldot)
+	 call pandf(-1,-1,ipar(1),tv,yl,yldot)
          do 730 ifld = 1, nhsp
  	 do 700 ix = 0, nx+1
 	   if(isnionxy(ix,0,   ifld)==1) yldot(idxn(ix,0,   ifld))=0.
@@ -1879,7 +1879,7 @@ c...  Initialize dead pol guard cells if core-only simulation
          
       call convert
       if (svrpkg.eq.'daspk') then
-	 call pandf1(-1,-1,0,ipar(1),tv,yl,yldot)
+	 call pandf(-1,-1,ipar(1),tv,yl,yldot)
  	 do 800 ix = 0, nx+1
            do ifld = 1, nisp
              if(isnionxy(ix,0,ifld)==1) yldot(idxn(ix,0,ifld)) = 0.

@@ -331,7 +331,7 @@ END SUBROUTINE InitZeroOMP
     DOUBLE PRECISION :: TimeThread
     OMPTimeCopy=tick() 
     if (OMPJacDebug.gt.0) write(*,*) OMPJacStamp,' Copying data....'
-    call pandf1 (-1, -1, 0.0, neq, 0.0, yl, ylcopy)
+    call pandf (-1, -1, neq, 0.0, yl, ylcopy)
     if (OMPCopyArray.gt.0) then
         if (OMPJacDebug.gt.0) write(*,*) OMPJacStamp,' Copying array....'
         call OmpCopyPointerbbb
@@ -515,7 +515,7 @@ END SUBROUTINE OMPSplitIndex
                 psorrg = 0
                 psordis = 0
 
-                call pandf1 (ixchunk(ichunk),iychunk(ichunk), 0.0, neq, time, ylcopy, yldotcopy)
+                call pandf (ixchunk(ichunk),iychunk(ichunk), neq, time, ylcopy, yldotcopy)
 
                 do iv=1,Nivchunk(ichunk)
                     yldottot(ivchunk(ichunk,iv)) = yldottot(ivchunk(ichunk,iv)) + yldotcopy(ivchunk(ichunk,iv))
@@ -534,7 +534,7 @@ END SUBROUTINE OMPSplitIndex
 
         if (CheckPandf1.gt.0) then
             Time2=omp_get_wtime()
-            call pandf1 (-1, -1, 0.0, neq, time, ylcopy, yldotsave)
+            call pandf (-1, -1, neq, time, ylcopy, yldotsave)
             Time2=omp_get_wtime()-Time2
             OMPTimeSerialPandf1=Time2+OMPTimeSerialPandf1
             if (OMPPandf1Verbose.gt.0) then
@@ -545,7 +545,7 @@ END SUBROUTINE OMPSplitIndex
             write(*,'(a,i4)') "  Serial and parallel pandf are identical for nfe = ", comnfe
         endif
     else
-       call pandf1 (-1,-1, 0.0, neq, time, yl, yldot)
+       call pandf (-1,-1, neq, time, yl, yldot)
     endif
     RETURN
   END SUBROUTINE OMPPandf1Rhs
@@ -724,8 +724,8 @@ END SUBROUTINE OMPSplitIndex
 
 
   SUBROUTINE chunk2d(nxl, nxu, nyl, nyu, chunks, nchunks)
+  Use Lsode, only: neq
   IMPLICIT NONE
-  Use(Lsode)
   integer, intent(in) :: nxl, nxu, nyl, nyu
   integer, intent(out) :: nchunks, chunks(neq,3)
     
@@ -736,8 +736,8 @@ END SUBROUTINE OMPSplitIndex
   
 
   SUBROUTINE chunk3d(nxl, nxu, nyl, nyu, nzl, nzu, chunks, nchunks)
+  Use Lsode, only: neq
   IMPLICIT NONE
-  Use(Lsode)
   integer, intent(in) :: nxl, nxu, nyl, nyu, nzl, nzu
   integer, intent(out) :: nchunks, chunks(neq,3)
   integer ii, dx, dy, dz
@@ -747,7 +747,7 @@ END SUBROUTINE OMPSplitIndex
     dz = nzu -nzl +1
     nchunks = dx*dy*dz
 
-c...    TODO OMP parallelize this loop?
+!   TODO OMP parallelize this loop?
     DO ii = 0, nchunks-1
         chunks(ii+1,3) = INT(ii/(dx*dy))
         chunks(ii+1,2) = nyl + INT( (ii -(chunks(ii+1,3)*dx*dy))/dx)
