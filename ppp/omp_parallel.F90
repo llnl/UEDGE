@@ -468,7 +468,8 @@ END SUBROUTINE OMPSplitIndex
     USE OMPPandf1, ONLY: Nivchunk,ivchunk,yincchunk,xincchunk, &
             iychunk,ixchunk,NchunksPandf1
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
-    USE Dim, ONLY:ny
+    USE Dim, ONLY:nx,ny
+    USE Imprad, ONLY: prad
     USE Selec, ONLY:yinc,xrinc,xlinc
     USE Grid, ONLY:ijactot
     USE Cdv, ONLY: comnfe
@@ -485,9 +486,11 @@ END SUBROUTINE OMPSplitIndex
     character*80 ::FileName
     real time1,time2
     integer::ichunk
+    real tmp_prad(0:nx+1, 0:ny+1)
     ylcopy(1:neq+1)=yl(1:neq+1)
     yldotcopy = 0
     yldottot = 0
+    tmp_prad = 0
 
     if (ijactot.gt.0) then
 
@@ -496,7 +499,7 @@ END SUBROUTINE OMPSplitIndex
         call OmpCopyPointerup
           !$omp parallel do default(shared) schedule(dynamic,OMPPandf1LoopNchunk) &
           !$omp& private(iv,ichunk) firstprivate(ylcopy,yldotcopy) copyin(yinc,xlinc,xrinc) &
-          !$omp& REDUCTION(+:yldottot)
+          !$omp& REDUCTION(+:yldottot, tmp_prad)
             loopthread: do ichunk=1,NchunksPandf1 !ichunk from 1 to Nthread, tid from 0 to Nthread-1
             ! we keep all these parameters as it is easier to debug LocalJacBuilder and deal wichunk private/shared attributes
                 yinc_bkp=yinc
@@ -521,6 +524,9 @@ END SUBROUTINE OMPSplitIndex
                     yldottot(ivchunk(ichunk,iv)) = yldottot(ivchunk(ichunk,iv)) + yldotcopy(ivchunk(ichunk,iv))
                 enddo
 
+                tmp_prad(0:nx+1, iychunk(ichunk)) =  &
+                    & tmp_prad(0:nx+1, iychunk(ichunk)) + prad(0:nx+1, iychunk(ichunk))
+
                 yinc=yinc_bkp
                 xlinc=xlinc_bkp
                 xrinc=xrinc_bkp
@@ -531,6 +537,7 @@ END SUBROUTINE OMPSplitIndex
         OMPTimeParallelPandf1=Time1+OMPTimeParallelPandf1
 
         yldot(:neq) = yldottot
+        prad = tmp_prad
 
         if (CheckPandf1.gt.0) then
             Time2=omp_get_wtime()

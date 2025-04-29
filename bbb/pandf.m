@@ -440,7 +440,6 @@ c    yldot is the RHS of ODE solver or RHS=0 for Newton solver (NKSOL)
 
 c     TODO: seems obsolete, consider removing in the future
       call check_kaboom
-
 c     check if a "ctrl-c" has been type to interrupt - from basis
       call ruthere
 
