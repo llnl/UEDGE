@@ -276,6 +276,13 @@ c ... The factor (1-iseqalg(iv)) above forces yldot=0 for algebraic
 c ... equations, except up(nx,,); these yldot are subsequently set in
 c ... subroutine bouncon.
 
+
+c  POTEN calculates the electrostatic potential, and BOUNCON calculates the 
+c  equations for the boundaries. For the vodpk solver, the B.C. are ODEs 
+c  in time (rate equations).  Both bouncon and poten must be called before
+c  the perturbed variables are reset below to get Jacobian correct
+
+
       END SUBROUTINE calc_rhs
 
       SUBROUTINE check_kaboom
@@ -298,22 +305,19 @@ c
       END SUBROUTINE check_kaboom
 
 
-      SUBROUTINE add_timestep
+      SUBROUTINE add_timestep(neq, yl, yldot)
       IMPLICIT NONE
-      Use(Time_dep_nwt)
-      Use(UEpar)
-      Use(Dim)
-      Use(Indices_domain_dcl)
-      Use(Indexes)
-      Use(Lsode)
-      Use(Compla)
-      Use(Ynorm)
-      integer ix,iy,igsp,iv,iv1,ifld,j2l,j5l,i2l,i5l
-c
-c ... Now add psuedo or real timestep for nksol method, but not both
-      if (nufak.gt.1.e5 .and. dtreal.lt.1.e-5) then
-         call xerrab('***Both 1/nufak and dtreal < 1.e5 - illegal***')
-      endif
+      Use(Dim)     # nusp,nisp,ngsp
+      Use(UEpar)   # svrpkg,isbcwdt,isnionxy,isuponxy,isteonxy,istionxy,
+                   # isngonxy,isphionxy
+      Use(Time_dep_nwt)   # nufak,dtreal,ylodt,dtuse
+      Use(Indexes) # idxn,idxg,idxu,dxti,idxte,idxphi
+      Use(Ynorm)   # isflxvar,isrscalf
+      Use(Indices_domain_dcl) # ixmnbcl,ixmxbcl,iymnbcl,iymxbcl
+      Use(Compla)  # zi
+      Use(Math_problem_size)   # neqmx(for arrays not used here)
+      integer ix,iy,igsp,iv,iv1,ifld,j2l,j5l,i2l,i5l,neq
+      real time, yl(neqmx),yldot(neq)
 
 c...  Add a real timestep, dtreal, to the nksol equations 
 c...  NOTE!! condition yl(neq+1).lt.0 means a call from nksol, not jac_calc
@@ -406,6 +410,7 @@ c...  timestep dtphi
         endif
 
       END SUBROUTINE add_timestep
+
 c-----------------------------------------------------------------------
       SUBROUTINE pandf (xc, yc, neq, time, yl, yldot)
 
@@ -432,19 +437,23 @@ c    yldot is the RHS of ODE solver or RHS=0 for Newton solver (NKSOL)
       Use(PandfTiming)
       Use(MCN_sources)
       Use(UEpar)
-      Use(Ynorm)
       Use(ParallelEval)
-      Use(Time_dep_nwt)
+      Use(Ynorm)
+      Use(Time_dep_nwt)   # nufak,dtreal,ylodt,dtuse
       real tick,tock, tsfe, tsjf, ttotfe, ttotjf
       external tick, tock
 
-c     TODO: seems obsolete, consider removing in the future
+c
+c     Check if "k" or "kaboom" has been typed to jump back to the parser
       call check_kaboom
+
 c     check if a "ctrl-c" has been type to interrupt - from basis
       call ruthere
 
+
+
 c... Timing of pandf components (added by J. Guterl)
-      if (TimingPandf.gt.0
+        if (TimingPandf.gt.0
      .      .and. yl(neq+1) .lt. 0 .and. ParallelPandf1.eq.0
      .) then
         TimingPandfOn=1
@@ -553,24 +562,38 @@ c ... Accumulate cpu time spent here.
          ttotjf = ttotjf + tock(tsjf)
       endif
       if (TimingPandfOn.gt.0) TotTimePandf=TotTimePandf+tock(TimePandf)
-      return
+
 
 c...  ====================== BEGIN OLD PANDF1 ==========================
-c
+
 c...  If isflxvar=0, we use ni,v,Te,Ti,ng as variables, and the ODEs need
 c...  to be modified as original equations are for d(nv)/dt, etc
 c...  If isflxvar=2, variables are ni,v,nTe,nTi,ng. Boundary equations and
 c...  potential equations are not reordered.
 
-      if (isflxvar.ne.1 .and. isrscalf.eq.1) call rscalf(yl,yldot)
+      if(isflxvar.ne.1 .and. isrscalf.eq.1) call rscalf(yl,yldot)
 
-c...  Adds time-step relaxation to residuals
+c
+c ... Now add psuedo or real timestep for nksol method, but not both
+      if (nufak.gt.1.e5 .and. dtreal.lt.1.e-5) then
+         call xerrab('***Both 1/nufak and dtreal < 1.e5 - illegal***')
+      endif
+
+
+
+
+c...  Add a real timestep, dtreal, to the nksol equations 
+c...  NOTE!! condition yl(neq+1).lt.0 means a call from nksol, not jac_calc
+
       if(dtreal < 1.e15) then
-        if((svrpkg=='nksol' .and. yl(neq+1)<0) .or. svrpkg == 'petsc') then
-          call add_timestep
-        end if
-      end if
+       if((svrpkg=='nksol' .and. yl(neq+1)<0) .or. svrpkg == 'petsc') then
+        call add_timestep(neq, yl, yldot)
+       endif   #if-test on svrpkg and yl(neq+1)
+      endif    #if-test on dtreal
 
+
+
+      return
       END SUBROUTINE pandf
 c****** end of subroutine pandf ************
 
@@ -590,4 +613,4 @@ c-----------------------------------------------------------------------
       return
       end
 c---- end of subroutine timimpfj ---------------------------------------
-   
+
