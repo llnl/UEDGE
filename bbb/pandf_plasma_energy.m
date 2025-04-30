@@ -437,6 +437,7 @@ c  -- Add rad flux of 4th order diff operator; damp grid-scale oscillations
       Use(UEpar)
       Use(Phyvar)
       Use(Xpoint_indices)
+      Use(Jacobian_restore)
       Use(Indices_domain_dcl)
       Use(Ext_neutrals)
       Use(Wkspace)
@@ -452,7 +453,6 @@ c  -- Add rad flux of 4th order diff operator; damp grid-scale oscillations
      .  up1cc, upgcc, vycc, v2cc, tsimp, tick, emissbs, radneq,  
      .  argth, fac_rad, radimpmc, wj, cfwj, telim, thetacc, 
      .  dupdx, dupdy, upxavep1, upxave0, upxavem1, upf0, upfm1,
-     .  erlizold, erlrcold, eeliold, pradold, pwrebkgold, pwribkgold,
      .  denz(0:1), sv_crumpet
       external sv_crumpet, radmc
 *  ---------------------------------------------------------------------
