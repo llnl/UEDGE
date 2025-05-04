@@ -2989,7 +2989,7 @@ upeom        real    /0/      +threadprivate # Temp storage for
 fqpo        real    /0/      +threadprivate # Temp storage for
 friceo        real    /0/      +threadprivate # Temp storage for
 upeo        real    /0/      +threadprivate # Temp storage for
-psordisold      real    /0/  +threadprivate # Temp storage for
+psordisold(100)      real    /100*0/  +threadprivate # Temp storage for
 pwribkgold        real    /0/      +threadprivate # Temp storage for
 pwrebkgold        real    /0/      +threadprivate # Temp storage for
 psorrgold(100) _real    /100*0/  +threadprivate # Temp storage for

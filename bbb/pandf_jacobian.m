@@ -3,6 +3,40 @@ c!include "../com/com.h"
 c!include "../mppl.h"
 c!include "../sptodp.h"
 
+      SUBROUTINE jacobian_store_volsources(xc, yc)
+      IMPLICIT NONE
+      Use(Jacobian_restore)
+      Use(Rhsides)
+      Use(Dim)
+      Use(Conduc)
+      integer xc, yc
+      integer ifld, igsp      
+
+c...  Initialize save-variables if this is a Jacobian (xc,yc > -1)
+         if (xc .ge. 0 .and. yc .ge. 0) then
+cc            write(*,*) 'Just after psordisold; xc,yc=',xc,yc
+            do ifld = 1, nfsp
+               psordisold(ifld) = psordis(xc,yc, ifld)
+               psorold(ifld) = psorc(xc,yc,ifld)
+               psorxrold(ifld) = psorxr(xc,yc,ifld)
+               msorold(ifld) = msor(xc,yc,ifld)
+               msorxrold(ifld) = msorxr(xc,yc,ifld)
+               nucxiold(ifld) = nucxi(xc,yc,ifld)
+               nueliold(ifld) = nueli(xc,yc,ifld)
+            enddo
+            do igsp = 1, ngsp
+               nucxold(igsp) = nucx(xc,yc,igsp)
+               nurcold(igsp) = nurc(xc,yc,igsp)
+               nuizold(igsp) = nuiz(xc,yc,igsp)
+               nuixold(igsp) = nuix(xc,yc,igsp)
+               nuelgold(igsp) = nuelg(xc,yc,igsp)
+               psorgold(igsp) = psorgc(xc,yc,igsp)
+               psorrgold(igsp) = psorrgc(xc,yc,igsp)
+               psorcxgold(igsp) = psorcxgc(xc,yc,igsp)
+            enddo
+         endif
+
+      END SUBROUTINE jacobian_store_volsources
 
       SUBROUTINE jacobian_store_momentum(xc, yc)
       IMPLICIT NONE
@@ -67,8 +101,8 @@ c...  Finally, reset some source terms if this is a Jacobian evaluation
             upe(ix1,yc) = upeom
             upe(xc,yc) = upeo
 c ...       TODO: Make psordisold ifld-dependent?
-            psordis(xc,yc,ifld) = psordisold
             do ifld = 1, nfsp
+               psordis(xc,yc,ifld) = psordisold(ifld)
                psorc(xc,yc,ifld) = psorold(ifld)
                psorxr(xc,yc,ifld) = psorxrold(ifld)
                frici(ix1,yc,ifld) = friciom(ifld)
