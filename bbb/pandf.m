@@ -494,11 +494,17 @@ c...  TODO: gather variables calculated in convert
       call calc_plasma_diffusivities
 c...  No gradients to separate out
       call initialize_driftterms
+      call jacobian_store_momentum(xc, yc)
+
+
 c...  TODO: gather variables calculated in initialize driftterms
 
       call calc_driftterms
    
-      call calc_friction(xc, yc)
+c...  TODO: gather variables calculated in calc driftterms
+c...        v2 needed by calc_friction
+c...  TODO: Break out conditionals, move to top
+      call calc_friction(xc)
 ************************************************************************
 *     Calculate the currents fqx, fqy, fq2 and fqp, if isphion = 1
 *     or if isphiofft = 1.

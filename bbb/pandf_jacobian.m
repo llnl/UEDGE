@@ -4,6 +4,38 @@ c!include "../mppl.h"
 c!include "../sptodp.h"
 
 
+      SUBROUTINE jacobian_store_momentum(xc, yc)
+      IMPLICIT NONE
+      Use(Selec)
+      Use(Jacobian_restore)
+      Use(Comflo)
+      Use(Cfric)
+      Use(Compla)
+      Use(Dim)
+      integer xc, yc
+      integer ix1, ifld
+
+      if (xc.ge.0 .and. yc.ge.0) then
+         ix1 = ixm1(xc,yc)
+         fqpom = fqp(ix1,yc)
+         friceom = frice(ix1,yc)
+         upeom = upe(ix1,yc)
+         fqpo = fqp(xc,yc)
+         friceo = frice(xc,yc)
+         upeo = upe(xc,yc)
+         do ifld = 1, nfsp
+            friciom(ifld) = frici(ix1,yc,ifld)    # dimension req. nfsp<101
+            upiom(ifld) = upi(ix1,yc,ifld)
+            uupom(ifld) = uup(ix1,yc,ifld)
+            fricio(ifld) = frici(xc,yc,ifld)
+            upio(ifld) = upi(xc,yc,ifld)
+            uupo(ifld) = uup(xc,yc,ifld)
+         enddo
+      endif
+
+
+      END SUBROUTINE jacobian_store_momentum
+
       SUBROUTINE jacobian_reset(xc, yc)
       IMPLICIT NONE
       Use(Selec)

@@ -551,24 +551,6 @@ c ... The Jacobian ix loop can then be reduced to only include ix-1 and ix
 c ... Suffix "o" refers to "old" value at ix, and suffix "om" means "old" 
 c ... value at ix-1.
 
-      if (xc.ge.0 .and. yc.ge.0) then
-         ix1 = ixm1(xc,yc)
-         fqpom = fqp(ix1,yc)
-         friceom = frice(ix1,yc)
-         upeom = upe(ix1,yc)
-         fqpo = fqp(xc,yc)
-         friceo = frice(xc,yc)
-         upeo = upe(xc,yc)
-         do ifld = 1, nfsp
-            friciom(ifld) = frici(ix1,yc,ifld)    # dimension req. nfsp<101
-            upiom(ifld) = upi(ix1,yc,ifld)
-            uupom(ifld) = uup(ix1,yc,ifld)
-            fricio(ifld) = frici(xc,yc,ifld)
-            upio(ifld) = upi(xc,yc,ifld)
-            uupo(ifld) = uup(xc,yc,ifld)
-         enddo
-      endif
-
 c ... Calc friction forces from Braginskii; no individ chg-states;isimpon < 5.
 
       if (isimpon < 5) then
@@ -632,6 +614,7 @@ c     saved here so they can be restored below.
 
 
 
+c...  TODO: remove xc dependency from here
       do iy = iys1, iyf6
          if (xc .gt. 0) then
             ix = xc
@@ -1404,7 +1387,7 @@ c ... If isybdrywd = 1, make vey diffusive, just like vy
       Use(Wkspace)
       integer ifld, iy, iyp1, ix, ix1, ix2, ix3, jfld
       real vtn, lmfpn, lmfppar, lmfpperp, rrfac, tgupyface, nmxface, 
-     .  ngupyface, n1upyface, ng2upyface, e, tv, lambda, tv2, 
+     .  ngupyface, n1upyface, ng2upyface, tv, lambda, tv2, 
      .  epstmp, visxtmp, rt2nus, t0, a
 *****************************************************************
 *  Other physics coefficients. (old PHYVIS)
