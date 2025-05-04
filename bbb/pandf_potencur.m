@@ -494,7 +494,7 @@ c ... Add contributions to fqy
 c ***  End of subroutine calc_cur_cx  ************
 c-----------------------------------------------------------------------
 
-      subroutine poteneq (neq, yl, yldot)
+      subroutine calc_potential_residuals (neq, yl, yldot)
 
 c...  Calculates the potential equation.  It can not be called alone,
 c...  It requires that pandf be called first to evaluate the range
@@ -594,7 +594,7 @@ cc    just outside separatrix (phi(ixmp,iysptrx+1)
       endif
 
       return
-      end
+      end subroutine calc_potential_residuals
 c-----------------------------------------------------------------------
       subroutine potent_1dsol
 

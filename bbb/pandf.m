@@ -549,7 +549,7 @@ c  equations for the boundaries. For the vodpk solver, the B.C. are ODEs
 c  in time (rate equations).  Both bouncon and poten must be called before
 c  the perturbed variables are reset below to get Jacobian correct
 
-      if (isphion.eq.1) call poteneq (neq, yl, yldot)
+      if (isphion.eq.1) call calc_potential_residuals (neq, yl, yldot)
 
       call bouncon (neq, yldot)
 
