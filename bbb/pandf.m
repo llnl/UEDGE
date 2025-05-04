@@ -487,8 +487,14 @@ c... First, we convert from the 1-D vector yl to the plasma variables.
       if (TimingPandfOn.gt.0) TimeConvert1=tick()
       call convsr_aux (xc, yc)
       if (TimingPandfOn.gt.0) TotTimeConvert1=TotTimeConvert1+tock(TimeConvert1)
+c...  TODO: gather variables calculated in convert
+
+
 
       call calc_plasma_diffusivities
+c...  No gradients to separate out
+      call initialize_driftterms
+c...  TODO: gather variables calculated in initialize driftterms
 
       call calc_driftterms
    

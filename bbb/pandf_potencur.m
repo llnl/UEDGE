@@ -672,6 +672,52 @@ c ... for all ny+1; could generalize to double null
       end
 c-----------------------------------------------------------------------
 
+      SUBROUTINE initialize_driftterms
+      IMPLICIT NONE
+      Use(Selec)
+      Use(Compla)
+      Use(Phyvar)
+      Use(UEpar)
+      Use(Conduc)
+      Use(Bfield)
+      integer iy, ix, ix1
+      real teev, nexface
+
+c ... Compute log_lambda
+      do iy = j1, j6
+        do ix = i1, i6
+          ix1 = ixp1(ix,iy)
+          teev = 0.5*(te(ix,iy)+te(ix1,iy))/ev
+          nexface = 0.5*(ne(ix,iy)+ne(ix1,iy))
+          if (islnlamcon == 1) then
+            loglambda(ix,iy) = lnlam  # set to constant
+          elseif (teev < 50.) then    # Braginskii formula, teev<50
+            loglambda(ix,iy) = 23.4-1.15*log10(1.e-6*nexface)+
+     .                              3.45*log10(teev)
+          else                        #teev > 50
+            loglambda(ix,iy) = 25.3-1.15*log10(1.e-6*nexface)+
+     .              2.33167537087122D+00*log10(teev)
+          endif
+          ctaui(ix,iy,1) = 2.1e13*sqrt(mi(1)/mp)/ loglambda(ix,iy)
+          ctaue(ix,iy,1) = 3.5e11/loglambda(ix,iy) #both for zi=1
+        enddo
+      enddo
+
+c ... Calculate collis. factors eta1 and rtaue for the simple Braginski model
+      do iy = j1, j6
+        do ix = i1, i6
+           eta1(ix,iy) = cfeta1*0.3*nm(ix,iy,1)*ti(ix,iy)*
+     .                   (1/(qe*btot(ix,iy))) / omgci_taui
+           rtaue(ix,iy) = cfrtaue*(1/(qe*btot(ix,iy))) / omgce_taue
+           dclass_i(ix,iy) = cfcl_i*eta1(ix,iy)/(0.3*nm(ix,iy,1))
+           dclass_e(ix,iy) = cfcl_e*te(ix,iy)*rtaue(ix,iy)
+        enddo
+      enddo
+
+
+      END SUBROUTINE initialize_driftterms
+
+
       SUBROUTINE calc_driftterms
       IMPLICIT NONE
       Use(Selec)
@@ -709,38 +755,6 @@ c-----------------------------------------------------------------------
 *  ---------------------------------------------------------------------
 *  compute drifts
 *  ---------------------------------------------------------------------
-
-c ... Compute log_lambda
-      do iy = j1, j6
-        do ix = i1, i6
-          ix1 = ixp1(ix,iy)
-          teev = 0.5*(te(ix,iy)+te(ix1,iy))/ev
-          nexface = 0.5*(ne(ix,iy)+ne(ix1,iy))
-          if (islnlamcon == 1) then
-            loglambda(ix,iy) = lnlam  # set to constant
-          elseif (teev < 50.) then    # Braginskii formula, teev<50
-            loglambda(ix,iy) = 23.4-1.15*log10(1.e-6*nexface)+
-     .                              3.45*log10(teev)
-          else                        #teev > 50
-            loglambda(ix,iy) = 25.3-1.15*log10(1.e-6*nexface)+
-     .              2.33167537087122D+00*log10(teev)
-          endif
-          ctaui(ix,iy,1) = 2.1e13*sqrt(mi(1)/mp)/ loglambda(ix,iy)
-          ctaue(ix,iy,1) = 3.5e11/loglambda(ix,iy) #both for zi=1
-        enddo
-      enddo
-
-c ... Calculate collis. factors eta1 and rtaue for the simple Braginski model
-      do iy = j1, j6
-        do ix = i1, i6
-           eta1(ix,iy) = cfeta1*0.3*nm(ix,iy,1)*ti(ix,iy)*
-     .                   (1/(qe*btot(ix,iy))) / omgci_taui
-           rtaue(ix,iy) = cfrtaue*(1/(qe*btot(ix,iy))) / omgce_taue
-           dclass_i(ix,iy) = cfcl_i*eta1(ix,iy)/(0.3*nm(ix,iy,1))
-           dclass_e(ix,iy) = cfcl_e*te(ix,iy)*rtaue(ix,iy)
-        enddo
-      enddo
-
 *  -- loop over species number --
 
       do ifld = 1, nfsp
