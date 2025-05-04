@@ -1003,7 +1003,6 @@ c **- loop for uu just as in the previous version - needed for correct Jac?
       endif
 
       end do   # end of igsp loop from the beginning of subroutine
-      call calc_gas_continuity_residuals
       return
       end
 c

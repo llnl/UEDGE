@@ -528,7 +528,6 @@ c     the call to scale_mcn must occur AFTER fnix has been calculated.
       if (ismcnon .ne. 0) call scale_mcnsor
 c----------------------------------------------------------------------c
 
-      call calc_plasma_particle_residuals
 *********************************************************************
 c  Here we do the neutral gas diffusion model
 c  The diffusion is flux limited using the thermal flux
@@ -536,10 +535,14 @@ c  The diffusion is flux limited using the thermal flux
 
       call calc_plasma_momentum(xc, yc)
 
-      call calc_plasma_momentum_residuals()
 
       call calc_plasma_energy
 
+      call calc_plasma_particle_residuals
+      call calc_gas_continuity_residuals
+      call calc_plasma_momentum_residuals()
+      call calc_gas_energy_residuals
+c...  Requires gas energy residuals
       call calc_plasma_energy_residuals(xc, yc)
 
       call calc_rhs(yldot)

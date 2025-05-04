@@ -290,7 +290,6 @@ c...  Flux limit with flalftxt even though hcys have parallel FL built in
         fegx(nx+1,:,:) = 0
         fegxy(nx+1,:,:) = 0
     
-      call calc_gas_energy_residuals
 
       if((isudsym==1.or.geometry.eq.'dnXtarget') .and. nxc > 1) then
         do igsp = 1, ngsp
