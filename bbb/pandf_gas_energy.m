@@ -21,7 +21,6 @@ c --------------------------------------------------------------------------
       #Former Aux module variables
       integer ix,iy,igsp,iv,iv1,iv2,iv3,ix1,ix2,ix3,ix4,ix5,ix6
       real t0,t1,t2,tv,a
-      real uuxgcc, vygcc, v2gcc, upgcc, vycc, v2cc
       Use(Dim)      # nx,ny,nhsp,nisp,ngsp,nxpt
       Use(Xpoint_indices)      # ixlb,ixpt1,ixpt2,ixrb,iysptrx1
       Use(Share)    # geometry,nxc,isnonog,cutlo,islimon,ix_lim,iy_lims
@@ -290,6 +289,58 @@ c...  Flux limit with flalftxt even though hcys have parallel FL built in
 
         fegx(nx+1,:,:) = 0
         fegxy(nx+1,:,:) = 0
+    
+      call calc_gas_energy_residuals
+
+      if((isudsym==1.or.geometry.eq.'dnXtarget') .and. nxc > 1) then
+        do igsp = 1, ngsp
+          do iy = j2, j5
+            fegx(nxc-1,iy,igsp) = 0. 
+            fegx(nxc  ,iy,igsp) = 0. 
+            fegx(nxc+1,iy,igsp) = 0. 
+          enddo
+        enddo
+      endif
+
+*  -- Energy transfer to impurity neutrals at tg(,,igsp)
+      if (ngsp >= 2) then   # for now, specialized to igsp=2 only
+        do ifld = nhsp+1, nisp
+          do iy = j2, j5    # iys,iyf limits dont seem to work(?)
+            do ix = i2, i5
+              #      possible bugs here? resei is replaced with seic
+	      #      since resei is not defined before this subroutine called
+	      #      more needs to be done here.. e.g. for segc
+              seic(ix,iy) =seic(ix,iy) -cftiimpg*1.5*ni(ix,iy,ifld)*
+     .                      (nucxi(ix,iy,ifld)+nueli(ix,iy,ifld))*
+     .                      (ti(ix,iy) - tg(ix,iy,2))*vol(ix,iy)
+              #..zml place holder for things remain to be done for segc
+	      #..    to include neutral-impurity ion collisions
+            enddo
+          enddo
+        enddo
+      endif
+
+      return
+      end
+c-----------------------------------------------------------------------
+c  END subroutine engbalg - THE NEUTRAL GAS ENERGY EQUATION
+c-----------------------------------------------------------------------
+
+      SUBROUTINE calc_gas_energy_residuals
+      IMPLICIT NONE
+      integer igsp, iy, iy1, ix, ix1
+      real uuxgcc, vygcc, v2gcc, upgcc, vycc, v2cc
+      Use(Dim)
+      Use(Selec)
+      Use(Conduc)
+      Use(Coefeq)
+      Use(Compla)
+      Use(Comtra)
+      Use(Rhsides)
+      Use(Comflo)
+      Use(Comgeo)
+      Use(UEpar)
+      Use(MCN_sources)
 *  ---------------------------------------------------------------------
 *  compute the energy residuals.
 *  ---------------------------------------------------------------------
@@ -455,39 +506,8 @@ c               Only apply drift heating for inertial atoms?
         enddo
       enddo
 
-      if((isudsym==1.or.geometry.eq.'dnXtarget') .and. nxc > 1) then
-        do igsp = 1, ngsp
-          do iy = j2, j5
-            fegx(nxc-1,iy,igsp) = 0. 
-            fegx(nxc  ,iy,igsp) = 0. 
-            fegx(nxc+1,iy,igsp) = 0. 
-          enddo
-        enddo
-      endif
 
-*  -- Energy transfer to impurity neutrals at tg(,,igsp)
-      if (ngsp >= 2) then   # for now, specialized to igsp=2 only
-        do ifld = nhsp+1, nisp
-          do iy = j2, j5    # iys,iyf limits dont seem to work(?)
-            do ix = i2, i5
-              #      possible bugs here? resei is replaced with seic
-	      #      since resei is not defined before this subroutine called
-	      #      more needs to be done here.. e.g. for segc
-              seic(ix,iy) =seic(ix,iy) -cftiimpg*1.5*ni(ix,iy,ifld)*
-     .                      (nucxi(ix,iy,ifld)+nueli(ix,iy,ifld))*
-     .                      (ti(ix,iy) - tg(ix,iy,2))*vol(ix,iy)
-              #..zml place holder for things remain to be done for segc
-	      #..    to include neutral-impurity ion collisions
-            enddo
-          enddo
-        enddo
-      endif
-
-      return
-      end
-c-----------------------------------------------------------------------
-c  END subroutine engbalg - THE NEUTRAL GAS ENERGY EQUATION
-c-----------------------------------------------------------------------
+      END SUBROUTINE calc_gas_energy_residuals
 
 
       SUBROUTINE calc_gas_heatconductivities
