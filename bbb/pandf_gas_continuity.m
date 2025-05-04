@@ -1002,8 +1002,40 @@ c **- loop for uu just as in the previous version - needed for correct Jac?
          enddo
       endif
 
+      end do   # end of igsp loop from the beginning of subroutine
+      call calc_gas_continuity_residuals
+      return
+      end
+c
+c --------------------------------------------------------------------------
+c END subroutine neudifpg
+c --------------------------------------------------------------------------
+
+      SUBROUTINE calc_gas_continuity_residuals
+      IMPLICIT NONE
+      Use(UEpar)
+      Use(Selec)
+      Use(Share)
+      Use(Comflo)
+      Use(Compla)
+      Use(Dim)
+      Use(Indices_domain_dcl)
+      Use(Xpoint_indices)
+      Use(Rhsides)
+      Use(Coefeq)
+      Use(Volsrc)
+      Use(Comgeo)
+      Use(MCN_sources)
+      Use(Comtra)
+      Use(Ext_neutrals)
+      Use(Conduc)
+      Use(Rccoef)
+      integer igsp, iy, ix, ix1, jfld
+      real tnuiz, lmfp, ngnot
+
 c.... Calculate the residual for the gas equation for diffusive neutral case
 
+      do igsp = 1, ngsp
       if (isupgon(igsp).eq.0) then
         do iy = j2, j5
           if ((isudsym==1.or.geometry.eq.'dnXtarget') .and. nxc > 1) then 
@@ -1077,13 +1109,8 @@ c...  Special coding for the 1-D gas-box model
          endif
       endif
 
-      return
 
-      end
-c
-c --------------------------------------------------------------------------
-c END subroutine neudifpg
-c --------------------------------------------------------------------------
+      END SUBROUTINE calc_gas_continuity_residuals
 
 
 c --------------------------------------------------------------------------
