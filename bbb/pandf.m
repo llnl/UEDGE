@@ -24,9 +24,9 @@ c!omp     endif
       end subroutine PandfRHS_interface
 
 
-      SUBROUTINE initialize_ranges(xc, yc)
+      SUBROUTINE initialize_ranges(xc, yc, xlinc_loc, xrinc_loc, yinc_loc)
       IMPLICIT NONE
-      integer xc, yc, ixmp2, jx
+      integer xc, yc, ixmp2, jx, xlinc_loc, xrinc_loc, yinc_loc
       logical xccuts, xcturb
       Use(Dim)
       Use(UEpar)
@@ -47,7 +47,7 @@ c     involve ion-density sources, fluxes, and/or velocities.
       if (isimpon .eq. 3 .or. isimpon .eq. 4) nfsp = nhsp
 
       if ( (xc .lt. 0) .or. 
-     .     ((0<=yc).and.(yc-yinc<=0)).and.isjaccorall==1 ) then  
+     .     ((0<=yc).and.(yc-yinc_loc<=0)).and.isjaccorall==1 ) then  
                                               # use full ix range near yc=0
                                               # with integrated core flux BC
          i1 = 0  # 1-ixmnbcl
@@ -61,14 +61,14 @@ c     involve ion-density sources, fluxes, and/or velocities.
          i7 = nx+1  # nx+ixmxbcl
          i8 = nx+1  # nx+ixmxbcl
       else
-         i1 = max(0, xc-xlinc-1)
-         i2 = max(1, xc-xlinc)
-         i2p = max(1, xc-xrinc-1)
-         i3 = xc-xlinc     # not used as loop indice (can be < 0)
-         i4 = max(0, xc-xlinc)
-         i5 = min(nx, xc+xrinc)
-         i5m = min(nx-1, xc+xrinc)
-         i6 = min(nx+1, xc+xrinc+1)
+         i1 = max(0, xc-xlinc_loc-1)
+         i2 = max(1, xc-xlinc_loc)
+         i2p = max(1, xc-xrinc_loc-1)
+         i3 = xc-xlinc_loc     # not used as loop indice (can be < 0)
+         i4 = max(0, xc-xlinc_loc)
+         i5 = min(nx, xc+xrinc_loc)
+         i5m = min(nx-1, xc+xrinc_loc)
+         i6 = min(nx+1, xc+xrinc_loc+1)
          i7 = xc+xrinc     # not used as loop indice (can be > nx)
          i8 = min(nx+1, xc+xrinc)
       endif
@@ -87,30 +87,30 @@ c     involve ion-density sources, fluxes, and/or velocities.
          j7 = ny+1 
          j8 = ny+1 
       else
-         j1 = max(0, yc-yinc-1)
-         j2 = max(1, yc-yinc)
-         j1p = max(0, yc-yinc-2)
-         j2p = max(1, yc-yinc-1)
-         j3 = yc-yinc
-         j4 = max(0, yc-yinc)
-         j5 = min(ny, yc+yinc)
-         j5m = min(ny-1, yc+yinc)
-         j6 = min(ny+1, yc+yinc)
-         j5p = min(ny, yc+yinc+1)
-         j6p = min(ny+1, yc+yinc+1)
-c         j6 = min(ny+1, yc+yinc+1)
-         j7 = yc+yinc
-         j8 = min(ny+1, yc+yinc)
+         j1 = max(0, yc-yinc_loc-1)
+         j2 = max(1, yc-yinc_loc)
+         j1p = max(0, yc-yinc_loc-2)
+         j2p = max(1, yc-yinc_loc-1)
+         j3 = yc-yinc_loc
+         j4 = max(0, yc-yinc_loc)
+         j5 = min(ny, yc+yinc_loc)
+         j5m = min(ny-1, yc+yinc_loc)
+         j6 = min(ny+1, yc+yinc_loc)
+         j5p = min(ny, yc+yinc_loc+1)
+         j6p = min(ny+1, yc+yinc_loc+1)
+c         j6 = min(ny+1, yc+yinc_loc+1)
+         j7 = yc+yinc_loc
+         j8 = min(ny+1, yc+yinc_loc)
       endif
 
 c...  We will expand the range of possible responses when perturbing the
 c...  plasma in a cell near one of the cuts.
       xccuts = .false.
       do jx = 1, nxpt
-        if ( (xc-xlinc<=ixpt1(jx)+1) .and. (xc+xrinc+1>=ixpt1(jx)) .and.
-     .       (yc-yinc<=iysptrx1(jx)) .and. (iysptrx1(jx)>0) ) xccuts=.true.
-        if ( (xc-xlinc<=ixpt2(jx)+1) .and. (xc+xrinc+1>=ixpt2(jx)) .and.
-     .       (yc-yinc<=iysptrx2(jx)) .and. (iysptrx2(jx)>0) ) xccuts=.true.
+        if ( (xc-xlinc_loc<=ixpt1(jx)+1) .and. (xc+xrinc_loc+1>=ixpt1(jx)) .and.
+     .       (yc-yinc_loc<=iysptrx1(jx)) .and. (iysptrx1(jx)>0) ) xccuts=.true.
+        if ( (xc-xlinc_loc<=ixpt2(jx)+1) .and. (xc+xrinc_loc+1>=ixpt2(jx)) .and.
+     .       (yc-yinc_loc<=iysptrx2(jx)) .and. (iysptrx2(jx)>0) ) xccuts=.true.
       enddo
 
 c...  We must expand the range of ix in the vicinity of cells on
@@ -170,13 +170,13 @@ c...  Reset ioniz. and rad. indices to a point if this is a Jacobian calc.
             iyf = yc
             ixs1 = xc
             ixf6 = xc
-            if (xrinc .ge. 20) then
+            if (xrinc_loc .ge. 20) then
                ixs1 = 0  
                ixf6 = nx+1 
             endif
             iys1 = yc
             iyf6 = yc
-            if (yinc .ge. 20) then
+            if (yinc_loc .ge. 20) then
                iys1 = 0 
                iyf6 = ny+1 
             endif
@@ -187,7 +187,7 @@ c...  Set flag that indicates wide open Jac'n "box" for subroutine bouncon.
          openbox = .true.
       elseif (xccuts .or. xcturb) then
          openbox = .true.
-      elseif ( (0<=yc).and.(yc<=yinc) ) then # for integrated core flux BC
+      elseif ( (0<=yc).and.(yc<=yinc_loc) ) then # for integrated core flux BC
          openbox = .true.
       else
          openbox = .false.
@@ -198,13 +198,13 @@ c...  boundary cells of a mesh region.  Used in subroutine bouncon.
       xcnearlb = .false.
       do jx = 1, nxpt
          xcnearlb = xcnearlb .or.
-     .       ( (xc-xlinc.le.ixlb(jx)) .and. (xc+xrinc.ge.ixlb(jx)) )
+     .       ( (xc-xlinc_loc.le.ixlb(jx)) .and. (xc+xrinc_loc.ge.ixlb(jx)) )
       enddo
       if (xc .lt. 0) xcnearlb = .true.
       xcnearrb = .false.
       do jx = 1, nxpt
          xcnearrb = xcnearrb .or.
-     .      ( (xc-xlinc.le.ixrb(jx)+1) .and. (xc+xrinc.ge.ixrb(jx)) )
+     .      ( (xc-xlinc_loc.le.ixrb(jx)+1) .and. (xc+xrinc_loc.ge.ixrb(jx)) )
       enddo
       if (xc .lt. 0) xcnearrb = .true.
 
@@ -491,6 +491,7 @@ c    yldot is the RHS of ODE solver or RHS=0 for Newton solver (NKSOL)
       Use(MCN_sources)
       Use(UEpar)
       Use(Ynorm)
+      Use(Selec)
       Use(Time_dep_nwt)   # nufak,dtreal,ylodt,dtuse
       real tick,tock, tsfe, tsjf, ttotfe, ttotjf
       external tick, tock
@@ -516,15 +517,16 @@ c ... Get initial value of system cpu timer.
          tsjf = tick()
       endif
 !     Initialize loop ranges based on xc and yc
-      call initialize_ranges(xc, yc)
+      call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
+
+      if (xc .ge. 0 .and. yc .ge. 0) then 
+          call jacobian_store_momentum(xc, yc)
+          call jacobian_store_volsources(xc, yc)
+      end if
 
 
       call subpandf1(xc, yc, neq, yl)
       call subpandf2
-
-      call jacobian_store_momentum(xc, yc)
-      call jacobian_store_volsources(xc, yc)
-
       call subpandf3
 
 c...  TODO: gather variables calculated in calc driftterms
@@ -600,11 +602,12 @@ c  the perturbed variables are reset below to get Jacobian correct
 
 c ... Accumulate cpu time spent here.
       if(xc .lt. 0) then
-         ttotfe = ttotfe + tock(tsfe)
+            ttotfe = ttotfe + tock(tsfe)
       else
-         ttotjf = ttotjf + tock(tsjf)
+            ttotjf = ttotjf + tock(tsjf)
       endif
-      if (TimingPandfOn.gt.0) TotTimePandf=TotTimePandf+tock(TimePandf)
+      if (TimingPandfOn.gt.0) 
+     .      TotTimePandf=TotTimePandf+tock(TimePandf)
 
 
 c...  ====================== BEGIN OLD PANDF1 ==========================
@@ -656,13 +659,4 @@ c-----------------------------------------------------------------------
       return
       end
 c---- end of subroutine timimpfj ---------------------------------------
-
-c      SUBROUTINE pandf1(xc, yc, ieq, neq, time, yl, yldot)
-c      IMPLICIT NONE
-c      integer xc, yc, ieq, neq
-c      real time, yl(*), yldot(*)
-c      call pandf(xc,yc,neq,time,yl,yldot)
-c      RETURN
-c      END SUBROUTINE
-    
 

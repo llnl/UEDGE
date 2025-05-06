@@ -13,7 +13,6 @@ c!include "../sptodp.h"
       integer ifld, igsp      
 
 c...  Initialize save-variables if this is a Jacobian (xc,yc > -1)
-         if (xc .ge. 0 .and. yc .ge. 0) then
 cc            write(*,*) 'Just after psordisold; xc,yc=',xc,yc
             do ifld = 1, nfsp
                psordisold(ifld) = psordis(xc,yc, ifld)
@@ -34,7 +33,6 @@ cc            write(*,*) 'Just after psordisold; xc,yc=',xc,yc
                psorrgold(igsp) = psorrgc(xc,yc,igsp)
                psorcxgold(igsp) = psorcxgc(xc,yc,igsp)
             enddo
-         endif
 
       END SUBROUTINE jacobian_store_volsources
 
@@ -49,7 +47,6 @@ cc            write(*,*) 'Just after psordisold; xc,yc=',xc,yc
       integer xc, yc
       integer ix1, ifld
 
-      if (xc.ge.0 .and. yc.ge.0) then
          ix1 = ixm1(xc,yc)
          fqpom = fqp(ix1,yc)
          friceom = frice(ix1,yc)
@@ -65,7 +62,6 @@ cc            write(*,*) 'Just after psordisold; xc,yc=',xc,yc
             upio(ifld) = upi(xc,yc,ifld)
             uupo(ifld) = uup(xc,yc,ifld)
          enddo
-      endif
 
 
       END SUBROUTINE jacobian_store_momentum
