@@ -421,7 +421,6 @@ c...  timestep dtphi
       real tick, tock
       external tick, tock
 
-      if (ismcnon .ne. 0) call initialize_ismcnon(yl(neq+1))
 c... Timing of pandf components (added by J. Guterl)
         if (TimingPandf.gt.0
      .      .and. yl(neq+1) .lt. 0 .and. ParallelPandf1.eq.0
@@ -436,12 +435,20 @@ c... Timing of pandf components (added by J. Guterl)
 ************************************************************************
 c... First, we convert from the 1-D vector yl to the plasma variables.
 ************************************************************************
-      if (TimingPandfOn.gt.0) TimeConvert0=tick()
+      if (TimingPandfOn.gt.0) 
+     .      TimeConvert0=tick()
+
       call convsr_vo (xc, yc, yl)  # pre 9/30/97 was one call to convsr
-      if (TimingPandfOn.gt.0) TotTimeConvert0=TotTimeConvert0+tock(TimeConvert0)
-      if (TimingPandfOn.gt.0) TimeConvert1=tick()
+
+      if (TimingPandfOn.gt.0) 
+     .      TotTimeConvert0=TotTimeConvert0+tock(TimeConvert0)
+      if (TimingPandfOn.gt.0) 
+     .      TimeConvert1=tick()
+
       call convsr_aux (xc, yc)
-      if (TimingPandfOn.gt.0) TotTimeConvert1=TotTimeConvert1+tock(TimeConvert1)
+
+      if (TimingPandfOn.gt.0) 
+     .      TotTimeConvert1=TotTimeConvert1+tock(TimeConvert1)
 c...  TODO: gather variables calculated in convert
 
 
@@ -524,6 +531,7 @@ c ... Get initial value of system cpu timer.
           call jacobian_store_volsources(xc, yc)
       end if
 
+      if (ismcnon .ne. 0) call initialize_ismcnon(yl(neq+1))
 
       call subpandf1(xc, yc, neq, yl)
       call subpandf2

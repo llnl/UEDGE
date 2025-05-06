@@ -569,7 +569,7 @@ END SUBROUTINE OMPSplitIndex
     USE OMPPandf1, ONLY: Nivchunk,ivchunk,yincchunk,xincchunk, &
             iychunk,ixchunk,NchunksPandf1
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
-    USE Dim, ONLY:nx,ny
+    USE Dim, ONLY: nx, ny
     USE Imprad, ONLY: prad
     USE Selec, ONLY:yinc,xrinc,xlinc
     USE Grid, ONLY:ijactot
@@ -602,7 +602,6 @@ END SUBROUTINE OMPSplitIndex
     tmp_prad = 0
 
     if (ijactot.gt.0) then
-
         Time1=omp_get_wtime()
         call MakeChunksPandf1
         call OmpCopyPointerup
@@ -628,163 +627,148 @@ END SUBROUTINE OMPSplitIndex
                 psorcxg = 0
                 psorrg = 0
                 psordis = 0
+                ! ************** BEGIN PANDF *******************
 
+                !******************************************************
+                !*  -- initialization --
+                !******************************************************
+                !******************************************************
+                !*   This section is to use in the calculation of the 
+                !*   jacobian locally.
+                !******************************************************
 
+                ! ... Get initial value of system cpu timer.
+                if(xc .lt. 0) then
+                    tsfe = tick()
+                else
+                     tsjf = tick()
+                endif
 
-!      Use(PandfTiming)
-!      Use(ParallelEval)
-!      Use(MCN_sources)
-!      Use(UEpar)
-!      Use(Ynorm)
-!      Use(Selec)
-!      Use(Time_dep_nwt)   # nufak,dtreal,ylodt,dtuse
+                ! Initialize loop ranges based on xc and yc
+                call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
 
-! ************** BEGIN PANDF *******************
+                call subpandf1(xc, yc, neq, ylcopy)
+                call subpandf2
+                call subpandf3
 
-!************************************************************************
-!*  -- initialization --
-!************************************************************************
-!************************************************************************
-!*   This section is to use in the calculation of the jacobian locally.
-!************************************************************************
+                ! TODO: gather variables calculated in calc driftterms
+                !       v2 needed by calc_friction
+                ! TODO: Break out conditionals, move to top
+                call calc_friction(xc)
+                !******************************************************
+                !*     Calculate the currents fqx, fqy, fq2 and fqp, if
+                !*     isphion = 1 or if isphiofft = 1.
+                !******************************************************
 
-! ... Get initial value of system cpu timer.
-      if(xc .lt. 0) then
-         tsfe = tick()
-      else
-         tsjf = tick()
-      endif
-
-!     Initialize loop ranges based on xc and yc
-      call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
-
-      if (xc .ge. 0 .and. yc .ge. 0) then 
-          call jacobian_store_momentum(xc, yc)
-          call jacobian_store_volsources(xc, yc)
-      end if
-
-
-      call subpandf1(xc, yc, neq, ylcopy)
-      call subpandf2
-      call subpandf3
-
-!...  TODO: gather variables calculated in calc driftterms
-!...        v2 needed by calc_friction
-!...  TODO: Break out conditionals, move to top
-      call calc_friction(xc)
-!************************************************************************
-!*     Calculate the currents fqx, fqy, fq2 and fqp, if isphion = 1
-!*     or if isphiofft = 1.
-!************************************************************************
-
-      call calc_elec_velocities
-!...  Add checks on ishosor and ispsorave: parallel only works for == 0
-      call calc_volumetric_sources(xc, yc)
+                call calc_elec_velocities
+                ! Add checks on ishosor and ispsorave: parallel only works for == 0
+                call calc_volumetric_sources(xc, yc)
 
 
 
 
-      call calc_plasma_viscosities
+                call calc_plasma_viscosities
 
-      call calc_plasma_heatconductivities
+                call calc_plasma_heatconductivities
 
-      call calc_plasma_equipartition
+                call calc_plasma_equipartition
 
-      call calc_gas_heatconductivities
-! ... Call routine to evaluate gas energy fluxes
-!****************************************************************
-      call engbalg
+                call calc_gas_heatconductivities
+                ! ... Call routine to evaluate gas energy fluxes
+                !******************************************************
+                call engbalg
 
-      call calc_plasma_transport
+                call calc_plasma_transport
 
-!----------------------------------------------------------------------c
-!          SCALE SOURCE TERMS FROM MONTE-CARLO-NEUTRALS MODEL
-!
-!     These sources are used in the residuals (resco,resmo,resee,resei)
-!     so the call to scale_mcn must occur BEFORE these residuals are
-!     evaluated.  Since they scale with fnix at the divertor plates,
-!     the call to scale_mcn must occur AFTER fnix has been calculated.
+                !------------------------------------------------------
+                !   SCALE SOURCE TERMS FROM MONTE-CARLO-NEUTRALS MODEL
+                !
+                ! These sources are used in the residuals (resco,resmo,
+                ! resee,resei) so the call to scale_mcn must occur 
+                ! BEFORE these residuals are evaluated.  Since they 
+                ! scale with fnix at the divertor plates, the call to 
+                ! scale_mcn must occur AFTER fnix has been calculated.
 
+                if (ismcnon .ne. 0) call scale_mcnsor
 
-      if (ismcnon .ne. 0) call scale_mcnsor
-!----------------------------------------------------------------------c
+                !******************************************************
+                !  Here we do the neutral gas diffusion model
+                !  The diffusion is flux limited using the thermal flux
+                !******************************************************
 
-!*********************************************************************
-!  Here we do the neutral gas diffusion model
-!  The diffusion is flux limited using the thermal flux
-!**********************************************************************
-
-      call calc_plasma_momentum(xc, yc)
-
-
-      call calc_plasma_energy
-
-      call calc_plasma_particle_residuals
-      call calc_gas_continuity_residuals
-      call calc_plasma_momentum_residuals()
-      call calc_gas_energy_residuals
-!...  Requires gas energy residuals
-      call calc_plasma_energy_residuals(xc, yc)
-
-      call calc_rhs(yldotcopy)
-
-!  POTEN calculates the electrostatic potential, and BOUNCON calculates the 
-!  equations for the boundaries. For the vodpk solver, the B.C. are ODEs 
-!  in time (rate equations).  Both bouncon and poten must be called before
-!  the perturbed variables are reset below to get Jacobian correct
-
-      if (isphion.eq.1) call calc_potential_residuals (neq, ylcopy, yldotcopy)
-
-      call bouncon (neq, yldotcopy)
-
-      if (xc .ge. 0 .and. yc .ge. 0) call jacobian_reset(xc, yc)
-
-! ... Accumulate cpu time spent here.
-      if(xc .lt. 0) then
-            ttotfe = ttotfe + tock(tsfe)
-      else
-            ttotjf = ttotjf + tock(tsjf)
-      endif
-      if (TimingPandfOn.gt.0) & 
-     &      TotTimePandf=TotTimePandf+tock(TimePandf)
+                call calc_plasma_momentum(xc, yc)
 
 
-!...  ====================== BEGIN OLD PANDF1 ==========================
+                call calc_plasma_energy
 
-!...  If isflxvar=0, we use ni,v,Te,Ti,ng as variables, and the ODEs need
-!...  to be modified as original equations are for d(nv)/dt, etc
-!...  If isflxvar=2, variables are ni,v,nTe,nTi,ng. Boundary equations and
-!...  potential equations are not reordered.
+                call calc_plasma_particle_residuals
+                call calc_gas_continuity_residuals
+                call calc_plasma_momentum_residuals()
+                call calc_gas_energy_residuals
+                !  Requires gas energy residuals
+                call calc_plasma_energy_residuals(xc, yc)
+                call calc_rhs(yldotcopy)
 
-      if(isflxvar.ne.1 .and. isrscalf.eq.1) call rscalf(ylcopy,yldotcopy)
+                !  POTEN calculates the electrostatic potential, and 
+                !  BOUNCON calculates the equations for the boundaries.
+                !  For the vodpk solver, the B.C. are ODEs in time 
+                !  (rate equations).  Both bouncon and poten must be 
+                !  called before the perturbed variables are reset 
+                !  below to get Jacobian correct
 
-!
-! ... Now add psuedo or real timestep for nksol method, but not both
-      if (nufak.gt.1.e5 .and. dtreal.lt.1.e-5) then
-         call xerrab('***Both 1/nufak and dtreal < 1.e5 - illegal***')
-      endif
+                if (isphion.eq.1) call calc_potential_residuals (neq, ylcopy, yldotcopy)
+
+                call bouncon (neq, yldotcopy)
+
+                ! Accumulate cpu time spent here.
+                if(xc .lt. 0) then
+                    ttotfe = ttotfe + tock(tsfe)
+                else
+                    ttotjf = ttotjf + tock(tsjf)
+                endif
+                if (TimingPandfOn.gt.0) & 
+                &      TotTimePandf=TotTimePandf+tock(TimePandf)
 
 
+                ! ================ BEGIN OLD PANDF1 ===================
+
+                ! If isflxvar=0, we use ni,v,Te,Ti,ng as variables, and
+                ! the ODEs need to be modified as original equations 
+                ! are for d(nv)/dt, etc If isflxvar=2, variables are 
+                ! ni,v,nTe,nTi,ng. Boundary equations and potential 
+                ! equations are not reordered.
+
+                if(isflxvar.ne.1 .and. isrscalf.eq.1) call rscalf(ylcopy,yldotcopy)
+
+                ! Now add psuedo or real timestep for nksol method, but not both
+                if (nufak.gt.1.e5 .and. dtreal.lt.1.e-5) then
+                    call xerrab('***Both 1/nufak and dtreal < 1.e5 - illegal***')
+                endif
 
 
-!...  Add a real timestep, dtreal, to the nksol equations 
-!...  NOTE!! condition yl(neq+1).lt.0 means a call from nksol, not jac_calc
+                ! Add a real timestep, dtreal, to the nksol equations 
+                ! NOTE!! condition yl(neq+1).lt.0 means a call from nksol, not jac_calc
+                if(dtreal < 1.e15) then
+                    if ( &
+                    &   (svrpkg=='nksol' .and. ylcopy(neq+1)<0) &
+                    &   .or. svrpkg == 'petsc' &
+                    & ) then
+                        call add_timestep(neq, ylcopy, yldotcopy)
+                    endif   !if-test on svrpkg and ylcopy(neq+1)
+                endif    !if-test on dtreal
 
-      if(dtreal < 1.e15) then
-       if((svrpkg=='nksol' .and. ylcopy(neq+1)<0) .or. svrpkg == 'petsc') then
-        call add_timestep(neq, ylcopy, yldotcopy)
-       endif   !if-test on svrpkg and ylcopy(neq+1)
-      endif    !if-test on dtreal
-
-! ************** END PANDF *******************
+                ! ************** END PANDF *******************
 
 
                 do iv=1,Nivchunk(ichunk)
-                    yldottot(ivchunk(ichunk,iv)) = yldottot(ivchunk(ichunk,iv)) + yldotcopy(ivchunk(ichunk,iv))
+                    yldottot(ivchunk(ichunk,iv)) = &
+                    &   yldottot(ivchunk(ichunk,iv)) + &
+                    &   yldotcopy(ivchunk(ichunk,iv))
                 enddo
 
                 tmp_prad(0:nx+1, iychunk(ichunk)) =  &
-                    & tmp_prad(0:nx+1, iychunk(ichunk)) + prad(0:nx+1, iychunk(ichunk))
+                &   tmp_prad(0:nx+1, iychunk(ichunk)) + &
+                &   prad(0:nx+1, iychunk(ichunk))
 
                 yinc=yinc_bkp
                 xlinc=xlinc_bkp
