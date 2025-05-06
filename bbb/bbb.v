@@ -3348,14 +3348,6 @@ pandf(i,j,neq:integer,t:real,yl:real,yldot:real) subroutine
 	# in  t        present physical time
 	# in  yl(*)    vector of unknowns
 	# out yldot(*) RHS of ODE solver or RHS=0 for Newtown solver (NKSOL)
-pandf1(i,j,ieq,neq:integer,t:real,yl:real,yldot:real) 	subroutine
-	# in i   polodial index for perturbed variable
-	# in j   radial index for perturbed vars for Jacobian calc (-1 for full RHS)
-	# in  ieq        equation index for Jacobian calc
-	# in  neq        total number of variables
-	# in  t          present physical time
-	# in  yl(*)      vector of unknowns
-	# inout yldot(*) RHS of ODE solver or RHS=0 for Newtown solver (NKSOL)
 bouncon(neq:integer,yl:real,yldot:real)          subroutine
 	# Updates RHS (yldot) for boundary cells
 	# in    neq        number of equations

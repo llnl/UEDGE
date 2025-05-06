@@ -123,7 +123,7 @@ class UeRun():
             pass
         if 'fnorm' in self.classvars.keys():
             if fnrm is None:
-                bbb.pandf1 (-1, -1, 0, bbb.neq, 1., bbb.yl, bbb.yldot)
+                bbb.pandf (-1, -1, bbb.neq, 1., bbb.yl, bbb.yldot)
                 self.classvars['fnorm'].append(deepcopy((sum((bbb.yldot[:bbb.neq]*\
                     bbb.sfscal[:bbb.neq])**2))**0.5))
             else:
@@ -547,7 +547,7 @@ class UeRun():
             if (bbb.iterm == 1):
                 bbb.ylodt = bbb.yl
                 bbb.dt_tot += bbb.dtreal
-                bbb.pandf1 (-1, -1, 0, bbb.neq, 1., bbb.yl, bbb.yldot)
+                bbb.pandf (-1, -1, bbb.neq, 1., bbb.yl, bbb.yldot)
                 self.fnrm_old = sum((bbb.yldot[:bbb.neq-1]*\
                     bbb.sfscal[:bbb.neq-1])**2)**0.5
                 self.savesuccess(savefname,
@@ -586,7 +586,7 @@ class UeRun():
         def calc_fnrm():
             ''' Calculates the initial fnrm '''
             from uedge import bbb
-            bbb.pandf1 (-1, -1, 0, bbb.neq, 1., bbb.yl, bbb.yldot)
+            bbb.pandf (-1, -1, bbb.neq, 1., bbb.yl, bbb.yldot)
             return sum((bbb.yldot[:bbb.neq-1]*bbb.sfscal[:bbb.neq-1])**2)**0.5
  
         ''' TIME-SLICING SETUP '''
@@ -938,7 +938,7 @@ class UeRun():
             while bbb.dtreal < 1e5:
                 ftol_old = deepcopy(bbb.ftol)
                 # Dynamically decreasing fnorm
-                bbb.pandf1 (-1, -1, 0, bbb.neq, 1., bbb.yl, bbb.yldot)
+                bbb.pandf (-1, -1, bbb.neq, 1., bbb.yl, bbb.yldot)
                 fnorm_old = (sum((bbb.yldot[:bbb.neq]*\
                     bbb.sfscal[:bbb.neq])**2))**0.5
                 if bbb.dtreal > 1:

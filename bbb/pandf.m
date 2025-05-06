@@ -411,6 +411,58 @@ c...  timestep dtphi
 
       END SUBROUTINE add_timestep
 
+      SUBROUTINE subpandf1(xc, yc, neq, yl)
+      IMPLICIT NONE
+      Use(PandfTiming)
+      Use(ParallelEval)
+      Use(MCN_sources)
+      integer xc, yc, neq
+      real yl(*)
+      real tick, tock
+      external tick, tock
+
+      if (ismcnon .ne. 0) call initialize_ismcnon(yl(neq+1))
+c... Timing of pandf components (added by J. Guterl)
+        if (TimingPandf.gt.0
+     .      .and. yl(neq+1) .lt. 0 .and. ParallelPandf1.eq.0
+     .) then
+        TimingPandfOn=1
+      else
+        TimingPandfOn=0
+      endif
+      if (TimingPandfOn.gt.0) TimePandf=tick()
+
+
+************************************************************************
+c... First, we convert from the 1-D vector yl to the plasma variables.
+************************************************************************
+      if (TimingPandfOn.gt.0) TimeConvert0=tick()
+      call convsr_vo (xc, yc, yl)  # pre 9/30/97 was one call to convsr
+      if (TimingPandfOn.gt.0) TotTimeConvert0=TotTimeConvert0+tock(TimeConvert0)
+      if (TimingPandfOn.gt.0) TimeConvert1=tick()
+      call convsr_aux (xc, yc)
+      if (TimingPandfOn.gt.0) TotTimeConvert1=TotTimeConvert1+tock(TimeConvert1)
+c...  TODO: gather variables calculated in convert
+
+
+      END SUBROUTINE subpandf1
+
+
+      SUBROUTINE subpandf2
+      IMPLICIT NONE
+
+      call calc_plasma_diffusivities
+c...  No gradients to separate out
+      call initialize_driftterms
+      END SUBROUTINE subpandf2    
+
+      SUBROUTINE subpandf3
+      IMPLICIT NONE
+
+      call calc_driftterms
+      END SUBROUTINE subpandf3
+
+
 c-----------------------------------------------------------------------
       SUBROUTINE pandf (xc, yc, neq, time, yl, yldot)
 
@@ -435,9 +487,9 @@ c    yldot is the RHS of ODE solver or RHS=0 for Newton solver (NKSOL)
       integer xc, yc, neq      
       real time, yl(*),yldot(*)
       Use(PandfTiming)
+      Use(ParallelEval)
       Use(MCN_sources)
       Use(UEpar)
-      Use(ParallelEval)
       Use(Ynorm)
       Use(Time_dep_nwt)   # nufak,dtreal,ylodt,dtuse
       real tick,tock, tsfe, tsjf, ttotfe, ttotjf
@@ -450,22 +502,9 @@ c     Check if "k" or "kaboom" has been typed to jump back to the parser
 c     check if a "ctrl-c" has been type to interrupt - from basis
       call ruthere
 
-
-
-c... Timing of pandf components (added by J. Guterl)
-        if (TimingPandf.gt.0
-     .      .and. yl(neq+1) .lt. 0 .and. ParallelPandf1.eq.0
-     .) then
-        TimingPandfOn=1
-      else
-        TimingPandfOn=0
-      endif
-      if (TimingPandfOn.gt.0) TimePandf=tick()
-
 ************************************************************************
 *  -- initialization --
 ************************************************************************
-      if (ismcnon .ne. 0) call initialize_ismcnon(yl(neq+1))
 ************************************************************************
 *   This section is to use in the calculation of the jacobian locally.
 ************************************************************************
@@ -478,30 +517,16 @@ c ... Get initial value of system cpu timer.
       endif
 !     Initialize loop ranges based on xc and yc
       call initialize_ranges(xc, yc)
-************************************************************************
-c... First, we convert from the 1-D vector yl to the plasma variables.
-************************************************************************
-      if (TimingPandfOn.gt.0) TimeConvert0=tick()
-      call convsr_vo (xc, yc, yl)  # pre 9/30/97 was one call to convsr
-      if (TimingPandfOn.gt.0) TotTimeConvert0=TotTimeConvert0+tock(TimeConvert0)
-      if (TimingPandfOn.gt.0) TimeConvert1=tick()
-      call convsr_aux (xc, yc)
-      if (TimingPandfOn.gt.0) TotTimeConvert1=TotTimeConvert1+tock(TimeConvert1)
-c...  TODO: gather variables calculated in convert
 
 
+      call subpandf1(xc, yc, neq, yl)
+      call subpandf2
 
-      call calc_plasma_diffusivities
-c...  No gradients to separate out
-      call initialize_driftterms
       call jacobian_store_momentum(xc, yc)
       call jacobian_store_volsources(xc, yc)
 
+      call subpandf3
 
-c...  TODO: gather variables calculated in initialize driftterms
-
-      call calc_driftterms
-   
 c...  TODO: gather variables calculated in calc driftterms
 c...        v2 needed by calc_friction
 c...  TODO: Break out conditionals, move to top
@@ -631,4 +656,13 @@ c-----------------------------------------------------------------------
       return
       end
 c---- end of subroutine timimpfj ---------------------------------------
+
+c      SUBROUTINE pandf1(xc, yc, ieq, neq, time, yl, yldot)
+c      IMPLICIT NONE
+c      integer xc, yc, ieq, neq
+c      real time, yl(*), yldot(*)
+c      call pandf(xc,yc,neq,time,yl,yldot)
+c      RETURN
+c      END SUBROUTINE
+    
 
