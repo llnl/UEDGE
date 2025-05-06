@@ -459,7 +459,7 @@ SUBROUTINE  OMPSplitIndex(ieqmin,ieqmax,NchunksJac,ivmin,ivmax,weight)
 END SUBROUTINE OMPSplitIndex
 
 #ifdef _OPENMP
-  SUBROUTINE OMPPandf1Rhs(neq,time,yl,yldot)
+  SUBROUTINE OMPPandf1Rhs_old(neq,time,yl,yldot)
     USE omp_lib
     USE OmpCopybbb
     USE ParallelSettings, ONLY: Nthreads,CheckPandf1
@@ -555,7 +555,277 @@ END SUBROUTINE OMPSplitIndex
        call pandf (-1,-1, neq, time, yl, yldot)
     endif
     RETURN
-  END SUBROUTINE OMPPandf1Rhs
+  END SUBROUTINE OMPPandf1Rhs_old
+
+
+
+  SUBROUTINE OMPPandf1Rhs(neq,time,yl,yldot)
+! Recreates Pandf using parallel structure
+    USE omp_lib
+    USE OmpCopybbb
+    USE ParallelSettings, ONLY: Nthreads,CheckPandf1
+    USE OMPPandf1Settings, ONLY: OMPTimeParallelPandf1,OMPTimeSerialPandf1, &
+            OMPPandf1Stamp,OMPPandf1Verbose,OMPPandf1Debug
+    USE OMPPandf1, ONLY: Nivchunk,ivchunk,yincchunk,xincchunk, &
+            iychunk,ixchunk,NchunksPandf1
+    USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
+    USE Dim, ONLY:nx,ny
+    USE Imprad, ONLY: prad
+    USE Selec, ONLY:yinc,xrinc,xlinc
+    USE Grid, ONLY:ijactot
+    USE Cdv, ONLY: comnfe
+    USE Rhsides, ONLY: psorcxg, psorrg, psordis
+    USE Time_dep_nwt, ONLY: dtreal, nufak
+    USE Ynorm, ONLY: isflxvar, isrscalf
+    USE MCN_sources, ONLY: ismcnon
+    USE UEpar, ONLY: isphion, svrpkg
+    USE PandfTiming, ONLY: TimePandf, TotTimePandf, TimingPandfOn
+    
+    IMPLICIT NONE
+ 
+    integer yinc_bkp,xrinc_bkp,xlinc_bkp,iv,tid
+    integer,intent(in)::neq
+    real,intent(in)::yl(*)
+    real,intent(out)::yldot(*)
+    real,intent(in)::time
+    real::yldotcopy(1:neq)
+    real yldotsave(1:neq),ylcopy(1:neq+2), yldottot(1:neq)
+    character*80 ::FileName
+    real time1,time2
+    integer::ichunk, xc, yc
+    real tmp_prad(0:nx+1, 0:ny+1)
+    real tick,tock, tsfe, tsjf, ttotfe, ttotjf
+    external tick, tock
+    ylcopy(1:neq+1)=yl(1:neq+1)
+    yldotcopy = 0
+    yldottot = 0
+    tmp_prad = 0
+
+    if (ijactot.gt.0) then
+
+        Time1=omp_get_wtime()
+        call MakeChunksPandf1
+        call OmpCopyPointerup
+          !$omp parallel do default(shared) schedule(dynamic,OMPPandf1LoopNchunk) &
+          !$omp& private(iv,ichunk,xc,yc) firstprivate(ylcopy,yldotcopy) copyin(yinc,xlinc,xrinc) &
+          !$omp& REDUCTION(+:yldottot, tmp_prad)
+            loopthread: do ichunk=1,NchunksPandf1 !ichunk from 1 to Nthread, tid from 0 to Nthread-1
+            ! we keep all these parameters as it is easier to debug LocalJacBuilder and deal wichunk private/shared attributes
+                xc = ixchunk(ichunk)
+                yc = iychunk(ichunk)
+                yinc_bkp=yinc
+                xlinc_bkp=xlinc
+                xrinc_bkp=xrinc
+                yldotcopy = 0
+                if (iychunk(ichunk).ne.-1) then
+                    yinc=yincchunk(ichunk)
+                endif
+                if (ixchunk(ichunk).ne.-1) then
+                    xrinc=xincchunk(ichunk)
+                    xlinc=xincchunk(ichunk)
+                endif
+                ! Necessary initialization for icntnunk=1 evaluation
+                psorcxg = 0
+                psorrg = 0
+                psordis = 0
+
+
+
+!      Use(PandfTiming)
+!      Use(ParallelEval)
+!      Use(MCN_sources)
+!      Use(UEpar)
+!      Use(Ynorm)
+!      Use(Selec)
+!      Use(Time_dep_nwt)   # nufak,dtreal,ylodt,dtuse
+
+! ************** BEGIN PANDF *******************
+
+!************************************************************************
+!*  -- initialization --
+!************************************************************************
+!************************************************************************
+!*   This section is to use in the calculation of the jacobian locally.
+!************************************************************************
+
+! ... Get initial value of system cpu timer.
+      if(xc .lt. 0) then
+         tsfe = tick()
+      else
+         tsjf = tick()
+      endif
+
+!     Initialize loop ranges based on xc and yc
+      call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
+
+      if (xc .ge. 0 .and. yc .ge. 0) then 
+          call jacobian_store_momentum(xc, yc)
+          call jacobian_store_volsources(xc, yc)
+      end if
+
+
+      call subpandf1(xc, yc, neq, ylcopy)
+      call subpandf2
+      call subpandf3
+
+!...  TODO: gather variables calculated in calc driftterms
+!...        v2 needed by calc_friction
+!...  TODO: Break out conditionals, move to top
+      call calc_friction(xc)
+!************************************************************************
+!*     Calculate the currents fqx, fqy, fq2 and fqp, if isphion = 1
+!*     or if isphiofft = 1.
+!************************************************************************
+
+      call calc_elec_velocities
+!...  Add checks on ishosor and ispsorave: parallel only works for == 0
+      call calc_volumetric_sources(xc, yc)
+
+
+
+
+      call calc_plasma_viscosities
+
+      call calc_plasma_heatconductivities
+
+      call calc_plasma_equipartition
+
+      call calc_gas_heatconductivities
+! ... Call routine to evaluate gas energy fluxes
+!****************************************************************
+      call engbalg
+
+      call calc_plasma_transport
+
+!----------------------------------------------------------------------c
+!          SCALE SOURCE TERMS FROM MONTE-CARLO-NEUTRALS MODEL
+!
+!     These sources are used in the residuals (resco,resmo,resee,resei)
+!     so the call to scale_mcn must occur BEFORE these residuals are
+!     evaluated.  Since they scale with fnix at the divertor plates,
+!     the call to scale_mcn must occur AFTER fnix has been calculated.
+
+
+      if (ismcnon .ne. 0) call scale_mcnsor
+!----------------------------------------------------------------------c
+
+!*********************************************************************
+!  Here we do the neutral gas diffusion model
+!  The diffusion is flux limited using the thermal flux
+!**********************************************************************
+
+      call calc_plasma_momentum(xc, yc)
+
+
+      call calc_plasma_energy
+
+      call calc_plasma_particle_residuals
+      call calc_gas_continuity_residuals
+      call calc_plasma_momentum_residuals()
+      call calc_gas_energy_residuals
+!...  Requires gas energy residuals
+      call calc_plasma_energy_residuals(xc, yc)
+
+      call calc_rhs(yldotcopy)
+
+!  POTEN calculates the electrostatic potential, and BOUNCON calculates the 
+!  equations for the boundaries. For the vodpk solver, the B.C. are ODEs 
+!  in time (rate equations).  Both bouncon and poten must be called before
+!  the perturbed variables are reset below to get Jacobian correct
+
+      if (isphion.eq.1) call calc_potential_residuals (neq, ylcopy, yldotcopy)
+
+      call bouncon (neq, yldotcopy)
+
+      if (xc .ge. 0 .and. yc .ge. 0) call jacobian_reset(xc, yc)
+
+! ... Accumulate cpu time spent here.
+      if(xc .lt. 0) then
+            ttotfe = ttotfe + tock(tsfe)
+      else
+            ttotjf = ttotjf + tock(tsjf)
+      endif
+      if (TimingPandfOn.gt.0) & 
+     &      TotTimePandf=TotTimePandf+tock(TimePandf)
+
+
+!...  ====================== BEGIN OLD PANDF1 ==========================
+
+!...  If isflxvar=0, we use ni,v,Te,Ti,ng as variables, and the ODEs need
+!...  to be modified as original equations are for d(nv)/dt, etc
+!...  If isflxvar=2, variables are ni,v,nTe,nTi,ng. Boundary equations and
+!...  potential equations are not reordered.
+
+      if(isflxvar.ne.1 .and. isrscalf.eq.1) call rscalf(ylcopy,yldotcopy)
+
+!
+! ... Now add psuedo or real timestep for nksol method, but not both
+      if (nufak.gt.1.e5 .and. dtreal.lt.1.e-5) then
+         call xerrab('***Both 1/nufak and dtreal < 1.e5 - illegal***')
+      endif
+
+
+
+
+!...  Add a real timestep, dtreal, to the nksol equations 
+!...  NOTE!! condition yl(neq+1).lt.0 means a call from nksol, not jac_calc
+
+      if(dtreal < 1.e15) then
+       if((svrpkg=='nksol' .and. ylcopy(neq+1)<0) .or. svrpkg == 'petsc') then
+        call add_timestep(neq, ylcopy, yldotcopy)
+       endif   !if-test on svrpkg and ylcopy(neq+1)
+      endif    !if-test on dtreal
+
+! ************** END PANDF *******************
+
+
+                do iv=1,Nivchunk(ichunk)
+                    yldottot(ivchunk(ichunk,iv)) = yldottot(ivchunk(ichunk,iv)) + yldotcopy(ivchunk(ichunk,iv))
+                enddo
+
+                tmp_prad(0:nx+1, iychunk(ichunk)) =  &
+                    & tmp_prad(0:nx+1, iychunk(ichunk)) + prad(0:nx+1, iychunk(ichunk))
+
+                yinc=yinc_bkp
+                xlinc=xlinc_bkp
+                xrinc=xrinc_bkp
+            enddo loopthread
+          !$omp  END PARALLEL DO
+        Time1=omp_get_wtime()-Time1
+
+        OMPTimeParallelPandf1=Time1+OMPTimeParallelPandf1
+
+        yldot(:neq) = yldottot
+        prad = tmp_prad
+
+        if (CheckPandf1.gt.0) then
+            Time2=omp_get_wtime()
+            call pandf (-1, -1, neq, time, ylcopy, yldotsave)
+            Time2=omp_get_wtime()-Time2
+            OMPTimeSerialPandf1=Time2+OMPTimeSerialPandf1
+            if (OMPPandf1Verbose.gt.0) then
+                write(*,*) "Timing Pandf1 serial:",OMPTimeSerialPandf1, &
+                    "(",Time2,")/parallel:",OMPTimeParallelPandf1,'(',Time1,')'
+            endif
+            call Compare(yldot,yldotsave,neq)
+            write(*,'(a,i4)') "  Serial and parallel pandf are identical for nfe = ", comnfe
+        endif
+    else
+       call pandf (-1,-1, neq, time, yl, yldot)
+    endif
+    RETURN
+
+    END SUBROUTINE OMPPandf1Rhs
+
+
+
+
+
+
+
+
+
+
 
   SUBROUTINE CreateBin(ieqmin,ieqmax,ichunkmin,ichunkmax,ichunktot,Padding,iCenterBin,iLeftBin,iRightBin,inc)
     IMPLICIT NONE
