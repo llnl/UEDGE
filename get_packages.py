@@ -1,20 +1,20 @@
 
 def write_subpandf1():
-    write_subpandf(1, ['convsr_vo', 'convsr_aux'], 
-        ["(xc, yc, yl)", "(xc, yc)"], True
-    )
+    lines = write_ompsubroutine('convsr_vo', "(xc, yc, ylcopy)", True)
+    for line in lines:
+        print(line)
     
 
-def write_subpandf(index, subroutinelist, subroutine_arguments, bounds=False):
+def write_ompsubroutine(subroutine, arguments, bounds=False):
     from uetools import Case
     from textwrap import wrap
 
+    outlines = []
     getpkg = Case().search.get_group
     pkgs = {}
     defined_vars = get_pandf_vars()
     varlist = []
-    for subroutine in subroutinelist:
-        varlist = varlist + defined_vars[subroutine]
+    varlist = varlist + defined_vars[subroutine]
     for var in varlist:
         pkg = getpkg(var)
         if pkg not in pkgs:
@@ -29,58 +29,59 @@ def write_subpandf(index, subroutinelist, subroutine_arguments, bounds=False):
 
 
 
-    print(f"  SUBROUTINE OMPsubpandf{index}(neq, yl, yldot)")
-    print( "    USE Dim, ONLY: nx, ny, ngsp, nisp")
-    print( "    USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk")
-    print( "    USE OmpCopybbb")
+    outlines.append(f"  SUBROUTINE OMP{subroutine}(neq, yl, yldot)")
+    outlines.append( "    USE Dim, ONLY: nx, ny, ngsp, nisp")
+    outlines.append( "    USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk")
+    outlines.append( "    USE OmpCopybbb")
 
 
     for pkg, var in pkgs.items():
         lines =  [x.replace(" ",", ") for x in wrap( 
                     " ".join(var), width=70, break_long_words=False)]
-        print("    USE {}, ONLY: {}".format(pkg, ", &\n    &    ".join(lines)))
-    print("    IMPLICIT NONE")
-    print("    INTEGER, INTENT(IN):: neq")
-    print("    REAL, INTENT(IN):: yl(*)")
-    print("    REAL, INTENT(OUT):: yldot(*)")
-    print("    INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc")
-    print("! Define local variables")
+        outlines.append("    USE {}, ONLY: {}".format(pkg, ", &\n    &    ".join(lines)))
+    outlines.append("    IMPLICIT NONE")
+    outlines.append("    INTEGER, INTENT(IN):: neq")
+    outlines.append("    REAL, INTENT(IN):: yl(*)")
+    outlines.append("    REAL, INTENT(OUT):: yldot(*)")
+    outlines.append("    INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc")
+    outlines.append("    REAL:: yldotcopy(1:neq), ylcopy(1:neq+2)")
+    outlines.append("! Define local variables")
     lines =  [x.replace(" ",", ") for x in wrap(
             " ".join(vardef), width=70, break_long_words=False)]
-    print("    real:: {}".format(", &\n    &      ".join(lines)))
+    outlines.append("    real:: {}".format(", &\n    &      ".join(lines)))
 
-    print("\n\n\n    ! Initialize arrays to zero")        
+    outlines.append("\n    ! Initialize arrays to zero")        
     lines =  [x.replace(" ","; ") for x in wrap( 
                 " ".join([f'{x}=0.' for x in tmpvarlist]), 
                 width=70, break_long_words=False)]
-    print(4*" " + f"\n    ".join(lines))
-
+    outlines.append(4*" " + f"\n    ".join(lines))
+    outlines.append("\n    ylcopy(1:neq+1)=yl(1:neq+1); yldotcopy=0")
+    
     if bounds:
-        print("\n    call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)")
+        outlines.append("\n    call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)")
     else:
-        print("\n    call chunk3d(1,nx,1,ny,0,0,chunks,Nchunks)")
+        outlines.append("\n    call chunk3d(1,nx,1,ny,0,0,chunks,Nchunks)")
 
 
-    print("\n    !$OMP    PARALLEL DO &")
-    print("    !$OMP &      default(shared) &")
-    print("    !$OMP &      schedule(dynamic,OMPPandf1LoopNchunk) &")
-    print("    !$OMP &      private(ichunk,xc,yc) &")
+    outlines.append("\n    !$OMP    PARALLEL DO &")
+    outlines.append("    !$OMP &      default(shared) &")
+    outlines.append("    !$OMP &      schedule(dynamic,OMPPandf1LoopNchunk) &")
+    outlines.append("    !$OMP &      private(ichunk,xc,yc) &")
+    outlines.append("    !$OMP &      firstprivate(ylcopy, yldotcopy) &")
     lines =  [x.replace(" ",", ") for x in wrap( 
                 " ".join(tmpvarlist), width=70, break_long_words=False)]
-    print(4*" " + "!$OMP &      REDUCTION(+:{})".format(\
+    outlines.append(4*" " + "!$OMP &      REDUCTION(+:{})".format(\
             ', &\n    !$OMP &         '.join(lines)))
 
 
-    print(4*" " + "DO ichunk = 1, Nchunks")
-    print(8*" "+"xc = chunks(ichunk,1)")
-    print(8*" "+"yc = chunks(ichunk,2)")
-    print(8*" "+"call initialize_ranges(xc, yc, 0, 0, 0)")
-    for i in range(len(subroutinelist)):
-        print(8*" " + "call {}{}".format( \
-            subroutinelist[i], subroutine_arguments[i]))
+    outlines.append(4*" " + "DO ichunk = 1, Nchunks")
+    outlines.append(8*" "+"xc = chunks(ichunk,1)")
+    outlines.append(8*" "+"yc = chunks(ichunk,2)")
+    outlines.append(8*" "+"call initialize_ranges(xc, yc, 0, 0, 0)")
+    outlines.append(8*" " + "call {}{}".format(subroutine, arguments))
 
 
-    print("\n\n\n        ! Update locally calculated variables")
+    outlines.append("\n        ! Update locally calculated variables")
     setvarlist = []
     for var in varlist:
         dims = (len(bbbv[var])-2)
@@ -94,20 +95,18 @@ def write_subpandf(index, subroutinelist, subroutine_arguments, bounds=False):
 #    lines =  [x.replace(" ","; ") for x in wrap(
 #            " ".join([f"{x}_tmp={x}_tmp+{x}" for x in varlist]), width=70, 
 #            break_long_words=False)]
-    print(8*" " + "\n        ".join(lines))
-    print(4*" " + "END DO") 
+    outlines.append(8*" " + "\n        ".join(lines))
+    outlines.append(4*" " + "END DO") 
 
-    print("\n\n\n    ! Update global variables")        
+    outlines.append("\n    ! Update global variables")        
     lines =  [x.replace(" ","; ") for x in wrap(
             " ".join([f"{x}={x}_tmp" for x in varlist]), width=70, 
             break_long_words=False)]
-    print(4*" "+"\n    ".join(lines))
+    outlines.append(4*" "+"\n    ".join(lines))
 
-    print(f"  END SUBROUTINE OMPsubpandf{index}")
+    outlines.append(f"\n  END SUBROUTINE OMP{subroutine}")
     
-    for var in varlist:
-        print(f'write(*,*) "{var}", MAXVAL(({var}_tmp-{var})/{var})')
-
+    return outlines
     
         
 
@@ -299,7 +298,7 @@ def get_sourcefile_vars_used(fname):
             block['empty'] = False
         else:
             block['empty'] = True
-        
+         
     for subroutine, entries in subroutines.items():
         if entries['empty'] is True:
             continue
@@ -314,3 +313,4 @@ def get_sourcefile_vars_used(fname):
             
     for sr, item in subroutines.items():
         print(sr)
+ 
