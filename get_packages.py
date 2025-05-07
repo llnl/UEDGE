@@ -7,6 +7,7 @@ def write_subpandf1():
     lines = write_ompsubroutine('convsr_vo2', "(xc, yc, ylcopy)", True)
     for line in lines:
         print(line)
+    print("\n\n")
     lines = write_ompsubroutine('convsr_aux', "(xc, yc)", True)
     for line in lines:
         print(line)
@@ -110,6 +111,12 @@ def write_ompsubroutine(subroutine, arguments, bounds=False):
             " ".join([f"{x}={x}_tmp" for x in varlist]), width=70, 
             break_long_words=False)]
     outlines.append(4*" "+"\n    ".join(lines))
+
+    lines =  [x.replace(" ","; ").replace("!", " ") for x in wrap(
+            " ".join([f"call!OmpCopyPointer{x}" for x in varlist]), width=70, 
+            break_long_words=False)]
+    outlines.append(4*" "+"\n    ".join(lines))
+    
 
     outlines.append(f"\n  END SUBROUTINE OMP{subroutine}")
     
