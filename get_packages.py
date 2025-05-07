@@ -1,11 +1,11 @@
 
 def write_subpandf1():
     write_subpandf(1, ['convsr_vo', 'convsr_aux'], 
-        ["(xc, yc, yl)", "(xc, yc)"]
+        ["(xc, yc, yl)", "(xc, yc)"], True
     )
     
 
-def write_subpandf(index, subroutinelist, subroutine_arguments):
+def write_subpandf(index, subroutinelist, subroutine_arguments, bounds=False):
     from uetools import Case
     from textwrap import wrap
 
@@ -55,7 +55,10 @@ def write_subpandf(index, subroutinelist, subroutine_arguments):
                 width=70, break_long_words=False)]
     print(4*" " + f"\n    ".join(lines))
 
-    print("\n    call chunk3d(1,nx,1,ny,0,0,chunks,Nchunks)")
+    if bounds:
+        print("\n    call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)")
+    else:
+        print("\n    call chunk3d(1,nx,1,ny,0,0,chunks,Nchunks)")
 
 
     print("\n    !$OMP    PARALLEL DO &")

@@ -621,7 +621,7 @@ END SUBROUTINE OMPSplitIndex
     tiy1_tmp=0.; ey_tmp=0.; tiv_tmp=0.; pr_tmp=0.; gprx_tmp=0.; pgy1_tmp=0.
     gpey_tmp=0.; pre_tmp=0.; tey0_tmp=0.; tiy0_tmp=0.
 
-    call chunk3d(1,nx,1,ny,0,0,chunks,Nchunks)
+    call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)
 
     !$OMP    PARALLEL DO &
     !$OMP &      default(shared) &
