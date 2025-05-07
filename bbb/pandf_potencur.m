@@ -437,6 +437,20 @@ c ...     Force boundary fqx to be uniform; these fqx only for phi B.C.
          if (islimon.ne.0 .and. iy.ge.iy_lims) fqx(ix_lim,iy)=0.
    47 continue
 
+c ... Add anomalous perp vis vy using calc_currents result - awkward,change
+      if (cfvyavis > 0.) then
+        do ifld = 1, 1  # nfsp  # only good for ifld=1
+          do iy = max(j1,2), min(j5,ny-1)
+            do ix = max(i1,2), min(i6,nx-1)
+              vyavis(ix,iy,ifld) = fqya(ix,iy)*2/(
+     .                  qe*(niy1(ix,iy,1)+niy0(ix,iy,1))*sy(ix,iy) )
+              vy(ix,iy,ifld) = vy(ix,iy,ifld) + cfvyavis*vyavis(ix,iy,ifld)
+            enddo
+          enddo
+        enddo
+      endif          
+
+
       return
       end
 c ***  End of subroutine calc_currents  **********
@@ -1061,20 +1075,20 @@ c             non-physical interface between upper target plates for dnull
 
 
 c ... Need to calculate new currents (fqp) after saving old & before frice,i
-      if(isphion+isphiofft .eq. 1)  call calc_currents
-
+      if(isphion+isphiofft .ne. 1)  then
 c ... Add anomalous perp vis vy using calc_currents result - awkward,change
-      if (cfvyavis > 0.) then
-        do ifld = 1, 1  # nfsp  # only good for ifld=1
-          do iy = max(j1,2), min(j5,ny-1)
-            do ix = max(i1,2), min(i6,nx-1)
-              vyavis(ix,iy,ifld) = fqya(ix,iy)*2/(
+          if (cfvyavis > 0.) then
+            do ifld = 1, 1  # nfsp  # only good for ifld=1
+              do iy = max(j1,2), min(j5,ny-1)
+                do ix = max(i1,2), min(i6,nx-1)
+                  vyavis(ix,iy,ifld) = fqya(ix,iy)*2/(
      .                  qe*(niy1(ix,iy,1)+niy0(ix,iy,1))*sy(ix,iy) )
-              vy(ix,iy,ifld) = vy(ix,iy,ifld) + cfvyavis*vyavis(ix,iy,ifld)
+                  vy(ix,iy,ifld) = vy(ix,iy,ifld) + cfvyavis*vyavis(ix,iy,ifld)
+                enddo
+              enddo
             enddo
-          enddo
-        enddo
-      endif          
+          endif          
+      endif
 
 
       END SUBROUTINE calc_driftterms

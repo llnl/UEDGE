@@ -1017,15 +1017,19 @@ END SUBROUTINE OMPSplitIndex
 
   END SUBROUTINE OMPinitialize_driftterms
 
+
   SUBROUTINE OMPcalc_driftterms(neq, yl, yldot)
     USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
     USE OmpCopybbb
-    USE Compla, ONLY: vygp, vycf, q2cd, v2xgp, v2, vycr, vyrd, veycb, v2cb, vycp, vy, vyce, vyavis, v2cd, &
-    &    vycb, veycp, v2rd, v2ce, ve2cd, v2dd, vydd, ve2cb, vytan
-    USE Comtra, ONLY: diffusivwrk, coll_fe, coll_fi
-    USE Comflo, ONLY: fdiaxrb, fdiaxlb
-    USE Conduc, ONLY: vy_cft, vyte_cft, vyti_cft
+    USE Compla, ONLY: ve2cd, v2xgp, v2, vy, vycp, vytan, v2rd, v2ce, vycf, vyavis, vycr, ve2cb, veycp, &
+    &    vygp, v2cd, veycb, q2cd, v2dd, vyce, v2cb, vycb, vyrd, vydd, netap
+    USE Comtra, ONLY: coll_fi, diffusivwrk, coll_fe
+    USE Conduc, ONLY: vyti_cft, vyte_cft, vy_cft
+    USE Comflo, ONLY: fdiaxlb, fdiaxrb, fqymi, fq2, fmity, fqyb, fqyai, fqyao, fqy, fqydti, fqyd, fqydt, &
+    &    fqyae, fq2d, fqxb, fqygp, fqya, fqym, fqx, fqp
+    USE Bcond, ONLY: fqpsatrb, fqpsatlb
+    USE Poten, ONLY: dphi_iy1
     IMPLICIT NONE
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
@@ -1033,31 +1037,45 @@ END SUBROUTINE OMPSplitIndex
     INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc
     REAL:: yldotcopy(1:neq), ylcopy(1:neq+2)
 ! Define local variables
-    real:: vygp_tmp(0:nx+1,0:ny+1,1:nisp), vycf_tmp(0:nx+1,0:ny+1), &
-    &      q2cd_tmp(0:nx+1,0:ny+1,1:nisp), diffusivwrk_tmp(0:nx+1,0:ny+1), &
-    &      fdiaxrb_tmp(0:ny+1,1:nxpt), v2xgp_tmp(0:nx+1,0:ny+1,1:nisp), &
-    &      v2_tmp(0:nx+1,0:ny+1,1:nisp), vy_cft_tmp(0:nx+1,0:ny+1,1:nisp), &
-    &      vycr_tmp(0:nx+1,0:ny+1), vyrd_tmp(0:nx+1,0:ny+1,1:nisp), &
-    &      vyte_cft_tmp(0:nx+1,0:ny+1), veycb_tmp(0:nx+1,0:ny+1), &
-    &      v2cb_tmp(0:nx+1,0:ny+1,1:nisp), vycp_tmp(0:nx+1,0:ny+1,1:nisp), &
-    &      vy_tmp(0:nx+1,0:ny+1,1:nisp), vyce_tmp(0:nx+1,0:ny+1,1:nisp), &
-    &      vyavis_tmp(0:nx+1,0:ny+1,1:nisp), v2cd_tmp(0:nx+1,0:ny+1,1:nisp), &
-    &      coll_fe_tmp(0:nx+1,0:ny+1), vyti_cft_tmp(0:nx+1,0:ny+1), &
-    &      vycb_tmp(0:nx+1,0:ny+1,1:nisp), veycp_tmp(0:nx+1,0:ny+1), &
-    &      fdiaxlb_tmp(0:ny+1,1:nxpt), v2rd_tmp(0:nx+1,0:ny+1,1:nisp), &
-    &      coll_fi_tmp(0:nx+1,0:ny+1), v2ce_tmp(0:nx+1,0:ny+1,1:nisp), &
-    &      ve2cd_tmp(0:nx+1,0:ny+1,1:nisp), v2dd_tmp(0:nx+1,0:ny+1,1:nisp), &
-    &      vydd_tmp(0:nx+1,0:ny+1,1:nisp), ve2cb_tmp(0:nx+1,0:ny+1), &
-    &      vytan_tmp(0:nx+1,0:ny+1,1:nisp)
+    real:: ve2cd_tmp(0:nx+1,0:ny+1,1:nisp), coll_fi_tmp(0:nx+1,0:ny+1), &
+    &      diffusivwrk_tmp(0:nx+1,0:ny+1), vyti_cft_tmp(0:nx+1,0:ny+1), &
+    &      vyte_cft_tmp(0:nx+1,0:ny+1), v2xgp_tmp(0:nx+1,0:ny+1,1:nisp), &
+    &      v2_tmp(0:nx+1,0:ny+1,1:nisp), vy_tmp(0:nx+1,0:ny+1,1:nisp), &
+    &      vycp_tmp(0:nx+1,0:ny+1,1:nisp), vytan_tmp(0:nx+1,0:ny+1,1:nisp), &
+    &      v2rd_tmp(0:nx+1,0:ny+1,1:nisp), coll_fe_tmp(0:nx+1,0:ny+1), &
+    &      v2ce_tmp(0:nx+1,0:ny+1,1:nisp), vycf_tmp(0:nx+1,0:ny+1), &
+    &      fdiaxlb_tmp(0:ny+1,1:nxpt), vyavis_tmp(0:nx+1,0:ny+1,1:nisp), &
+    &      vycr_tmp(0:nx+1,0:ny+1), ve2cb_tmp(0:nx+1,0:ny+1), &
+    &      veycp_tmp(0:nx+1,0:ny+1), vygp_tmp(0:nx+1,0:ny+1,1:nisp), &
+    &      v2cd_tmp(0:nx+1,0:ny+1,1:nisp), veycb_tmp(0:nx+1,0:ny+1), &
+    &      vy_cft_tmp(0:nx+1,0:ny+1,1:nisp), q2cd_tmp(0:nx+1,0:ny+1,1:nisp), &
+    &      v2dd_tmp(0:nx+1,0:ny+1,1:nisp), vyce_tmp(0:nx+1,0:ny+1,1:nisp), &
+    &      v2cb_tmp(0:nx+1,0:ny+1,1:nisp), vycb_tmp(0:nx+1,0:ny+1,1:nisp), &
+    &      fdiaxrb_tmp(0:ny+1,1:nxpt), vyrd_tmp(0:nx+1,0:ny+1,1:nisp), &
+    &      vydd_tmp(0:nx+1,0:ny+1,1:nisp), fqymi_tmp(0:nx+1,0:ny+1,1:nisp), &
+    &      fq2_tmp(0:nx+1,0:ny+1), fmity_tmp(0:nx+1,0:ny+1,1:nisp), &
+    &      fqyb_tmp(0:nx+1,0:ny+1), fqyai_tmp(0:nx+1,0:ny+1), &
+    &      fqyao_tmp(0:nx+1,0:ny+1), netap_tmp(0:nx+1,0:ny+1), &
+    &      fqy_tmp(0:nx+1,0:ny+1), fqydti_tmp(0:nx+1,0:ny+1,1:nisp), &
+    &      fqyd_tmp(0:nx+1,0:ny+1), fqydt_tmp(0:nx+1,0:ny+1), &
+    &      fqyae_tmp(0:nx+1,0:ny+1), fq2d_tmp(0:nx+1,0:ny+1), &
+    &      fqpsatrb_tmp(0:ny+1,2), fqxb_tmp(0:nx+1,0:ny+1), &
+    &      fqpsatlb_tmp(0:ny+1,2), fqygp_tmp(0:nx+1,0:ny+1), &
+    &      fqya_tmp(0:nx+1,0:ny+1), dphi_iy1_tmp(0:nx+1), fqym_tmp(0:nx+1,0:ny+1), &
+    &      fqx_tmp(0:nx+1,0:ny+1), fqp_tmp(0:nx+1,0:ny+1)
 
     ! Initialize arrays to zero
-    vygp_tmp=0.; vycf_tmp=0.; q2cd_tmp=0.; diffusivwrk_tmp=0.; fdiaxrb_tmp=0.
-    v2xgp_tmp=0.; v2_tmp=0.; vy_cft_tmp=0.; vycr_tmp=0.; vyrd_tmp=0.
-    vyte_cft_tmp=0.; veycb_tmp=0.; v2cb_tmp=0.; vycp_tmp=0.; vy_tmp=0.
-    vyce_tmp=0.; vyavis_tmp=0.; v2cd_tmp=0.; coll_fe_tmp=0.; vyti_cft_tmp=0.
-    vycb_tmp=0.; veycp_tmp=0.; fdiaxlb_tmp=0.; v2rd_tmp=0.; coll_fi_tmp=0.
-    v2ce_tmp=0.; ve2cd_tmp=0.; v2dd_tmp=0.; vydd_tmp=0.; ve2cb_tmp=0.
-    vytan_tmp=0.
+    ve2cd_tmp=0.; coll_fi_tmp=0.; diffusivwrk_tmp=0.; vyti_cft_tmp=0.
+    vyte_cft_tmp=0.; v2xgp_tmp=0.; v2_tmp=0.; vy_tmp=0.; vycp_tmp=0.
+    vytan_tmp=0.; v2rd_tmp=0.; coll_fe_tmp=0.; v2ce_tmp=0.; vycf_tmp=0.
+    fdiaxlb_tmp=0.; vyavis_tmp=0.; vycr_tmp=0.; ve2cb_tmp=0.; veycp_tmp=0.
+    vygp_tmp=0.; v2cd_tmp=0.; veycb_tmp=0.; vy_cft_tmp=0.; q2cd_tmp=0.
+    v2dd_tmp=0.; vyce_tmp=0.; v2cb_tmp=0.; vycb_tmp=0.; fdiaxrb_tmp=0.
+    vyrd_tmp=0.; vydd_tmp=0.; fqymi_tmp=0.; fq2_tmp=0.; fmity_tmp=0.
+    fqyb_tmp=0.; fqyai_tmp=0.; fqyao_tmp=0.; netap_tmp=0.; fqy_tmp=0.
+    fqydti_tmp=0.; fqyd_tmp=0.; fqydt_tmp=0.; fqyae_tmp=0.; fq2d_tmp=0.
+    fqpsatrb_tmp=0.; fqxb_tmp=0.; fqpsatlb_tmp=0.; fqygp_tmp=0.; fqya_tmp=0.
+    dphi_iy1_tmp=0.; fqym_tmp=0.; fqx_tmp=0.; fqp_tmp=0.
 
     ylcopy(1:neq+1)=yl(1:neq+1); yldotcopy=0
 
@@ -1068,77 +1086,123 @@ END SUBROUTINE OMPSplitIndex
     !$OMP &      schedule(dynamic,OMPPandf1LoopNchunk) &
     !$OMP &      private(ichunk,xc,yc) &
     !$OMP &      firstprivate(ylcopy, yldotcopy) &
-    !$OMP &      REDUCTION(+:vygp_tmp, vycf_tmp, q2cd_tmp, diffusivwrk_tmp, fdiaxrb_tmp, v2xgp_tmp, &
-    !$OMP &         v2_tmp, vy_cft_tmp, vycr_tmp, vyrd_tmp, vyte_cft_tmp, veycb_tmp, v2cb_tmp, &
-    !$OMP &         vycp_tmp, vy_tmp, vyce_tmp, vyavis_tmp, v2cd_tmp, coll_fe_tmp, vyti_cft_tmp, &
-    !$OMP &         vycb_tmp, veycp_tmp, fdiaxlb_tmp, v2rd_tmp, coll_fi_tmp, v2ce_tmp, ve2cd_tmp, &
-    !$OMP &         v2dd_tmp, vydd_tmp, ve2cb_tmp, vytan_tmp)
+    !$OMP &      REDUCTION(+:ve2cd_tmp, coll_fi_tmp, diffusivwrk_tmp, vyti_cft_tmp, vyte_cft_tmp, &
+    !$OMP &         v2xgp_tmp, v2_tmp, vy_tmp, vycp_tmp, vytan_tmp, v2rd_tmp, coll_fe_tmp, &
+    !$OMP &         v2ce_tmp, vycf_tmp, fdiaxlb_tmp, vyavis_tmp, vycr_tmp, ve2cb_tmp, veycp_tmp, &
+    !$OMP &         vygp_tmp, v2cd_tmp, veycb_tmp, vy_cft_tmp, q2cd_tmp, v2dd_tmp, vyce_tmp, &
+    !$OMP &         v2cb_tmp, vycb_tmp, fdiaxrb_tmp, vyrd_tmp, vydd_tmp, fqymi_tmp, fq2_tmp, &
+    !$OMP &         fmity_tmp, fqyb_tmp, fqyai_tmp, fqyao_tmp, netap_tmp, fqy_tmp, fqydti_tmp, &
+    !$OMP &         fqyd_tmp, fqydt_tmp, fqyae_tmp, fq2d_tmp, fqpsatrb_tmp, fqxb_tmp, &
+    !$OMP &         fqpsatlb_tmp, fqygp_tmp, fqya_tmp, dphi_iy1_tmp, fqym_tmp, fqx_tmp, fqp_tmp)
     DO ichunk = 1, Nchunks
         xc = chunks(ichunk,1)
         yc = chunks(ichunk,2)
         call initialize_ranges(xc, yc, 0, 0, 0)
         call calc_driftterms
+        
+        if (yc .eq. 1) &
+        &   dphi_iy1_tmp(xc)=dphi_iy1_tmp(xc)+dphi_iy1(xc)
 
         ! Update locally calculated variables
-        vygp_tmp(xc,yc,:)=vygp_tmp(xc,yc,:)+vygp(xc,yc,:)
-        vycf_tmp(xc,yc)=vycf_tmp(xc,yc)+vycf(xc,yc)
-        q2cd_tmp(xc,yc,:)=q2cd_tmp(xc,yc,:)+q2cd(xc,yc,:)
+        ve2cd_tmp(xc,yc,:)=ve2cd_tmp(xc,yc,:)+ve2cd(xc,yc,:)
+        coll_fi_tmp(xc,yc)=coll_fi_tmp(xc,yc)+coll_fi(xc,yc)
         diffusivwrk_tmp(xc,yc)=diffusivwrk_tmp(xc,yc)+diffusivwrk(xc,yc)
-        fdiaxrb_tmp(xc,yc)=fdiaxrb_tmp(xc,yc)+fdiaxrb(xc,yc)
+        vyti_cft_tmp(xc,yc)=vyti_cft_tmp(xc,yc)+vyti_cft(xc,yc)
+        vyte_cft_tmp(xc,yc)=vyte_cft_tmp(xc,yc)+vyte_cft(xc,yc)
         v2xgp_tmp(xc,yc,:)=v2xgp_tmp(xc,yc,:)+v2xgp(xc,yc,:)
         v2_tmp(xc,yc,:)=v2_tmp(xc,yc,:)+v2(xc,yc,:)
-        vy_cft_tmp(xc,yc,:)=vy_cft_tmp(xc,yc,:)+vy_cft(xc,yc,:)
-        vycr_tmp(xc,yc)=vycr_tmp(xc,yc)+vycr(xc,yc)
-        vyrd_tmp(xc,yc,:)=vyrd_tmp(xc,yc,:)+vyrd(xc,yc,:)
-        vyte_cft_tmp(xc,yc)=vyte_cft_tmp(xc,yc)+vyte_cft(xc,yc)
-        veycb_tmp(xc,yc)=veycb_tmp(xc,yc)+veycb(xc,yc)
-        v2cb_tmp(xc,yc,:)=v2cb_tmp(xc,yc,:)+v2cb(xc,yc,:)
-        vycp_tmp(xc,yc,:)=vycp_tmp(xc,yc,:)+vycp(xc,yc,:)
         vy_tmp(xc,yc,:)=vy_tmp(xc,yc,:)+vy(xc,yc,:)
-        vyce_tmp(xc,yc,:)=vyce_tmp(xc,yc,:)+vyce(xc,yc,:)
-        vyavis_tmp(xc,yc,:)=vyavis_tmp(xc,yc,:)+vyavis(xc,yc,:)
-        v2cd_tmp(xc,yc,:)=v2cd_tmp(xc,yc,:)+v2cd(xc,yc,:)
-        coll_fe_tmp(xc,yc)=coll_fe_tmp(xc,yc)+coll_fe(xc,yc)
-        vyti_cft_tmp(xc,yc)=vyti_cft_tmp(xc,yc)+vyti_cft(xc,yc)
-        vycb_tmp(xc,yc,:)=vycb_tmp(xc,yc,:)+vycb(xc,yc,:)
-        veycp_tmp(xc,yc)=veycp_tmp(xc,yc)+veycp(xc,yc)
-        fdiaxlb_tmp(xc,yc)=fdiaxlb_tmp(xc,yc)+fdiaxlb(xc,yc)
-        v2rd_tmp(xc,yc,:)=v2rd_tmp(xc,yc,:)+v2rd(xc,yc,:)
-        coll_fi_tmp(xc,yc)=coll_fi_tmp(xc,yc)+coll_fi(xc,yc)
-        v2ce_tmp(xc,yc,:)=v2ce_tmp(xc,yc,:)+v2ce(xc,yc,:)
-        ve2cd_tmp(xc,yc,:)=ve2cd_tmp(xc,yc,:)+ve2cd(xc,yc,:)
-        v2dd_tmp(xc,yc,:)=v2dd_tmp(xc,yc,:)+v2dd(xc,yc,:)
-        vydd_tmp(xc,yc,:)=vydd_tmp(xc,yc,:)+vydd(xc,yc,:)
-        ve2cb_tmp(xc,yc)=ve2cb_tmp(xc,yc)+ve2cb(xc,yc)
+        vycp_tmp(xc,yc,:)=vycp_tmp(xc,yc,:)+vycp(xc,yc,:)
         vytan_tmp(xc,yc,:)=vytan_tmp(xc,yc,:)+vytan(xc,yc,:)
+        v2rd_tmp(xc,yc,:)=v2rd_tmp(xc,yc,:)+v2rd(xc,yc,:)
+        coll_fe_tmp(xc,yc)=coll_fe_tmp(xc,yc)+coll_fe(xc,yc)
+        v2ce_tmp(xc,yc,:)=v2ce_tmp(xc,yc,:)+v2ce(xc,yc,:)
+        vycf_tmp(xc,yc)=vycf_tmp(xc,yc)+vycf(xc,yc)
+        fdiaxlb_tmp(xc,yc)=fdiaxlb_tmp(xc,yc)+fdiaxlb(xc,yc)
+        vyavis_tmp(xc,yc,:)=vyavis_tmp(xc,yc,:)+vyavis(xc,yc,:)
+        vycr_tmp(xc,yc)=vycr_tmp(xc,yc)+vycr(xc,yc)
+        ve2cb_tmp(xc,yc)=ve2cb_tmp(xc,yc)+ve2cb(xc,yc)
+        veycp_tmp(xc,yc)=veycp_tmp(xc,yc)+veycp(xc,yc)
+        vygp_tmp(xc,yc,:)=vygp_tmp(xc,yc,:)+vygp(xc,yc,:)
+        v2cd_tmp(xc,yc,:)=v2cd_tmp(xc,yc,:)+v2cd(xc,yc,:)
+        veycb_tmp(xc,yc)=veycb_tmp(xc,yc)+veycb(xc,yc)
+        vy_cft_tmp(xc,yc,:)=vy_cft_tmp(xc,yc,:)+vy_cft(xc,yc,:)
+        q2cd_tmp(xc,yc,:)=q2cd_tmp(xc,yc,:)+q2cd(xc,yc,:)
+        v2dd_tmp(xc,yc,:)=v2dd_tmp(xc,yc,:)+v2dd(xc,yc,:)
+        vyce_tmp(xc,yc,:)=vyce_tmp(xc,yc,:)+vyce(xc,yc,:)
+        v2cb_tmp(xc,yc,:)=v2cb_tmp(xc,yc,:)+v2cb(xc,yc,:)
+        vycb_tmp(xc,yc,:)=vycb_tmp(xc,yc,:)+vycb(xc,yc,:)
+        fdiaxrb_tmp(xc,yc)=fdiaxrb_tmp(xc,yc)+fdiaxrb(xc,yc)
+        vyrd_tmp(xc,yc,:)=vyrd_tmp(xc,yc,:)+vyrd(xc,yc,:)
+        vydd_tmp(xc,yc,:)=vydd_tmp(xc,yc,:)+vydd(xc,yc,:)
+        fqymi_tmp(xc,yc,:)=fqymi_tmp(xc,yc,:)+fqymi(xc,yc,:)
+        fq2_tmp(xc,yc)=fq2_tmp(xc,yc)+fq2(xc,yc)
+        fmity_tmp(xc,yc,:)=fmity_tmp(xc,yc,:)+fmity(xc,yc,:)
+        fqyb_tmp(xc,yc)=fqyb_tmp(xc,yc)+fqyb(xc,yc)
+        fqyai_tmp(xc,yc)=fqyai_tmp(xc,yc)+fqyai(xc,yc)
+        fqyao_tmp(xc,yc)=fqyao_tmp(xc,yc)+fqyao(xc,yc)
+        netap_tmp(xc,yc)=netap_tmp(xc,yc)+netap(xc,yc)
+        fqy_tmp(xc,yc)=fqy_tmp(xc,yc)+fqy(xc,yc)
+        fqydti_tmp(xc,yc,:)=fqydti_tmp(xc,yc,:)+fqydti(xc,yc,:)
+        fqyd_tmp(xc,yc)=fqyd_tmp(xc,yc)+fqyd(xc,yc)
+        fqydt_tmp(xc,yc)=fqydt_tmp(xc,yc)+fqydt(xc,yc)
+        fqyae_tmp(xc,yc)=fqyae_tmp(xc,yc)+fqyae(xc,yc)
+        fq2d_tmp(xc,yc)=fq2d_tmp(xc,yc)+fq2d(xc,yc)
+        fqpsatrb_tmp(xc,yc)=fqpsatrb_tmp(xc,yc)+fqpsatrb(xc,yc)
+        fqxb_tmp(xc,yc)=fqxb_tmp(xc,yc)+fqxb(xc,yc)
+        fqpsatlb_tmp(xc,yc)=fqpsatlb_tmp(xc,yc)+fqpsatlb(xc,yc)
+        fqygp_tmp(xc,yc)=fqygp_tmp(xc,yc)+fqygp(xc,yc)
+        fqya_tmp(xc,yc)=fqya_tmp(xc,yc)+fqya(xc,yc)
+        fqym_tmp(xc,yc)=fqym_tmp(xc,yc)+fqym(xc,yc)
+        fqx_tmp(xc,yc)=fqx_tmp(xc,yc)+fqx(xc,yc)
+        fqp_tmp(xc,yc)=fqp_tmp(xc,yc)+fqp(xc,yc)
     END DO
 
     ! Update global variables
-    vygp=vygp_tmp; vycf=vycf_tmp; q2cd=q2cd_tmp; diffusivwrk=diffusivwrk_tmp
-    fdiaxrb=fdiaxrb_tmp; v2xgp=v2xgp_tmp; v2=v2_tmp; vy_cft=vy_cft_tmp
-    vycr=vycr_tmp; vyrd=vyrd_tmp; vyte_cft=vyte_cft_tmp; veycb=veycb_tmp
-    v2cb=v2cb_tmp; vycp=vycp_tmp; vy=vy_tmp; vyce=vyce_tmp; vyavis=vyavis_tmp
-    v2cd=v2cd_tmp; coll_fe=coll_fe_tmp; vyti_cft=vyti_cft_tmp; vycb=vycb_tmp
-    veycp=veycp_tmp; fdiaxlb=fdiaxlb_tmp; v2rd=v2rd_tmp; coll_fi=coll_fi_tmp
-    v2ce=v2ce_tmp; ve2cd=ve2cd_tmp; v2dd=v2dd_tmp; vydd=vydd_tmp
-    ve2cb=ve2cb_tmp; vytan=vytan_tmp
-    call OmpCopyPointervygp; call OmpCopyPointervycf
-    call OmpCopyPointerq2cd; call OmpCopyPointerdiffusivwrk
-    call OmpCopyPointerfdiaxrb; call OmpCopyPointerv2xgp
-    call OmpCopyPointerv2; call OmpCopyPointervy_cft
-    call OmpCopyPointervycr; call OmpCopyPointervyrd
-    call OmpCopyPointervyte_cft; call OmpCopyPointerveycb
-    call OmpCopyPointerv2cb; call OmpCopyPointervycp; call OmpCopyPointervy
-    call OmpCopyPointervyce; call OmpCopyPointervyavis
-    call OmpCopyPointerv2cd; call OmpCopyPointercoll_fe
-    call OmpCopyPointervyti_cft; call OmpCopyPointervycb
-    call OmpCopyPointerveycp; call OmpCopyPointerfdiaxlb
-    call OmpCopyPointerv2rd; call OmpCopyPointercoll_fi
-    call OmpCopyPointerv2ce; call OmpCopyPointerve2cd
-    call OmpCopyPointerv2dd; call OmpCopyPointervydd
-    call OmpCopyPointerve2cb; call OmpCopyPointervytan
+    ve2cd=ve2cd_tmp; coll_fi=coll_fi_tmp; diffusivwrk=diffusivwrk_tmp
+    vyti_cft=vyti_cft_tmp; vyte_cft=vyte_cft_tmp; v2xgp=v2xgp_tmp; v2=v2_tmp
+    vy=vy_tmp; vycp=vycp_tmp; vytan=vytan_tmp; v2rd=v2rd_tmp
+    coll_fe=coll_fe_tmp; v2ce=v2ce_tmp; vycf=vycf_tmp; fdiaxlb=fdiaxlb_tmp
+    vyavis=vyavis_tmp; vycr=vycr_tmp; ve2cb=ve2cb_tmp; veycp=veycp_tmp
+    vygp=vygp_tmp; v2cd=v2cd_tmp; veycb=veycb_tmp; vy_cft=vy_cft_tmp
+    q2cd=q2cd_tmp; v2dd=v2dd_tmp; vyce=vyce_tmp; v2cb=v2cb_tmp; vycb=vycb_tmp
+    fdiaxrb=fdiaxrb_tmp; vyrd=vyrd_tmp; vydd=vydd_tmp; fqymi=fqymi_tmp
+    fq2=fq2_tmp; fmity=fmity_tmp; fqyb=fqyb_tmp; fqyai=fqyai_tmp
+    fqyao=fqyao_tmp; netap=netap_tmp; fqy=fqy_tmp; fqydti=fqydti_tmp
+    fqyd=fqyd_tmp; fqydt=fqydt_tmp; fqyae=fqyae_tmp; fq2d=fq2d_tmp
+    fqpsatrb=fqpsatrb_tmp; fqxb=fqxb_tmp; fqpsatlb=fqpsatlb_tmp
+    fqygp=fqygp_tmp; fqya=fqya_tmp; dphi_iy1=dphi_iy1_tmp; fqym=fqym_tmp
+    fqx=fqx_tmp; fqp=fqp_tmp
+    call OmpCopyPointerve2cd; call OmpCopyPointercoll_fi
+    call OmpCopyPointerdiffusivwrk; call OmpCopyPointervyti_cft
+    call OmpCopyPointervyte_cft; call OmpCopyPointerv2xgp
+    call OmpCopyPointerv2; call OmpCopyPointervy; call OmpCopyPointervycp
+    call OmpCopyPointervytan; call OmpCopyPointerv2rd
+    call OmpCopyPointercoll_fe; call OmpCopyPointerv2ce
+    call OmpCopyPointervycf; call OmpCopyPointerfdiaxlb
+    call OmpCopyPointervyavis; call OmpCopyPointervycr
+    call OmpCopyPointerve2cb; call OmpCopyPointerveycp
+    call OmpCopyPointervygp; call OmpCopyPointerv2cd
+    call OmpCopyPointerveycb; call OmpCopyPointervy_cft
+    call OmpCopyPointerq2cd; call OmpCopyPointerv2dd
+    call OmpCopyPointervyce; call OmpCopyPointerv2cb
+    call OmpCopyPointervycb; call OmpCopyPointerfdiaxrb
+    call OmpCopyPointervyrd; call OmpCopyPointervydd
+    call OmpCopyPointerfqymi; call OmpCopyPointerfq2
+    call OmpCopyPointerfmity; call OmpCopyPointerfqyb
+    call OmpCopyPointerfqyai; call OmpCopyPointerfqyao
+    call OmpCopyPointernetap; call OmpCopyPointerfqy
+    call OmpCopyPointerfqydti; call OmpCopyPointerfqyd
+    call OmpCopyPointerfqydt; call OmpCopyPointerfqyae
+    call OmpCopyPointerfq2d; call OmpCopyPointerfqpsatrb
+    call OmpCopyPointerfqxb; call OmpCopyPointerfqpsatlb
+    call OmpCopyPointerfqygp; call OmpCopyPointerfqya
+    call OmpCopyPointerdphi_iy1; call OmpCopyPointerfqym
+    call OmpCopyPointerfqx; call OmpCopyPointerfqp
 
   END SUBROUTINE OMPcalc_driftterms
+
+
 
   SUBROUTINE OMPPandf1Rhs(neq,time,yl,yldot)
 ! Recreates Pandf using parallel structure
@@ -1159,7 +1223,7 @@ END SUBROUTINE OMPSplitIndex
     USE Time_dep_nwt, ONLY: dtreal, nufak
     USE Ynorm, ONLY: isflxvar, isrscalf
     USE MCN_sources, ONLY: ismcnon
-    USE UEpar, ONLY: isphion, svrpkg
+    USE UEpar, ONLY: isphion, svrpkg, isphiofft
     USE PandfTiming, ONLY: TimePandf, TotTimePandf, TimingPandfOn
     
     IMPLICIT NONE
@@ -1192,7 +1256,7 @@ END SUBROUTINE OMPSplitIndex
         call OMPconvsr_aux2 (neq, yl, yldot) 
         call OMPcalc_plasma_diffusivities (neq, yl, yldot) 
         call OMPinitialize_driftterms (neq, yl, yldot) 
-        call OMPcalc_driftterms (neq, yl, yldot) 
+!        call OMPcalc_driftterms (neq, yl, yldot) 
           !$omp parallel do default(shared) schedule(dynamic,OMPPandf1LoopNchunk) &
           !$omp& private(iv,ichunk,xc,yc) firstprivate(ylcopy,yldotcopy) copyin(yinc,xlinc,xrinc) &
           !$omp& REDUCTION(+:yldottot, tmp_prad)
@@ -1244,7 +1308,10 @@ END SUBROUTINE OMPSplitIndex
 !                call calc_plasma_diffusivities
 !...  No gradients to separate out
 !                call initialize_driftterms
+
+!               Need to calculate new currents (fqp) after saving old & before frice,i
                 call calc_driftterms
+                if(isphion+isphiofft .eq. 1) call calc_currents
 
 
 

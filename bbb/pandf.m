@@ -511,6 +511,7 @@ c...  No gradients to separate out
 
 
       call calc_driftterms
+      if(isphion+isphiofft .eq. 1) call calc_currents
 
 c...  TODO: gather variables calculated in calc driftterms
 c...        v2 needed by calc_friction

@@ -6,12 +6,12 @@ def write_subpandf1():
     lines = write_ompsubroutine('convsr_aux2', "(xc, yc)", True)
     lines = write_ompsubroutine('calc_plasma_diffusivities', "", True)
     lines = write_ompsubroutine('initialize_driftterms', "", True)
-    lines = write_ompsubroutine('calc_driftterms', "", True)
+    lines = write_ompsubroutine('calc_driftterms', "", True, subcalls=["calc_currents"])
     for line in lines:
         print(line)
     
 
-def write_ompsubroutine(subroutine, arguments, bounds=False):
+def write_ompsubroutine(subroutine, arguments, bounds=False, subcalls=[]):
     from uetools import Case
     from textwrap import wrap
 
@@ -21,6 +21,8 @@ def write_ompsubroutine(subroutine, arguments, bounds=False):
     defined_vars = get_pandf_vars()
     varlist = []
     varlist = varlist + defined_vars[subroutine]
+    for subcall in subcalls:
+        varlist = varlist + defined_vars[subcall]
     for var in varlist:
         pkg = getpkg(var)
         if pkg not in pkgs:
