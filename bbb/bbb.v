@@ -3334,7 +3334,11 @@ exmain_prelims                                   subroutine
 uedriv()                                         subroutine
 convert()                                        subroutine
 guardc()                                         subroutine
-convsr_vo(i,j,yl:real)                           subroutine
+convsr_vo1(i,j,yl:real)                           subroutine
+	# in i
+	# in j
+	# in yl(*)  variables
+convsr_vo2(i,j,yl:real)                           subroutine
 	# in i
 	# in j
 	# in yl(*)  variables

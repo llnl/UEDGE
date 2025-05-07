@@ -558,180 +558,6 @@ END SUBROUTINE OMPSplitIndex
   END SUBROUTINE OMPPandf1Rhs_old
 
 
-  SUBROUTINE OMPsubpandf1(neq, yl, yldot)
-    USE Dim, ONLY: nx, ny, ngsp, nisp
-    USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
-    USE OmpCopybbb
-    USE Compla, ONLY: nm, phi, nit, te, up, ti, ng, tg, lng, ne, ni, nz2, nity0, phiy1s, ngy1, niy0, tgy1, &
-    &    phiv, znot, phiy1, phiy0s, ney1, ngy0, tev, priv, niy0s, pgy0, prtv, tiy0s, nity1, &
-    &    tgy0, tey1, priy1, phiy0, pri, priy0, niy1, niy1s, ney0, prev, tiy1s, zeff, pg, &
-    &    tiy1, tiv, pr, pgy1, pre, tey0, tiy0
-    USE Gradients, ONLY: ex, gpondpotx, gpry, gtey, gpiy, gtix, gpex, gtex, gtiy, gpix, ey, gprx, gpey
-    IMPLICIT NONE
-    INTEGER, INTENT(IN):: neq
-    REAL, INTENT(IN):: yl(*)
-    REAL, INTENT(OUT):: yldot(*)
-    INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc
-! Define local variables
-    real:: nm_tmp(0:nx+1,0:ny+1,1:nisp), phi_tmp(0:nx+1,0:ny+1), &
-    &      nit_tmp(0:nx+1,0:ny+1), te_tmp(0:nx+1,0:ny+1), &
-    &      up_tmp(0:nx+1,0:ny+1,1:nisp), ti_tmp(0:nx+1,0:ny+1), &
-    &      ng_tmp(0:nx+1,0:ny+1,1:ngsp), tg_tmp(0:nx+1,0:ny+1,1:ngsp), &
-    &      lng_tmp(0:nx+1,0:ny+1,1:ngsp), ne_tmp(0:nx+1,0:ny+1), &
-    &      ni_tmp(0:nx+1,0:ny+1,1:nisp), nz2_tmp(0:nx+1,0:ny+1), &
-    &      nity0_tmp(0:nx+1,0:ny+1), phiy1s_tmp(0:nx+1,0:ny+1), &
-    &      ngy1_tmp(0:nx+1,0:ny+1,1:ngsp), niy0_tmp(0:nx+1,0:ny+1,1:nisp), &
-    &      ex_tmp(0:nx+1,0:ny+1), tgy1_tmp(0:nx+1,0:ny+1,1:ngsp), &
-    &      gpondpotx_tmp(0:nx+1,0:ny+1), gpry_tmp(0:nx+1,0:ny+1), &
-    &      phiv_tmp(0:nx+1,0:ny+1), gtey_tmp(0:nx+1,0:ny+1), &
-    &      znot_tmp(0:nx+1,0:ny+1), phiy1_tmp(0:nx+1,0:ny+1), &
-    &      phiy0s_tmp(0:nx+1,0:ny+1), ney1_tmp(0:nx+1,0:ny+1), &
-    &      ngy0_tmp(0:nx+1,0:ny+1,1:ngsp), tev_tmp(0:nx+1,0:ny+1), &
-    &      priv_tmp(0:nx+1,0:ny+1,1:nisp), niy0s_tmp(0:nx+1,0:ny+1,1:nisp), &
-    &      pgy0_tmp(0:nx+1,0:ny+1,1:ngsp), prtv_tmp(0:nx+1,0:ny+1), &
-    &      gpiy_tmp(0:nx+1,0:ny+1,1:nisp), gtix_tmp(0:nx+1,0:ny+1), &
-    &      tiy0s_tmp(0:nx+1,0:ny+1), nity1_tmp(0:nx+1,0:ny+1), &
-    &      tgy0_tmp(0:nx+1,0:ny+1,1:ngsp), gpex_tmp(0:nx+1,0:ny+1), &
-    &      gtex_tmp(0:nx+1,0:ny+1), tey1_tmp(0:nx+1,0:ny+1), &
-    &      priy1_tmp(0:nx+1,0:ny+1,1:nisp), phiy0_tmp(0:nx+1,0:ny+1), &
-    &      pri_tmp(0:nx+1,0:ny+1,1:nisp), priy0_tmp(0:nx+1,0:ny+1,1:nisp), &
-    &      niy1_tmp(0:nx+1,0:ny+1,1:nisp), niy1s_tmp(0:nx+1,0:ny+1,1:nisp), &
-    &      ney0_tmp(0:nx+1,0:ny+1), gtiy_tmp(0:nx+1,0:ny+1), &
-    &      prev_tmp(0:nx+1,0:ny+1), gpix_tmp(0:nx+1,0:ny+1,1:nisp), &
-    &      tiy1s_tmp(0:nx+1,0:ny+1), zeff_tmp(0:nx+1,0:ny+1), &
-    &      pg_tmp(0:nx+1,0:ny+1,1:ngsp), tiy1_tmp(0:nx+1,0:ny+1), &
-    &      ey_tmp(0:nx+1,0:ny+1), tiv_tmp(0:nx+1,0:ny+1), pr_tmp(0:nx+1,0:ny+1), &
-    &      gprx_tmp(0:nx+1,0:ny+1), pgy1_tmp(0:nx+1,0:ny+1,1:ngsp), &
-    &      gpey_tmp(0:nx+1,0:ny+1), pre_tmp(0:nx+1,0:ny+1), tey0_tmp(0:nx+1,0:ny+1), &
-    &      tiy0_tmp(0:nx+1,0:ny+1)
-
-
-
-    ! Initialize arrays to zero
-    nm_tmp=0.; phi_tmp=0.; nit_tmp=0.; te_tmp=0.; up_tmp=0.; ti_tmp=0.
-    ng_tmp=0.; tg_tmp=0.; lng_tmp=0.; ne_tmp=0.; ni_tmp=0.; nz2_tmp=0.
-    nity0_tmp=0.; phiy1s_tmp=0.; ngy1_tmp=0.; niy0_tmp=0.; ex_tmp=0.
-    tgy1_tmp=0.; gpondpotx_tmp=0.; gpry_tmp=0.; phiv_tmp=0.; gtey_tmp=0.
-    znot_tmp=0.; phiy1_tmp=0.; phiy0s_tmp=0.; ney1_tmp=0.; ngy0_tmp=0.
-    tev_tmp=0.; priv_tmp=0.; niy0s_tmp=0.; pgy0_tmp=0.; prtv_tmp=0.
-    gpiy_tmp=0.; gtix_tmp=0.; tiy0s_tmp=0.; nity1_tmp=0.; tgy0_tmp=0.
-    gpex_tmp=0.; gtex_tmp=0.; tey1_tmp=0.; priy1_tmp=0.; phiy0_tmp=0.
-    pri_tmp=0.; priy0_tmp=0.; niy1_tmp=0.; niy1s_tmp=0.; ney0_tmp=0.
-    gtiy_tmp=0.; prev_tmp=0.; gpix_tmp=0.; tiy1s_tmp=0.; zeff_tmp=0.; pg_tmp=0.
-    tiy1_tmp=0.; ey_tmp=0.; tiv_tmp=0.; pr_tmp=0.; gprx_tmp=0.; pgy1_tmp=0.
-    gpey_tmp=0.; pre_tmp=0.; tey0_tmp=0.; tiy0_tmp=0.
-
-    call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)
-
-    !$OMP    PARALLEL DO &
-    !$OMP &      default(shared) &
-    !$OMP &      schedule(dynamic,OMPPandf1LoopNchunk) &
-    !$OMP &      private(ichunk,xc,yc) &
-    !$OMP &      REDUCTION(+:nm_tmp, phi_tmp, nit_tmp, te_tmp, up_tmp, ti_tmp, ng_tmp, tg_tmp, lng_tmp, &
-    !$OMP &         ne_tmp, ni_tmp, nz2_tmp, nity0_tmp, phiy1s_tmp, ngy1_tmp, niy0_tmp, ex_tmp, &
-    !$OMP &         tgy1_tmp, gpondpotx_tmp, gpry_tmp, phiv_tmp, gtey_tmp, znot_tmp, phiy1_tmp, &
-    !$OMP &         phiy0s_tmp, ney1_tmp, ngy0_tmp, tev_tmp, priv_tmp, niy0s_tmp, pgy0_tmp, &
-    !$OMP &         prtv_tmp, gpiy_tmp, gtix_tmp, tiy0s_tmp, nity1_tmp, tgy0_tmp, gpex_tmp, &
-    !$OMP &         gtex_tmp, tey1_tmp, priy1_tmp, phiy0_tmp, pri_tmp, priy0_tmp, niy1_tmp, &
-    !$OMP &         niy1s_tmp, ney0_tmp, gtiy_tmp, prev_tmp, gpix_tmp, tiy1s_tmp, zeff_tmp, &
-    !$OMP &         pg_tmp, tiy1_tmp, ey_tmp, tiv_tmp, pr_tmp, gprx_tmp, pgy1_tmp, gpey_tmp, &
-    !$OMP &         pre_tmp, tey0_tmp, tiy0_tmp)
-    DO ichunk = 1, Nchunks
-        xc = chunks(ichunk,1)
-        yc = chunks(ichunk,2)
-        call initialize_ranges(xc, yc, 0, 0, 0)
-        call convsr_vo(xc, yc, yl)
-        call convsr_aux(xc, yc)
-
-
-
-        ! Update locally calculated variables
-        nm_tmp(xc,yc,:)=nm_tmp(xc,yc,:)+nm(xc,yc,:)
-        phi_tmp(xc,yc)=phi_tmp(xc,yc)+phi(xc,yc)
-        nit_tmp(xc,yc)=nit_tmp(xc,yc)+nit(xc,yc)
-        te_tmp(xc,yc)=te_tmp(xc,yc)+te(xc,yc)
-        up_tmp(xc,yc,:)=up_tmp(xc,yc,:)+up(xc,yc,:)
-        ti_tmp(xc,yc)=ti_tmp(xc,yc)+ti(xc,yc)
-        ng_tmp(xc,yc,:)=ng_tmp(xc,yc,:)+ng(xc,yc,:)
-        tg_tmp(xc,yc,:)=tg_tmp(xc,yc,:)+tg(xc,yc,:)
-        lng_tmp(xc,yc,:)=lng_tmp(xc,yc,:)+lng(xc,yc,:)
-        ne_tmp(xc,yc)=ne_tmp(xc,yc)+ne(xc,yc)
-        ni_tmp(xc,yc,:)=ni_tmp(xc,yc,:)+ni(xc,yc,:)
-        nz2_tmp(xc,yc)=nz2_tmp(xc,yc)+nz2(xc,yc)
-        nity0_tmp(xc,yc)=nity0_tmp(xc,yc)+nity0(xc,yc)
-        phiy1s_tmp(xc,yc)=phiy1s_tmp(xc,yc)+phiy1s(xc,yc)
-        ngy1_tmp(xc,yc,:)=ngy1_tmp(xc,yc,:)+ngy1(xc,yc,:)
-        niy0_tmp(xc,yc,:)=niy0_tmp(xc,yc,:)+niy0(xc,yc,:)
-        ex_tmp(xc,yc)=ex_tmp(xc,yc)+ex(xc,yc)
-        tgy1_tmp(xc,yc,:)=tgy1_tmp(xc,yc,:)+tgy1(xc,yc,:)
-        gpondpotx_tmp(xc,yc)=gpondpotx_tmp(xc,yc)+gpondpotx(xc,yc)
-        gpry_tmp(xc,yc)=gpry_tmp(xc,yc)+gpry(xc,yc)
-        phiv_tmp(xc,yc)=phiv_tmp(xc,yc)+phiv(xc,yc)
-        gtey_tmp(xc,yc)=gtey_tmp(xc,yc)+gtey(xc,yc)
-        znot_tmp(xc,yc)=znot_tmp(xc,yc)+znot(xc,yc)
-        phiy1_tmp(xc,yc)=phiy1_tmp(xc,yc)+phiy1(xc,yc)
-        phiy0s_tmp(xc,yc)=phiy0s_tmp(xc,yc)+phiy0s(xc,yc)
-        ney1_tmp(xc,yc)=ney1_tmp(xc,yc)+ney1(xc,yc)
-        ngy0_tmp(xc,yc,:)=ngy0_tmp(xc,yc,:)+ngy0(xc,yc,:)
-        tev_tmp(xc,yc)=tev_tmp(xc,yc)+tev(xc,yc)
-        priv_tmp(xc,yc,:)=priv_tmp(xc,yc,:)+priv(xc,yc,:)
-        niy0s_tmp(xc,yc,:)=niy0s_tmp(xc,yc,:)+niy0s(xc,yc,:)
-        pgy0_tmp(xc,yc,:)=pgy0_tmp(xc,yc,:)+pgy0(xc,yc,:)
-        prtv_tmp(xc,yc)=prtv_tmp(xc,yc)+prtv(xc,yc)
-        gpiy_tmp(xc,yc,:)=gpiy_tmp(xc,yc,:)+gpiy(xc,yc,:)
-        gtix_tmp(xc,yc)=gtix_tmp(xc,yc)+gtix(xc,yc)
-        tiy0s_tmp(xc,yc)=tiy0s_tmp(xc,yc)+tiy0s(xc,yc)
-        nity1_tmp(xc,yc)=nity1_tmp(xc,yc)+nity1(xc,yc)
-        tgy0_tmp(xc,yc,:)=tgy0_tmp(xc,yc,:)+tgy0(xc,yc,:)
-        gpex_tmp(xc,yc)=gpex_tmp(xc,yc)+gpex(xc,yc)
-        gtex_tmp(xc,yc)=gtex_tmp(xc,yc)+gtex(xc,yc)
-        tey1_tmp(xc,yc)=tey1_tmp(xc,yc)+tey1(xc,yc)
-        priy1_tmp(xc,yc,:)=priy1_tmp(xc,yc,:)+priy1(xc,yc,:)
-        phiy0_tmp(xc,yc)=phiy0_tmp(xc,yc)+phiy0(xc,yc)
-        pri_tmp(xc,yc,:)=pri_tmp(xc,yc,:)+pri(xc,yc,:)
-        priy0_tmp(xc,yc,:)=priy0_tmp(xc,yc,:)+priy0(xc,yc,:)
-        niy1_tmp(xc,yc,:)=niy1_tmp(xc,yc,:)+niy1(xc,yc,:)
-        niy1s_tmp(xc,yc,:)=niy1s_tmp(xc,yc,:)+niy1s(xc,yc,:)
-        ney0_tmp(xc,yc)=ney0_tmp(xc,yc)+ney0(xc,yc)
-        gtiy_tmp(xc,yc)=gtiy_tmp(xc,yc)+gtiy(xc,yc)
-        prev_tmp(xc,yc)=prev_tmp(xc,yc)+prev(xc,yc)
-        gpix_tmp(xc,yc,:)=gpix_tmp(xc,yc,:)+gpix(xc,yc,:)
-        tiy1s_tmp(xc,yc)=tiy1s_tmp(xc,yc)+tiy1s(xc,yc)
-        zeff_tmp(xc,yc)=zeff_tmp(xc,yc)+zeff(xc,yc)
-        pg_tmp(xc,yc,:)=pg_tmp(xc,yc,:)+pg(xc,yc,:)
-        tiy1_tmp(xc,yc)=tiy1_tmp(xc,yc)+tiy1(xc,yc)
-        ey_tmp(xc,yc)=ey_tmp(xc,yc)+ey(xc,yc)
-        tiv_tmp(xc,yc)=tiv_tmp(xc,yc)+tiv(xc,yc)
-        pr_tmp(xc,yc)=pr_tmp(xc,yc)+pr(xc,yc)
-        gprx_tmp(xc,yc)=gprx_tmp(xc,yc)+gprx(xc,yc)
-        pgy1_tmp(xc,yc,:)=pgy1_tmp(xc,yc,:)+pgy1(xc,yc,:)
-        gpey_tmp(xc,yc)=gpey_tmp(xc,yc)+gpey(xc,yc)
-        pre_tmp(xc,yc)=pre_tmp(xc,yc)+pre(xc,yc)
-        tey0_tmp(xc,yc)=tey0_tmp(xc,yc)+tey0(xc,yc)
-        tiy0_tmp(xc,yc)=tiy0_tmp(xc,yc)+tiy0(xc,yc)
-    END DO
-
-
-
-    ! Update global variables
-    nm=nm_tmp; phi=phi_tmp; nit=nit_tmp; te=te_tmp; up=up_tmp; ti=ti_tmp
-    ng=ng_tmp; tg=tg_tmp; lng=lng_tmp; ne=ne_tmp; ni=ni_tmp; nz2=nz2_tmp
-    nity0=nity0_tmp; phiy1s=phiy1s_tmp; ngy1=ngy1_tmp; niy0=niy0_tmp
-    ex=ex_tmp; tgy1=tgy1_tmp; gpondpotx=gpondpotx_tmp; gpry=gpry_tmp
-    phiv=phiv_tmp; gtey=gtey_tmp; znot=znot_tmp; phiy1=phiy1_tmp
-    phiy0s=phiy0s_tmp; ney1=ney1_tmp; ngy0=ngy0_tmp; tev=tev_tmp
-    priv=priv_tmp; niy0s=niy0s_tmp; pgy0=pgy0_tmp; prtv=prtv_tmp
-    gpiy=gpiy_tmp; gtix=gtix_tmp; tiy0s=tiy0s_tmp; nity1=nity1_tmp
-    tgy0=tgy0_tmp; gpex=gpex_tmp; gtex=gtex_tmp; tey1=tey1_tmp
-    priy1=priy1_tmp; phiy0=phiy0_tmp; pri=pri_tmp; priy0=priy0_tmp
-    niy1=niy1_tmp; niy1s=niy1s_tmp; ney0=ney0_tmp; gtiy=gtiy_tmp
-    prev=prev_tmp; gpix=gpix_tmp; tiy1s=tiy1s_tmp; zeff=zeff_tmp; pg=pg_tmp
-    tiy1=tiy1_tmp; ey=ey_tmp; tiv=tiv_tmp; pr=pr_tmp; gprx=gprx_tmp
-    pgy1=pgy1_tmp; gpey=gpey_tmp; pre=pre_tmp; tey0=tey0_tmp; tiy0=tiy0_tmp
-  END SUBROUTINE OMPsubpandf1
-
-
-
 
   SUBROUTINE OMPPandf1Rhs(neq,time,yl,yldot)
 ! Recreates Pandf using parallel structure
@@ -779,7 +605,6 @@ END SUBROUTINE OMPSplitIndex
         Time1=omp_get_wtime()
         call MakeChunksPandf1
         call OmpCopyPointerup
-        call OMPSubpandf1(neq, yl, yldot)
           !$omp parallel do default(shared) schedule(dynamic,OMPPandf1LoopNchunk) &
           !$omp& private(iv,ichunk,xc,yc) firstprivate(ylcopy,yldotcopy) copyin(yinc,xlinc,xrinc) &
           !$omp& REDUCTION(+:yldottot, tmp_prad)
@@ -823,6 +648,9 @@ END SUBROUTINE OMPSplitIndex
                 call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
                 
             
+                call convsr_vo1 (xc, yc, ylcopy) 
+                call convsr_vo2 (xc, yc, ylcopy) 
+                call convsr_aux (xc, yc)
                 call subpandf2
                 call subpandf3
 

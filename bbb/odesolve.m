@@ -413,7 +413,8 @@ cpetsc      endif
       iter = iter + 1
 
 c...  convert solver variables back to plasma variables
-      call convsr_vo (-1, -1, yl)  # was one call to convsr
+      call convsr_vo1 (-1, -1, yl)  # was one call to convsr
+      call convsr_vo2 (-1, -1, yl)  # was one call to convsr
       call convsr_aux (-1, -1)
 
 c...  If nksol is in time-dependent mode, increment istep and toutlsod

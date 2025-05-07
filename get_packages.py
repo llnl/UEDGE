@@ -1,6 +1,10 @@
 
 def write_subpandf1():
-    lines = write_ompsubroutine('convsr_vo', "(xc, yc, ylcopy)", True)
+    lines = write_ompsubroutine('convsr_vo1', "(xc, yc, ylcopy)", True)
+    for line in lines:
+        print(line)
+    print("\n\n")
+    lines = write_ompsubroutine('convsr_vo2', "(xc, yc, ylcopy)", True)
     for line in lines:
         print(line)
     

@@ -438,7 +438,8 @@ c... First, we convert from the 1-D vector yl to the plasma variables.
       if (TimingPandfOn.gt.0) 
      .      TimeConvert0=tick()
 
-      call convsr_vo (xc, yc, yl)  # pre 9/30/97 was one call to convsr
+      call convsr_vo1 (xc, yc, yl)  # pre 9/30/97 was one call to convsr
+      call convsr_vo2 (xc, yc, yl)  # pre 9/30/97 was one call to convsr
 
       if (TimingPandfOn.gt.0) 
      .      TotTimeConvert0=TotTimeConvert0+tock(TimeConvert0)

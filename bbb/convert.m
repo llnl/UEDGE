@@ -155,7 +155,7 @@ c...  Omit constraint check on x-boundaries for Ti - ckinfl problem
       end
 c ***** end of subroutine convert ***********
 c-----------------------------------------------------------------------
-      subroutine convsr_vo (ixl, iyl, yl)
+      subroutine convsr_vo1 (ixl, iyl, yl)
 
 c ... Converts the yl variables into plasma variables over a restricted
 c ... range of indices
@@ -339,6 +339,85 @@ c++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         call recvbdry(mype+1)
       endif
 c++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+      return
+      end
+
+
+      subroutine convsr_vo2 (ixl, iyl, yl)
+
+c ... Converts the yl variables into plasma variables over a restricted
+c ... range of indices
+c ... This routine only unloads the yl variables into ni, up, etc.,
+c ... The other variables are added in the routine convr_auxo
+
+
+      implicit none
+
+*  -- input arguments
+      integer ixl, iyl, inc
+      real yl(*)
+
+*  -- local variables
+      real ntemp
+      integer is, ie, js, je
+      integer ifld, id
+      integer inegt, inegng, inegni, ixneg, iyneg, ifldneg, igspneg
+      #Former Aux module variables
+      integer ix,iy,igsp,ix1,ix2
+      real t1,t2
+
+c_mpi      Use(MpiVars)  #module defined in com/mpivarsmod.F.in
+      Use(Dim)                 # nx,ny,nhsp,nzsp,nisp,nusp,ngsp
+      Use(Xpoint_indices)      # ixpt1,ixpt2
+      Use(Math_problem_size)   # neqmx
+      Use(Compla)      # ,zi,zeff,zimpc
+      Use(Ynorm)       # isflxvar,temp0,nnorm,ennorm,fnorm,n0,n0g
+      Use(UEpar)       # itrap_negt,itrap_negng,
+                       # isnionxy,isuponxy,isteonxy,istionxy,
+                       # isngonxy,isphionxy
+      Use(Selec)       # yinc,ixm1,ixp1
+      Use(Indexes)
+      Use(Comgeo)
+      Use(Noggeo)      # fxm,fx0,fxp,fxmy,fxpy
+      Use(Gradients)
+      Use(Phyvar)      # pi,ev
+      Use(Coefeq)      # cngtgx
+      Use(Imprad)      # isimpon
+      Use(Indices_domain_dcl)   #ixmxbcl,ixmnbcl,iymxbcl,iymnbcl
+                                #typebdy,typecn,iv_totbdy
+      Use(Indices_domain_dcg)   #isddcon
+      Use(Npes_mpi)             #mype
+ 
+      integer ifake  #forces Forthon scripts to put implicit none above here
+
+c ... Set mpi indices, etc
+CC c_mpi      include 'mpif.h'
+c_mpi      integer status(MPI_STATUS_SIZE)
+c_mpi      integer ierr
+
+      id = 1
+      if(ixl .lt. 0 .or. yinc .ge. 6) then
+         is = 1-ixmnbcl
+         ie = nx+ixmxbcl
+      else
+         is = ixl
+         ie = ixl
+      endif
+
+      if(iyl .lt. 0 .or. yinc .ge. 6) then
+         js = 1-iymnbcl
+         je = ny+iymxbcl
+      else
+         js = iyl
+         je = iyl
+      endif
+
+c... Added the following for OMPPandf1rhs call (added by .J.Guterl)
+      if(ixl .lt. 0 .and. iyl.ge.0) then
+         js = max(1-iymnbcl,iyl-yinc)
+         je = min(ny+iymxbcl,iyl+yinc)
+      endif
+
 
       do 10 ifld = 1, nusp
          do 9 iy = js, je
