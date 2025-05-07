@@ -411,66 +411,6 @@ c...  timestep dtphi
 
       END SUBROUTINE add_timestep
 
-      SUBROUTINE subpandf1(xc, yc, neq, yl)
-      IMPLICIT NONE
-      Use(PandfTiming)
-      Use(ParallelEval)
-      Use(MCN_sources)
-      integer xc, yc, neq
-      real yl(*)
-      real tick, tock
-      external tick, tock
-
-c... Timing of pandf components (added by J. Guterl)
-        if (TimingPandf.gt.0
-     .      .and. yl(neq+1) .lt. 0 .and. ParallelPandf1.eq.0
-     .) then
-        TimingPandfOn=1
-      else
-        TimingPandfOn=0
-      endif
-      if (TimingPandfOn.gt.0) TimePandf=tick()
-
-
-************************************************************************
-c... First, we convert from the 1-D vector yl to the plasma variables.
-************************************************************************
-      if (TimingPandfOn.gt.0) 
-     .      TimeConvert0=tick()
-
-      call convsr_vo1 (xc, yc, yl)  # pre 9/30/97 was one call to convsr
-      call convsr_vo2 (xc, yc, yl)  # pre 9/30/97 was one call to convsr
-
-      if (TimingPandfOn.gt.0) 
-     .      TotTimeConvert0=TotTimeConvert0+tock(TimeConvert0)
-      if (TimingPandfOn.gt.0) 
-     .      TimeConvert1=tick()
-
-      call convsr_aux (xc, yc)
-
-      if (TimingPandfOn.gt.0) 
-     .      TotTimeConvert1=TotTimeConvert1+tock(TimeConvert1)
-c...  TODO: gather variables calculated in convert
-
-
-      END SUBROUTINE subpandf1
-
-
-      SUBROUTINE subpandf2
-      IMPLICIT NONE
-
-      call calc_plasma_diffusivities
-c...  No gradients to separate out
-      call initialize_driftterms
-      END SUBROUTINE subpandf2    
-
-      SUBROUTINE subpandf3
-      IMPLICIT NONE
-
-      call calc_driftterms
-      END SUBROUTINE subpandf3
-
-
 c-----------------------------------------------------------------------
       SUBROUTINE pandf (xc, yc, neq, time, yl, yldot)
 
@@ -534,9 +474,43 @@ c ... Get initial value of system cpu timer.
 
       if (ismcnon .ne. 0) call initialize_ismcnon(yl(neq+1))
 
-      call subpandf1(xc, yc, neq, yl)
-      call subpandf2
-      call subpandf3
+c... Timing of pandf components (added by J. Guterl)
+        if (TimingPandf.gt.0
+     .      .and. yl(neq+1) .lt. 0 .and. ParallelPandf1.eq.0
+     .) then
+        TimingPandfOn=1
+      else
+        TimingPandfOn=0
+      endif
+      if (TimingPandfOn.gt.0) TimePandf=tick()
+
+
+************************************************************************
+c... First, we convert from the 1-D vector yl to the plasma variables.
+************************************************************************
+      if (TimingPandfOn.gt.0) 
+     .      TimeConvert0=tick()
+
+      call convsr_vo (xc, yc, yl)  # pre 9/30/97 was one call to convsr
+
+      if (TimingPandfOn.gt.0) 
+     .      TotTimeConvert0=TotTimeConvert0+tock(TimeConvert0)
+      if (TimingPandfOn.gt.0) 
+     .      TimeConvert1=tick()
+
+      call convsr_aux (xc, yc)
+
+      if (TimingPandfOn.gt.0) 
+     .      TotTimeConvert1=TotTimeConvert1+tock(TimeConvert1)
+c...  TODO: gather variables calculated in convert
+
+
+      call calc_plasma_diffusivities
+c...  No gradients to separate out
+      call initialize_driftterms
+
+
+      call calc_driftterms
 
 c...  TODO: gather variables calculated in calc driftterms
 c...        v2 needed by calc_friction
