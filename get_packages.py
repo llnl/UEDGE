@@ -7,6 +7,9 @@ def write_subpandf1():
     lines = write_ompsubroutine('convsr_vo2', "(xc, yc, ylcopy)", True)
     for line in lines:
         print(line)
+    lines = write_ompsubroutine('convsr_aux', "(xc, yc)", True)
+    for line in lines:
+        print(line)
     
 
 def write_ompsubroutine(subroutine, arguments, bounds=False):

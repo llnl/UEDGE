@@ -559,6 +559,111 @@ END SUBROUTINE OMPSplitIndex
 
 
 
+  SUBROUTINE OMPconvsr_vo1(neq, yl, yldot)
+    USE Dim, ONLY: nx, ny, ngsp, nisp
+    USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
+    USE OmpCopybbb
+    USE Compla, ONLY: te, phi, nit, ti, nz2, ni, lng, nm, ne, ng, tg
+    IMPLICIT NONE
+    INTEGER, INTENT(IN):: neq
+    REAL, INTENT(IN):: yl(*)
+    REAL, INTENT(OUT):: yldot(*)
+    INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc
+    REAL:: yldotcopy(1:neq), ylcopy(1:neq+2)
+! Define local variables
+    real:: te_tmp(0:nx+1,0:ny+1), phi_tmp(0:nx+1,0:ny+1), nit_tmp(0:nx+1,0:ny+1), &
+    &      ti_tmp(0:nx+1,0:ny+1), nz2_tmp(0:nx+1,0:ny+1), &
+    &      ni_tmp(0:nx+1,0:ny+1,1:nisp), lng_tmp(0:nx+1,0:ny+1,1:ngsp), &
+    &      nm_tmp(0:nx+1,0:ny+1,1:nisp), ne_tmp(0:nx+1,0:ny+1), &
+    &      ng_tmp(0:nx+1,0:ny+1,1:ngsp), tg_tmp(0:nx+1,0:ny+1,1:ngsp)
+
+    ! Initialize arrays to zero
+    te_tmp=0.; phi_tmp=0.; nit_tmp=0.; ti_tmp=0.; nz2_tmp=0.; ni_tmp=0.
+    lng_tmp=0.; nm_tmp=0.; ne_tmp=0.; ng_tmp=0.; tg_tmp=0.
+
+    ylcopy(1:neq+1)=yl(1:neq+1); yldotcopy=0
+
+    call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)
+
+    !$OMP    PARALLEL DO &
+    !$OMP &      default(shared) &
+    !$OMP &      schedule(dynamic,OMPPandf1LoopNchunk) &
+    !$OMP &      private(ichunk,xc,yc) &
+    !$OMP &      firstprivate(ylcopy, yldotcopy) &
+    !$OMP &      REDUCTION(+:te_tmp, phi_tmp, nit_tmp, ti_tmp, nz2_tmp, ni_tmp, lng_tmp, nm_tmp, ne_tmp, &
+    !$OMP &         ng_tmp, tg_tmp)
+    DO ichunk = 1, Nchunks
+        xc = chunks(ichunk,1)
+        yc = chunks(ichunk,2)
+        call initialize_ranges(xc, yc, 0, 0, 0)
+        call convsr_vo1(xc, yc, ylcopy)
+
+        ! Update locally calculated variables
+        te_tmp(xc,yc)=te_tmp(xc,yc)+te(xc,yc)
+        phi_tmp(xc,yc)=phi_tmp(xc,yc)+phi(xc,yc)
+        nit_tmp(xc,yc)=nit_tmp(xc,yc)+nit(xc,yc)
+        ti_tmp(xc,yc)=ti_tmp(xc,yc)+ti(xc,yc)
+        nz2_tmp(xc,yc)=nz2_tmp(xc,yc)+nz2(xc,yc)
+        ni_tmp(xc,yc,:)=ni_tmp(xc,yc,:)+ni(xc,yc,:)
+        lng_tmp(xc,yc,:)=lng_tmp(xc,yc,:)+lng(xc,yc,:)
+        nm_tmp(xc,yc,:)=nm_tmp(xc,yc,:)+nm(xc,yc,:)
+        ne_tmp(xc,yc)=ne_tmp(xc,yc)+ne(xc,yc)
+        ng_tmp(xc,yc,:)=ng_tmp(xc,yc,:)+ng(xc,yc,:)
+        tg_tmp(xc,yc,:)=tg_tmp(xc,yc,:)+tg(xc,yc,:)
+    END DO
+
+    ! Update global variables
+    te=te_tmp; phi=phi_tmp; nit=nit_tmp; ti=ti_tmp; nz2=nz2_tmp; ni=ni_tmp
+    lng=lng_tmp; nm=nm_tmp; ne=ne_tmp; ng=ng_tmp; tg=tg_tmp
+
+  END SUBROUTINE OMPconvsr_vo1
+
+
+
+  SUBROUTINE OMPconvsr_vo2(neq, yl, yldot)
+    USE Dim, ONLY: nx, ny, ngsp, nisp
+    USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
+    USE OmpCopybbb
+    USE Compla, ONLY: up
+    IMPLICIT NONE
+    INTEGER, INTENT(IN):: neq
+    REAL, INTENT(IN):: yl(*)
+    REAL, INTENT(OUT):: yldot(*)
+    INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc
+    REAL:: yldotcopy(1:neq), ylcopy(1:neq+2)
+! Define local variables
+    real:: up_tmp(0:nx+1,0:ny+1,1:nisp)
+
+    ! Initialize arrays to zero
+    up_tmp=0.
+
+    ylcopy(1:neq+1)=yl(1:neq+1); yldotcopy=0
+
+    call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)
+
+    !$OMP    PARALLEL DO &
+    !$OMP &      default(shared) &
+    !$OMP &      schedule(dynamic,OMPPandf1LoopNchunk) &
+    !$OMP &      private(ichunk,xc,yc) &
+    !$OMP &      firstprivate(ylcopy, yldotcopy) &
+    !$OMP &      REDUCTION(+:up_tmp)
+    DO ichunk = 1, Nchunks
+        xc = chunks(ichunk,1)
+        yc = chunks(ichunk,2)
+        call initialize_ranges(xc, yc, 0, 0, 0)
+        call convsr_vo2(xc, yc, ylcopy)
+
+        ! Update locally calculated variables
+        up_tmp(xc,yc,:)=up_tmp(xc,yc,:)+up(xc,yc,:)
+    END DO
+
+    ! Update global variables
+    up=up_tmp
+
+  END SUBROUTINE OMPconvsr_vo2
+
+
+
   SUBROUTINE OMPPandf1Rhs(neq,time,yl,yldot)
 ! Recreates Pandf using parallel structure
     USE omp_lib
@@ -604,7 +709,12 @@ END SUBROUTINE OMPSplitIndex
     if (ijactot.gt.0) then
         Time1=omp_get_wtime()
         call MakeChunksPandf1
-        call OmpCopyPointerup
+
+        call OMPconvsr_vo1 (neq, yl, yldot) 
+        call OmpCopyPointerbbb
+
+        call OMPconvsr_vo2 (neq, yl, yldot) 
+        call OmpCopyPointerbbb
           !$omp parallel do default(shared) schedule(dynamic,OMPPandf1LoopNchunk) &
           !$omp& private(iv,ichunk,xc,yc) firstprivate(ylcopy,yldotcopy) copyin(yinc,xlinc,xrinc) &
           !$omp& REDUCTION(+:yldottot, tmp_prad)
@@ -648,8 +758,8 @@ END SUBROUTINE OMPSplitIndex
                 call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
                 
             
-                call convsr_vo1 (xc, yc, ylcopy) 
-                call convsr_vo2 (xc, yc, ylcopy) 
+!                call convsr_vo1 (xc, yc, ylcopy) 
+!                call convsr_vo2 (xc, yc, ylcopy) 
                 call convsr_aux (xc, yc)
                 call subpandf2
                 call subpandf3
