@@ -6,7 +6,8 @@ def write_subpandf1():
     lines = write_ompsubroutine('convsr_aux2', "(xc, yc)", True)
     lines = write_ompsubroutine('calc_plasma_diffusivities', "", True)
     lines = write_ompsubroutine('initialize_driftterms', "", True)
-    lines = write_ompsubroutine('calc_driftterms', "", True, subcalls=["calc_currents"])
+    lines = write_ompsubroutine('calc_driftterms', "", True)
+    lines = write_ompsubroutine('calc_friction', "(xc)", True)
     for line in lines:
         print(line)
     
