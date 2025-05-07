@@ -155,6 +155,17 @@ c...  Omit constraint check on x-boundaries for Ti - ckinfl problem
       end
 c ***** end of subroutine convert ***********
 c-----------------------------------------------------------------------
+      subroutine convsr_vo (ixl, iyl, yl)
+      implicit none
+      integer ixl, iyl
+      real yl(*)
+    
+      call convsr_vo1 (ixl, iyl, yl)
+      call convsr_vo2 (ixl, iyl, yl)
+      end subroutine convsr_vo
+
+
+
       subroutine convsr_vo1 (ixl, iyl, yl)
 
 c ... Converts the yl variables into plasma variables over a restricted
@@ -454,8 +465,118 @@ c++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
       end
 
 c ***** end of subroutines convsr_vo ********
-c-----------------------------------------------------------------------
+
+
+
       subroutine convsr_aux (ixl, iyl)
+      implicit none
+      integer ixl, iyl
+
+      call convsr_aux1(ixl, iyl)
+      call convsr_aux2(ixl, iyl)
+    
+      end subroutine convsr_aux
+
+      subroutine convsr_aux1 (ixl, iyl)
+
+c...  Calculates various plasmas quantities used repeatedly in pandf
+
+      implicit none
+
+*  -- input arguments
+      integer ixl, iyl, inc
+*  -- local variables
+      integer is, ie, js, je
+      integer ifld
+      #Former Aux module variables
+      integer ix,iy,igsp,ix1,ix2
+*  -- external functions
+
+      Use(Dim)                 # nx,ny,nhsp,nzsp,nisp,nusp,ngsp
+      Use(UEpar)
+      Use(Selec)
+      Use(Coefeq)
+      Use(Compla)      # ,zi,zeff,zimpc
+      Use(Phyvar)      # pi,ev
+      Use(Imprad)      # isimpon
+
+      if(ixl .lt. 0 .or. yinc .ge. 6) then
+         is = 0
+         ie = nx+1
+      else
+         is = ixl
+         ie = ixl
+      endif
+
+      if(iyl .lt. 0 .or. yinc .ge. 6) then
+         js = 0
+         je = ny+1
+      else
+         js = iyl
+         je = iyl
+      endif
+
+c... Added the following for OMPPandf1rhs call (added by .J.Guterl)
+      if(ixl .lt. 0 .and. iyl.ge.0) then
+         js = max(0,iyl-yinc)
+         je = min(ny+1,iyl+yinc)
+      endif
+
+      do iy = js, je
+        do ix = is, ie
+          pr(ix,iy) = 0.0e0
+        enddo
+      enddo
+
+      do ifld = 1, nisp
+         do iy = js, je
+            do ix = is, ie
+               pri(ix,iy,ifld) = ni(ix,iy,ifld) * ti(ix,iy)
+               if (ifld.eq.iigsp .and. istgon(1).eq.1) 
+     .                  pri(ix,iy,ifld) = 
+     .                                     ni(ix,iy,ifld) * tg(ix,iy,1)
+               if (zi(ifld).ne.0.) then
+                  pr(ix,iy) = pr(ix,iy) + pri(ix,iy,ifld)
+               endif
+            enddo
+          enddo
+        enddo
+
+c ... Replace values of ne calculated above by values consistent
+c     with those of the INEL average-ion impurity model, if it is
+c     being used.  Note that zi(2) passed to rnec will not be used.
+      if (isimpon .eq. 3) then
+         call xerrab("**** Ave-ion model with isimpon=3 disabled")
+ccc         impflag = 1
+ccc         do iy = js, je
+ccc            do ix = is, ie
+ccc               zimpc(ix,iy) = zimp(te(ix,iy))
+ccc               ne(ix,iy) = rnec (ni(ix,iy,1), nzsp, ni(ix,iy,nhsp+1),
+ccc     .                           te(ix,iy), zi(2), impflag,
+ccc     .                           zimpc(ix,iy))
+ccc            enddo
+ccc         enddo
+      endif
+
+      do iy = js, je
+        do ix = is, ie
+	        pre(ix,iy) = ne(ix,iy) * te(ix,iy)
+            pr(ix,iy) = pr(ix,iy) + pre(ix,iy)
+            do igsp = 1, ngsp
+               if(istgcon(igsp) > -1.e-20) 
+     .              tg(ix,iy,igsp) = 
+     .                       (1-istgcon(igsp))*rtg2ti(igsp)*ti(ix,iy) + 
+     .                          istgcon(igsp)*tgas(igsp)*ev
+	       pg(ix,iy,igsp) = ng(ix,iy,igsp)*tg(ix,iy,igsp)
+           enddo
+        enddo
+      enddo
+
+      return
+      end subroutine convsr_aux1
+c-----------------------------------------------------------------------
+
+      subroutine convsr_aux2 (ixl, iyl)
 
 c...  Calculates various plasmas quantities used repeatedly in pandf
 
@@ -585,24 +706,21 @@ c... Added the following for OMPPandf1rhs call (added by .J.Guterl)
 
       do iy = js, je
         do ix = is, ie
-          pr(ix,iy) = 0.0e0
           zeff(ix,iy) = 0.0e0
         enddo
       enddo
 
-      do 14 ifld = 1, nisp
-         do 12 iy = js, je
-            do 11 ix = is, ie
-               pri(ix,iy,ifld) = ni(ix,iy,ifld) * ti(ix,iy)
-               if (ifld.eq.iigsp .and. istgon(1).eq.1) pri(ix,iy,ifld) = 
-     .                                     ni(ix,iy,ifld) * tg(ix,iy,1)
+
+
+      do ifld = 1, nisp
+         do iy = js, je
+            do ix = is, ie
                if (zi(ifld).ne.0.) then
-                  pr(ix,iy) = pr(ix,iy) + pri(ix,iy,ifld)
                   zeff(ix,iy)=zeff(ix,iy)+zi(ifld)**2*ni(ix,iy,ifld)
                endif
- 11         continue
- 12      continue
- 14   continue
+            enddo
+          enddo
+        enddo
 
 c ... Replace values of ne calculated above by values consistent
 c     with those of the INEL average-ion impurity model, if it is
@@ -620,20 +738,14 @@ ccc            enddo
 ccc         enddo
       endif
 
-      do 16 iy = js, je
-        do 15 ix = is, ie
-	    pre(ix,iy) = ne(ix,iy) * te(ix,iy)
-            pr(ix,iy) = pr(ix,iy) + pre(ix,iy)
+      do iy = js, je
+        do ix = is, ie
             zeff(ix,iy) = zeff(ix,iy) / ne(ix,iy)
             znot(ix,iy) = ne(ix,iy)*zeff(ix,iy)/ni(ix,iy,1) - 1
-            do igsp = 1, ngsp
-               if(istgcon(igsp) > -1.e-20) tg(ix,iy,igsp) = 
-     .                       (1-istgcon(igsp))*rtg2ti(igsp)*ti(ix,iy) + 
-     .                          istgcon(igsp)*tgas(igsp)*ev
-	       pg(ix,iy,igsp) = ng(ix,iy,igsp)*tg(ix,iy,igsp)
-           enddo
-   15    continue
- 16   continue
+        enddo
+      enddo
+
+
 
 c ... Set zeff=constant if iszeffcon=1
       if (iszeffcon == 1) then
@@ -691,7 +803,8 @@ c Tom:  add comments here to explain the indices used on do 21
 	       ix1 = ixp1(ix,iy)
 	       gpix(ix,iy,ifld) =
      .               (pri(ix1,iy,ifld)-pri(ix,iy,ifld))*gxf(ix,iy)
-              if (zi(ifld).ne.0.) gprx(ix,iy) = gprx(ix,iy) +
+              if (zi(ifld).ne.0.) 
+     .          gprx(ix,iy) = gprx(ix,iy) +
      .             gpix(ix,iy,ifld)
    21       continue
    22    continue
@@ -741,8 +854,9 @@ c Tom:  add comments here to explain the indices used on do 25 and 24
             priy1(ix,iy,ifld) = interppri(ix,iy,1,ifld) 
             gpiy(ix,iy,ifld) = (priy1(ix,iy,ifld) -
      .                          priy0(ix,iy,ifld))/dynog(ix,iy)
-            if (zi(ifld).ne.0.) gpry(ix,iy) = gpry(ix,iy) +
-     .            gpiy(ix,iy,ifld)
+            if (zi(ifld).ne.0.) 
+     .              gpry(ix,iy) = gpry(ix,iy) +
+     .                  gpiy(ix,iy,ifld)
    25    continue
    26 continue
 
@@ -895,8 +1009,9 @@ c...  add electron contribution to prtv; ion contribution added below
                priv(ix,iy,ifld) = 0.25*( pri(ix,iy,ifld) + 
      .                           pri(ix1,iy,ifld) + pri(ix,iy+1,ifld) + 
      .                           pri(ix2,iy+1,ifld) )
-               if (zi(ifld).ne.0.) prtv(ix,iy) = prtv(ix,iy) + 
-     .                                                 priv(ix,iy,ifld)
+               if (zi(ifld).ne.0.) 
+     .                  prtv(ix,iy) = prtv(ix,iy) + 
+     .                                      priv(ix,iy,ifld)
 
  38         continue
  39      continue
@@ -941,7 +1056,8 @@ c ... Last test (ie.gt.nx) to fix parallel version with mpi - check
      .                        + pri(ie,js  ,ifld) + pri(ie+1,js  ,ifld)
      .                        + pri(ie,js+1,ifld) + pri(ie+1,js+1,ifld) )
       priv(ie,js,ifld) = priv(is,js,ifld)
-      if (zi(ifld).ne.0.) prtv(is,js) = prtv(is,js) + priv(is,js,ifld)
+      if (zi(ifld).ne.0.) 
+     .  prtv(is,js) = prtv(is,js) + priv(is,js,ifld)
  43   continue
       prtv(ie,js) = prtv(is,js)
       enddo  # end do-loop over nxpt mesh regions
