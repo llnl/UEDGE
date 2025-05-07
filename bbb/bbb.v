@@ -1626,7 +1626,7 @@ v2rd(0:nx+1,0:ny+1,1:nisp) _real  [m/s]   +threadprivate #portion of v2 from res
 v2dd(0:nx+1,0:ny+1,1:nisp) _real  [m/s]   +threadprivate #portion of v2 from anomalous drift
 vy(0:nx+1,0:ny+1,1:nisp)   _real  [m/s]   +threadprivate #radial ion velocity
 vygp(0:nx+1,0:ny+1,1:nisp) _real  [m/s]   +threadprivate #radial ion vel for vy_grady_P eng terms
-vytan(0:nx+1,0:ny+1,1:nisp)_real  [m/s]   +threadprivate #radial ion vel.*tan(vtag) on x-face
+vytan(0:nx+1,0:ny+1,1:nisp) _real  [m/s]   +threadprivate #radial ion vel.*tan(vtag) on x-face
 vygtan(0:nx+1,0:ny+1,1:ngsp)_real [m/s]   +threadprivate #radial gas grad-T vel.*tan(vtag) on
 					  #x-face
 vyce(0:nx+1,0:ny+1,1:nisp) _real  [m/s]   +threadprivate #portion of vy from ExB
@@ -3334,6 +3334,10 @@ exmain_prelims                                   subroutine
 uedriv()                                         subroutine
 convert()                                        subroutine
 guardc()                                         subroutine
+convsr_vo(i,j,yl:real)                           subroutine
+	# in i
+	# in j
+	# in yl(*)  variables
 convsr_vo1(i,j,yl:real)                           subroutine
 	# in i
 	# in j

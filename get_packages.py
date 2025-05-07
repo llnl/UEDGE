@@ -1,14 +1,12 @@
 
 def write_subpandf1():
     lines = write_ompsubroutine('convsr_vo1', "(xc, yc, ylcopy)", True)
-    for line in lines:
-        print(line)
-    print("\n\n")
     lines = write_ompsubroutine('convsr_vo2', "(xc, yc, ylcopy)", True)
-    for line in lines:
-        print(line)
-    print("\n\n")
-    lines = write_ompsubroutine('convsr_aux', "(xc, yc)", True)
+    lines = write_ompsubroutine('convsr_aux1', "(xc, yc)", True)
+    lines = write_ompsubroutine('convsr_aux2', "(xc, yc)", True)
+    lines = write_ompsubroutine('calc_plasma_diffusivities', "", True)
+    lines = write_ompsubroutine('initialize_driftterms', "", True)
+    lines = write_ompsubroutine('calc_driftterms', "", True)
     for line in lines:
         print(line)
     
@@ -38,7 +36,7 @@ def write_ompsubroutine(subroutine, arguments, bounds=False):
 
 
     outlines.append(f"  SUBROUTINE OMP{subroutine}(neq, yl, yldot)")
-    outlines.append( "    USE Dim, ONLY: nx, ny, ngsp, nisp")
+    outlines.append( "    USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt")
     outlines.append( "    USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk")
     outlines.append( "    USE OmpCopybbb")
 
