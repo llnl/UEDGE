@@ -1,48 +1,109 @@
-def get_subroutine_vars(subroutinelist):
-    defined_vars = get_pandf_vars()
-    var = []
-    for subroutine in subroutinelist:
-        var = var + defined_vars[subroutine]
-    return var
 
-def get_subpandf1():
+def write_subpandf1():
+    write_subpandf(1, ['convsr_vo', 'convsr_aux'], 
+        ["(xc, yc, yl)", "(xc, yc)"]
+    )
+    
+
+def write_subpandf(index, subroutinelist, subroutine_arguments):
     from uetools import Case
+    from textwrap import wrap
+
     getpkg = Case().search.get_group
     pkgs = {}
-    varlist = get_subroutine_vars(['convsr_vo', 'convsr_aux'])
+    defined_vars = get_pandf_vars()
+    varlist = []
+    for subroutine in subroutinelist:
+        varlist = varlist + defined_vars[subroutine]
     for var in varlist:
         pkg = getpkg(var)
         if pkg not in pkgs:
             pkgs[pkg] = []
         pkgs[pkg].append(var)
+    tmpvarlist = [f"{x}_tmp" for x in varlist]
 
     bbbv = parse_bbbv()
     vardef = []
     for var in varlist:
         vardef.append("{}_tmp({})".format(var, ",".join(bbbv[var])))
 
+
+
+    print(f"  SUBROUTINE OMPsubpandf{index}(neq, yl, yldot)")
+    print( "    USE Dim, ONLY: nx, ny, ngsp, nisp")
+    print( "    USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk")
+    print( "    USE OmpCopybbb")
+
+
     for pkg, var in pkgs.items():
-        print("    USE {}, ONLY: {}".format(pkg, ", &\n    &    ".join(var)))
+        lines =  [x.replace(" ",", ") for x in wrap( 
+                    " ".join(var), width=70, break_long_words=False)]
+        print("    USE {}, ONLY: {}".format(pkg, ", &\n    &    ".join(lines)))
+    print("    IMPLICIT NONE")
+    print("    INTEGER, INTENT(IN):: neq")
+    print("    REAL, INTENT(IN):: yl(*)")
+    print("    REAL, INTENT(OUT):: yldot(*)")
+    print("    INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc")
+    print("! Define local variables")
+    lines =  [x.replace(" ",", ") for x in wrap(
+            " ".join(vardef), width=70, break_long_words=False)]
+    print("    real:: {}".format(", &\n    &      ".join(lines)))
+
+    print("\n\n\n    ! Initialize arrays to zero")        
+    lines =  [x.replace(" ","; ") for x in wrap( 
+                " ".join([f'{x}=0.' for x in tmpvarlist]), 
+                width=70, break_long_words=False)]
+    print(4*" " + f"\n    ".join(lines))
+
+    print("\n    call chunk3d(1,nx,1,ny,0,0,chunks,Nchunks)")
 
 
-    print("\n\n\n! Define local variables")
-    print("real:: {}".format(", &\n    &      ".join(vardef)))
+    print("\n    !$OMP    PARALLEL DO &")
+    print("    !$OMP &      default(shared) &")
+    print("    !$OMP &      schedule(dynamic,OMPPandf1LoopNchunk) &")
+    print("    !$OMP &      private(ichunk,xc,yc) &")
+    lines =  [x.replace(" ",", ") for x in wrap( 
+                " ".join(tmpvarlist), width=70, break_long_words=False)]
+    print(4*" " + "!$OMP &      REDUCTION(+:{})".format(\
+            ', &\n    !$OMP &         '.join(lines)))
 
-    print("\n\n\n! Initialize arrays to zero")        
+
+    print(4*" " + "DO ichunk = 1, Nchunks")
+    print(8*" "+"xc = chunks(ichunk,1)")
+    print(8*" "+"yc = chunks(ichunk,2)")
+    print(8*" "+"call initialize_ranges(xc, yc, 0, 0, 0)")
+    for i in range(len(subroutinelist)):
+        print(8*" " + "call {}{}".format( \
+            subroutinelist[i], subroutine_arguments[i]))
+
+
+    print("\n\n\n        ! Update locally calculated variables")
+    setvarlist = []
     for var in varlist:
-        print(f"{var}_tmp = 0.")
+        dims = (len(bbbv[var])-2)
+        var = f"{var}_tmp(xc,yc)={var}_tmp(xc,yc)+{var}(xc,yc)"
+        setvarlist.append(var.replace(")", dims*",:"+")"))
+    
+        
+    lines =  [x.replace(" ","; ") for x in wrap(
+            " ".join(setvarlist), width=70, 
+            break_long_words=False)]
+#    lines =  [x.replace(" ","; ") for x in wrap(
+#            " ".join([f"{x}_tmp={x}_tmp+{x}" for x in varlist]), width=70, 
+#            break_long_words=False)]
+    print(8*" " + "\n        ".join(lines))
+    print(4*" " + "END DO") 
 
-    print("\n\n\n          !$omp &   REDUCTION(+:yldottot,{})".format(\
-            ', &\n          !$omp       & '.join([f"{x}_tmp" for x in varlist])))        
+    print("\n\n\n    ! Update global variables")        
+    lines =  [x.replace(" ","; ") for x in wrap(
+            " ".join([f"{x}={x}_tmp" for x in varlist]), width=70, 
+            break_long_words=False)]
+    print(4*" "+"\n    ".join(lines))
 
-    print("\n\n\n! Update locally calculated variables")            
+    print(f"  END SUBROUTINE OMPsubpandf{index}")
+    
     for var in varlist:
-        print(f"{var}_tmp = {var}")
-
-    print("\n\n\n! Update global variables")        
-    for var in varlist:
-        print(f"{var} = {var}_tmp")
-
+        print(f'write(*,*) "{var}", MAXVAL(({var}_tmp-{var})/{var})')
 
     
         
