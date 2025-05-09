@@ -439,9 +439,10 @@ c    yldot is the RHS of ODE solver or RHS=0 for Newton solver (NKSOL)
       Use(MCN_sources)
       Use(UEpar)
       Use(Ynorm)
+      Use(Timing)
       Use(Selec)
       Use(Time_dep_nwt)   # nufak,dtreal,ylodt,dtuse
-      real tick,tock, tsfe, tsjf, ttotfe, ttotjf
+      real tick, tock, tsfe, tsjf, tsnpg
       external tick, tock
 
 c
@@ -527,8 +528,25 @@ c...  TODO: Break out conditionals, move to top
 c...  Add checks on ishosor and ispsorave: parallel only works for == 0
       call calc_volumetric_sources(xc, yc)
 
+*****************************************************************
+c In the case of neutral parallel mom, call neudif to get
+c flux fngy, vy and uu, now that we have evaluated nuix etc.
+*****************************************************************
+      if (ineudif .eq. 1) then
+         call neudif
+      elseif (ineudif .eq. 2) then
+c ..Timing
+      if(istimingon==1) tsnpg=tick()
+         call neudifpg
+c ..Timing
+      if(istimingon==1) ttnpg = ttnpg + tock(tsnpg)
+      elseif (ineudif .eq. 3) then
+         call neudifl
+      else
+         call neudifo
+      endif
 
-
+      call calc_srcmod
 
       call calc_plasma_viscosities
 

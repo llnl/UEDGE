@@ -11,9 +11,10 @@ def write_subpandf1():
     lines = write_ompsubroutine('calc_currents', "", True)
     lines = write_ompsubroutine('calc_fqp', "", True)
     lines = write_ompsubroutine('calc_friction', "(xc)", True)
+    lines = write_ompsubroutine('calc_elec_velocities', "", True)
+    lines = write_ompsubroutine('calc_volumetric_sources', "(xc,yc)", True)
     for line in lines:
         print(line)
-#   lines = write_ompsubroutine('calc_gas_energy_residuals', "", True)
     
 
 def write_ompsubroutine(subroutine, arguments, bounds=False, subcalls=[]):

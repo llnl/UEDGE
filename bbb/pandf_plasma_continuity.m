@@ -139,6 +139,7 @@ c            write(*,*) parvis
       END SUBROUTINE initialize_ismcnon
 
 
+
       SUBROUTINE calc_volumetric_sources(xc, yc)
       IMPLICIT NONE
       Use(Selec)
@@ -966,6 +967,208 @@ c ... Then "ion" species 2 (redundant as gas species 1) is hydr atom
 
 
       END SUBROUTINE calc_volumetric_sources
+
+
+
+      SUBROUTINE calc_srcmod
+      IMPLICIT NONE
+      Use(Selec)
+      Use(Dim)
+      Use(Rhsides)
+      Use(Share)
+      Use(Compla)
+      Use(Comgeo)
+      Use(Conduc)
+      Use(Fixsrc)
+      Use(UEpar)
+      Use(Coefeq)
+      Use(Comtra)
+      Use(Phyvar)
+      Use(Imprad)
+      Use(Timing)
+      Use(Xpoint_indices)
+      Use(PandfTiming)
+      Use(Lsode)
+      Use(Bcond)
+      Use(Gradients)
+      Use(Cfric)
+      Use(Comflo)
+      Use(Jacobian_restore)
+      integer iy, ix, ifld, igsp, j2pwr, j5pwr, i2pwr, i5pwr, 
+     .  ix1, ix2, jg, ifld_lcs, jz, ifld_fcs, izch,  z1fac, 
+     .  iyp1, iym1, iy1
+      real rdumx, dr1, dr2, rdumy, ne_sgvi, t0, t1, tsimp, nevol, ngvol, 
+     .  krecz, kcxrz, kionz0, kionz, kcxrzig, niz_floor, pscx0, massfac, 
+     .  kionm, krecm, kcxrm, pxri, tsnpg, t1old, t2old, t1new, t2new, 
+     .  vyiy0, vyiym1, v2ix0, v2ixm1, t2, nexface, nizm_floor, tv
+      real rsa, rra, rcx, tick, svdiss, sv_crumpet, tock, ave
+      external rsa, rra, rcx, svdiss, sv_crumpet
+      ave(t0,t1) = 2*t0*t1 / (cutlo+t0+t1)
+************************************************************************
+*   We Calculate the source terms now.
+************************************************************************
+*  ---------------------------------------------------------------------
+*  Coefficients for the source terms.
+*  ---------------------------------------------------------------------
+
+
+      do iy = j2, j5
+         do ix = i2, i5
+            do ifld = 1, nfsp
+               snic(ix,iy,ifld) = 0.0
+            enddo
+            do ifld = 1, nusp
+               smoc(ix,iy,ifld) = 0.0
+            enddo
+            seec(ix,iy) = 0.0
+            seic(ix,iy) = 0.0
+         end do
+        end do
+
+*****************************************************************
+*  Other volume sources calculated in old SRCMOD
+*****************************************************************
+*  ---------------------------------------------------------------------
+*  electron-ion transfer terms and an
+*  approximation to the ion-ion thermal force.
+*  cfw: For the neutral momentum eq there is also a v_gas*grad(p_gas)
+*       term which is evaluated using ng, ti and gpiy
+*  ---------------------------------------------------------------------
+*-----------------------------------------------------------------------
+*  -- Calculates the fixed source if it is on
+*-----------------------------------------------------------------------
+
+      if (ifixsrc .ne. 0) then
+         do iy = j2, j5
+            do ix = i2, i5
+               snic(ix,iy,1) = snic(ix,iy,1) + vol(ix,iy) * a1n *
+     .                          exp(-b1n*(xcs(ix)-xxsrc)**2) *
+     .                          exp(-c1n*(yyc(iy)-yysrc)**2)
+               seic(ix,iy) = seic(ix,iy) + vol(ix,iy) * a1i * ev *
+     .                          exp(-b1i*(xcs(ix)-xxsrc)**2) *
+     .                          exp(-c1i*(yyc(iy)-yysrc)**2)
+               seec(ix,iy) = seec(ix,iy) + vol(ix,iy) * a1e * ev *
+     .                          exp(-b1e*(xcs(ix)-xxsrc)**2) *
+     .                          exp(-c1e*(yyc(iy)-yysrc)**2)
+            end do
+        end do
+      endif
+
+
+
+
+*  -- Set up electron parallel contribution to seec & smoc
+      do iy = j2, j5
+         do ix = i2, i5
+            ix1 = ixm1(ix,iy)
+            ix2 = ixp1(ix,iy)
+            nexface = 0.5*(ne(ix2,iy)+ne(ix,iy))
+            t1old =.5*cvgp*(upe(ix,iy)*rrv(ix,iy)*
+     .          ave(gx(ix,iy),gx(ix2,iy))*gpex(ix,iy)/gxf(ix,iy) +
+     .          upe(ix1,iy)*rrv(ix1,iy)*
+     .          ave(gx(ix,iy),gx(ix1,iy))*gpex(ix1,iy)/gxf(ix1,iy) )
+            t2old = 1.e-20* 0.25*(fqp(ix,iy)+fqp(ix1,iy))*
+     .          (ex(ix,iy)+ex(ix1,iy))/gx(ix,iy)
+            iyp1 = min(iy+1,ny+1)
+            iym1 = max(iy-1,0)
+            t1new = .5*cvgp*( vex(ix,iy)*
+     .          ave(gx(ix,iy),gx(ix2,iy))*gpex(ix,iy)/gxf(ix,iy) +
+     .          vex(ix1,iy)*
+     .          ave(gx(ix,iy),gx(ix1,iy))*gpex(ix1,iy)/gxf(ix1,iy) )
+            t2new = .5*cvgp*( vey(ix,iy)*
+     .          ave(gy(ix,iy),gy(ix,iyp1))*gpey(ix,iy)/gyf(ix,iy) +
+     .          vey(ix,iy)*
+     .          ave(gy(ix,iy),gy(ix,iym1))*gpey(ix,iym1)/gyf(ix,iym1)
+     .                                                            )
+            seec(ix,iy) = seec(ix,iy)
+     .          + (t1old*vol(ix,iy) - t2old)*oldseec
+     .          + ((t1new+t2new)*vol(ix,iy))*(1-oldseec)
+            if (nusp-isupgon(1).eq.1) smoc(ix,iy,1)=(( -cpgx*gpex(ix,iy)-
+     .                   qe*nexface*gpondpotx(ix,iy) )*rrv(ix,iy)  +
+     .                     pondomfpare_use(ix,iy) )*sx(ix,iy)/gxf(ix,iy)
+         enddo 
+      enddo
+
+*  -- Now loop over all ion species for seec, seic, and smoc --
+
+      do ifld = 1, nusp  #not nfsp; up only for ifld<=nusp
+* ------ *
+        if(zi(ifld) > 1.e-20) then  #only ions here; atoms follow
+* ------ *
+*     -- coupling in the x-direction --
+*     -- (note sign change in pondomfpari_use term starting 031722)
+           do iy = j2, j5
+             do ix = i2, i5
+               ix1 = ixm1(ix,iy)
+               ix2 = ixp1(ix,iy)
+               tv = gpix(ix ,iy,ifld)/gxf(ix,iy)
+               t1 = gpix(ix1,iy,ifld)/gxf(ix1,iy)
+               t1 = .5*cvgp*( up(ix,iy,ifld)*rrv(ix,iy)*
+     .                                 ave(gx(ix2,iy),gx(ix,iy))*tv
+     .                      + up(ix1,iy,ifld)*rrv(ix1,iy)*
+     .                                 ave(gx(ix,iy),gx(ix1,iy))*t1 )
+               seic(ix,iy) = seic(ix,iy) + cfvgpx(ifld)*t1*vol(ix,iy)
+               t0 = - cpiup(ifld)*( gpix(ix,iy,ifld)*rrv(ix,iy) -
+     .                                  pondomfpari_use(ix,iy,ifld) )*
+     .                                            sx(ix,iy)/gxf(ix,iy)
+               if (nusp-isupgon(1) .eq. 1) then  # single ion mom. eq.
+                  smoc(ix,iy,1) = smoc(ix,iy,1) + cpgx*t0
+               else                # multiple mom. eq., so nusp=nisp
+                  t0 = t0 +( qe*zi(ifld)*0.5*( ni(ix2,iy,ifld)+
+     .                       ni(ix,iy,ifld) )*ex(ix,iy)*rrv(ix,iy) +
+     .                       frici(ix,iy,ifld) )* sx(ix,iy)/gxf(ix,iy)
+                  if (ifld <= nusp) smoc(ix,iy,ifld) = 
+     .                                      smoc(ix,iy,ifld) + cpgx*t0 
+               endif
+c...  Add friction part of Q_e here
+               tv = 0.25*(frice(ix,iy)+frice(ix1,iy))*
+     .              ( upe(ix,iy)     + upe(ix1,iy) -
+     .              upi(ix,iy,ifld) - upi(ix1,iy,ifld) )
+               seec(ix,iy) = seec(ix,iy) - zi(ifld)**2*ni(ix,iy,ifld)*
+     .                                        tv*vol(ix,iy)/nz2(ix,iy)
+               
+            end do
+        end do
+
+*     -- coupling in the x & y-directions --
+           do iy = j2, j5
+            do ix = i2, i5
+             if (isgpye == 0) then
+               ix1 = ixm1(ix,iy)
+               ix2 = ixp1(ix,iy)
+               vyiy0 = fracvgpgp*vygp(ix,iy,ifld) 
+     .                    +(1.-fracvgpgp)*vycb(ix,iy,ifld)
+               vyiym1 = fracvgpgp*vygp(ix,iy-1,ifld) 
+     .                    +(1.-fracvgpgp)*vycb(ix,iy-1,ifld)
+               v2ix0 = fracvgpgp*v2xgp(ix,iy,ifld) 
+     .                    +(1.-fracvgpgp)*v2cb(ix,iy,ifld)
+               v2ixm1 = fracvgpgp*v2xgp(ix1,iy,ifld) 
+     .                    +(1.-fracvgpgp)*v2cb(ix1,iy,ifld)
+               t1 =.5*cvgp*( vygp(ix,iy  ,ifld)*gpiy(ix,iy  ,ifld) + 
+     .                       vygp(ix,iy-1,ifld)*gpiy(ix,iy-1,ifld) +
+     .                    v2xgp(ix ,iy,ifld)*ave(gx(ix,iy),gx(ix2,iy))*
+     .                               gpix(ix ,iy,ifld)/gxf(ix ,iy) +    
+     .                    v2xgp(ix1,iy,ifld)*ave(gx(ix,iy),gx(ix1,iy))*
+     .                               gpix(ix1,iy,ifld)/gxf(ix1,iy) )     
+               t2 = t1
+             elseif (isgpye == 1) then    # Old B2 model with Jperp=0
+               t1 = -0.5*( vy(ix,iy  ,ifld)*gpey(ix,iy  ) +
+     .                     vy(ix,iy-1,ifld)*gpey(ix,iy-1) )
+               t2 = t1
+             elseif (isgpye == 2) then    # Knoll expression
+               t1 = -0.5*( vy(ix,iy  ,ifld)*gpey(ix,iy  ) +
+     .                     vy(ix,iy-1,ifld)*gpey(ix,iy-1) )
+             endif
+             seec(ix,iy) = seec(ix,iy) - fluxfacy*t1 * vol(ix,iy)
+             seic(ix,iy) = seic(ix,iy) + fluxfacy*cfvgpy(ifld)*t2*
+     .                                                     vol(ix,iy)
+            end do
+        end do
+
+        endif  #test on zi(ifld) > 0, so only ion terms
+        end do  #ifld loop over ion species
+
+      END SUBROUTINE calc_srcmod
 
 
       SUBROUTINE calc_plasma_particle_residuals

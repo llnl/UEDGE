@@ -1429,6 +1429,171 @@ END SUBROUTINE OMPSplitIndex
 
   END SUBROUTINE OMPcalc_friction
 
+  SUBROUTINE OMPcalc_elec_velocities(neq, yl, yldot)
+    USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt
+    USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
+    USE OmpCopybbb
+    USE Compla, ONLY: vey, vex, upe
+    IMPLICIT NONE
+    INTEGER, INTENT(IN):: neq
+    REAL, INTENT(IN):: yl(*)
+    REAL, INTENT(OUT):: yldot(*)
+    INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc
+    REAL:: yldotcopy(1:neq), ylcopy(1:neq+2)
+! Define local variables
+    real:: vey_tmp(0:nx+1,0:ny+1), vex_tmp(0:nx+1,0:ny+1), upe_tmp(0:nx+1,0:ny+1)
+
+    ! Initialize arrays to zero
+    vey_tmp=0.; vex_tmp=0.; upe_tmp=0.
+
+    ylcopy(1:neq+1)=yl(1:neq+1); yldotcopy=0
+
+    call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)
+
+    !$OMP    PARALLEL DO &
+    !$OMP &      default(shared) &
+    !$OMP &      schedule(dynamic,OMPPandf1LoopNchunk) &
+    !$OMP &      private(ichunk,xc,yc) &
+    !$OMP &      firstprivate(ylcopy, yldotcopy) &
+    !$OMP &      REDUCTION(+:vey_tmp, vex_tmp, upe_tmp)
+    DO ichunk = 1, Nchunks
+        xc = chunks(ichunk,1)
+        yc = chunks(ichunk,2)
+        call initialize_ranges(xc, yc, 0, 0, 0)
+        call calc_elec_velocities
+
+        ! Update locally calculated variables
+        vey_tmp(xc,yc)=vey_tmp(xc,yc)+vey(xc,yc)
+        vex_tmp(xc,yc)=vex_tmp(xc,yc)+vex(xc,yc)
+        upe_tmp(xc,yc)=upe_tmp(xc,yc)+upe(xc,yc)
+    END DO
+    !$OMP  END PARALLEL DO
+
+    ! Update global variables
+    vey=vey_tmp; vex=vex_tmp; upe=upe_tmp
+    call OmpCopyPointervey; call OmpCopyPointervex; call OmpCopyPointerupe
+
+  END SUBROUTINE OMPcalc_elec_velocities
+
+  SUBROUTINE OMPcalc_volumetric_sources(neq, yl, yldot)
+    USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt, nusp
+    USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
+    USE OmpCopybbb
+    USE Rhsides, ONLY: psorrgc, psorgc, psordis, psorbgg, psordisg, smoc, psorc, snic, seic, psor, &
+    &    psorbgz, seec, msor, psorg, psorcxg, psorrg, msorxr, psorxr, psorxrc
+    USE Conduc, ONLY: nuelg, nurc, nuvl, nuiz, nucxi, nucx, nueli, nuix
+    USE Compla, ONLY: rtauy, rtaux, rtau
+    IMPLICIT NONE
+    INTEGER, INTENT(IN):: neq
+    REAL, INTENT(IN):: yl(*)
+    REAL, INTENT(OUT):: yldot(*)
+    INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc
+    REAL:: yldotcopy(1:neq), ylcopy(1:neq+2)
+! Define local variables
+    real:: psorrgc_tmp(0:nx+1,0:ny+1,1:ngsp), psorgc_tmp(0:nx+1,0:ny+1,1:ngsp), &
+    &      nuelg_tmp(0:nx+1,0:ny+1,ngsp), nurc_tmp(0:nx+1,0:ny+1,ngsp), &
+    &      psordis_tmp(0:nx+1,0:ny+1,1:nisp), psorbgg_tmp(0:nx+1,0:ny+1,1:ngsp), &
+    &      psordisg_tmp(0:nx+1,0:ny+1,1:ngsp), smoc_tmp(0:nx+1,0:ny+1,1:nusp), &
+    &      nuvl_tmp(0:nx+1,0:ny+1,nisp), psorc_tmp(0:nx+1,0:ny+1,1:nisp), &
+    &      nuiz_tmp(0:nx+1,0:ny+1,ngsp), nucxi_tmp(0:nx+1,0:ny+1,nisp), &
+    &      snic_tmp(0:nx+1,0:ny+1,1:nisp), seic_tmp(0:nx+1,0:ny+1), &
+    &      psor_tmp(0:nx+1,0:ny+1,1:nisp), rtauy_tmp(0:nx+1,0:ny+1), &
+    &      psorbgz_tmp(0:nx+1,0:ny+1), seec_tmp(0:nx+1,0:ny+1), &
+    &      msor_tmp(0:nx+1,0:ny+1,1:nisp), psorg_tmp(0:nx+1,0:ny+1,1:ngsp), &
+    &      rtaux_tmp(0:nx+1,0:ny+1), psorcxg_tmp(0:nx+1,0:ny+1,1:ngsp), &
+    &      psorrg_tmp(0:nx+1,0:ny+1,1:ngsp), msorxr_tmp(0:nx+1,0:ny+1,1:nisp), &
+    &      rtau_tmp(0:nx+1,0:ny+1), nucx_tmp(0:nx+1,0:ny+1,ngsp), &
+    &      nueli_tmp(0:nx+1,0:ny+1,nisp), psorxr_tmp(0:nx+1,0:ny+1,1:nisp), &
+    &      psorxrc_tmp(0:nx+1,0:ny+1,1:nisp), nuix_tmp(0:nx+1,0:ny+1,ngsp)
+
+    ! Initialize arrays to zero
+    psorrgc_tmp=0.; psorgc_tmp=0.; nuelg_tmp=0.; nurc_tmp=0.; psordis_tmp=0.
+    psorbgg_tmp=0.; psordisg_tmp=0.; smoc_tmp=0.; nuvl_tmp=0.; psorc_tmp=0.
+    nuiz_tmp=0.; nucxi_tmp=0.; snic_tmp=0.; seic_tmp=0.; psor_tmp=0.
+    rtauy_tmp=0.; psorbgz_tmp=0.; seec_tmp=0.; msor_tmp=0.; psorg_tmp=0.
+    rtaux_tmp=0.; psorcxg_tmp=0.; psorrg_tmp=0.; msorxr_tmp=0.; rtau_tmp=0.
+    nucx_tmp=0.; nueli_tmp=0.; psorxr_tmp=0.; psorxrc_tmp=0.; nuix_tmp=0.
+
+    ylcopy(1:neq+1)=yl(1:neq+1); yldotcopy=0
+
+    call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)
+
+    !$OMP    PARALLEL DO &
+    !$OMP &      default(shared) &
+    !$OMP &      schedule(dynamic,OMPPandf1LoopNchunk) &
+    !$OMP &      private(ichunk,xc,yc) &
+    !$OMP &      firstprivate(ylcopy, yldotcopy) &
+    !$OMP &      REDUCTION(+:psorrgc_tmp, psorgc_tmp, nuelg_tmp, nurc_tmp, psordis_tmp, psorbgg_tmp, &
+    !$OMP &         psordisg_tmp, smoc_tmp, nuvl_tmp, psorc_tmp, nuiz_tmp, nucxi_tmp, snic_tmp, &
+    !$OMP &         seic_tmp, psor_tmp, rtauy_tmp, psorbgz_tmp, seec_tmp, msor_tmp, psorg_tmp, &
+    !$OMP &         rtaux_tmp, psorcxg_tmp, psorrg_tmp, msorxr_tmp, rtau_tmp, nucx_tmp, &
+    !$OMP &         nueli_tmp, psorxr_tmp, psorxrc_tmp, nuix_tmp)
+    DO ichunk = 1, Nchunks
+        xc = chunks(ichunk,1)
+        yc = chunks(ichunk,2)
+        call initialize_ranges(xc, yc, 0, 0, 0)
+        call calc_volumetric_sources(xc,yc)
+
+        ! Update locally calculated variables
+        psorrgc_tmp(xc,yc,:)=psorrgc_tmp(xc,yc,:)+psorrgc(xc,yc,:)
+        psorgc_tmp(xc,yc,:)=psorgc_tmp(xc,yc,:)+psorgc(xc,yc,:)
+        nuelg_tmp(xc,yc,:)=nuelg_tmp(xc,yc,:)+nuelg(xc,yc,:)
+        nurc_tmp(xc,yc,:)=nurc_tmp(xc,yc,:)+nurc(xc,yc,:)
+        psordis_tmp(xc,yc,:)=psordis_tmp(xc,yc,:)+psordis(xc,yc,:)
+        psorbgg_tmp(xc,yc,:)=psorbgg_tmp(xc,yc,:)+psorbgg(xc,yc,:)
+        psordisg_tmp(xc,yc,:)=psordisg_tmp(xc,yc,:)+psordisg(xc,yc,:)
+        smoc_tmp(xc,yc,:)=smoc_tmp(xc,yc,:)+smoc(xc,yc,:)
+        nuvl_tmp(xc,yc,:)=nuvl_tmp(xc,yc,:)+nuvl(xc,yc,:)
+        psorc_tmp(xc,yc,:)=psorc_tmp(xc,yc,:)+psorc(xc,yc,:)
+        nuiz_tmp(xc,yc,:)=nuiz_tmp(xc,yc,:)+nuiz(xc,yc,:)
+        nucxi_tmp(xc,yc,:)=nucxi_tmp(xc,yc,:)+nucxi(xc,yc,:)
+        snic_tmp(xc,yc,:)=snic_tmp(xc,yc,:)+snic(xc,yc,:)
+        seic_tmp(xc,yc)=seic_tmp(xc,yc)+seic(xc,yc)
+        psor_tmp(xc,yc,:)=psor_tmp(xc,yc,:)+psor(xc,yc,:)
+        rtauy_tmp(xc,yc)=rtauy_tmp(xc,yc)+rtauy(xc,yc)
+        psorbgz_tmp(xc,yc)=psorbgz_tmp(xc,yc)+psorbgz(xc,yc)
+        seec_tmp(xc,yc)=seec_tmp(xc,yc)+seec(xc,yc)
+        msor_tmp(xc,yc,:)=msor_tmp(xc,yc,:)+msor(xc,yc,:)
+        psorg_tmp(xc,yc,:)=psorg_tmp(xc,yc,:)+psorg(xc,yc,:)
+        rtaux_tmp(xc,yc)=rtaux_tmp(xc,yc)+rtaux(xc,yc)
+        psorcxg_tmp(xc,yc,:)=psorcxg_tmp(xc,yc,:)+psorcxg(xc,yc,:)
+        psorrg_tmp(xc,yc,:)=psorrg_tmp(xc,yc,:)+psorrg(xc,yc,:)
+        msorxr_tmp(xc,yc,:)=msorxr_tmp(xc,yc,:)+msorxr(xc,yc,:)
+        rtau_tmp(xc,yc)=rtau_tmp(xc,yc)+rtau(xc,yc)
+        nucx_tmp(xc,yc,:)=nucx_tmp(xc,yc,:)+nucx(xc,yc,:)
+        nueli_tmp(xc,yc,:)=nueli_tmp(xc,yc,:)+nueli(xc,yc,:)
+        psorxr_tmp(xc,yc,:)=psorxr_tmp(xc,yc,:)+psorxr(xc,yc,:)
+        psorxrc_tmp(xc,yc,:)=psorxrc_tmp(xc,yc,:)+psorxrc(xc,yc,:)
+        nuix_tmp(xc,yc,:)=nuix_tmp(xc,yc,:)+nuix(xc,yc,:)
+    END DO
+    !$OMP  END PARALLEL DO
+
+    ! Update global variables
+    psorrgc=psorrgc_tmp; psorgc=psorgc_tmp; nuelg=nuelg_tmp; nurc=nurc_tmp
+    psordis=psordis_tmp; psorbgg=psorbgg_tmp; psordisg=psordisg_tmp
+    smoc=smoc_tmp; nuvl=nuvl_tmp; psorc=psorc_tmp; nuiz=nuiz_tmp
+    nucxi=nucxi_tmp; snic=snic_tmp; seic=seic_tmp; psor=psor_tmp
+    rtauy=rtauy_tmp; psorbgz=psorbgz_tmp; seec=seec_tmp; msor=msor_tmp
+    psorg=psorg_tmp; rtaux=rtaux_tmp; psorcxg=psorcxg_tmp; psorrg=psorrg_tmp
+    msorxr=msorxr_tmp; rtau=rtau_tmp; nucx=nucx_tmp; nueli=nueli_tmp
+    psorxr=psorxr_tmp; psorxrc=psorxrc_tmp; nuix=nuix_tmp
+    call OmpCopyPointerpsorrgc; call OmpCopyPointerpsorgc
+    call OmpCopyPointernuelg; call OmpCopyPointernurc
+    call OmpCopyPointerpsordis; call OmpCopyPointerpsorbgg
+    call OmpCopyPointerpsordisg; call OmpCopyPointersmoc
+    call OmpCopyPointernuvl; call OmpCopyPointerpsorc
+    call OmpCopyPointernuiz; call OmpCopyPointernucxi
+    call OmpCopyPointersnic; call OmpCopyPointerseic
+    call OmpCopyPointerpsor; call OmpCopyPointerrtauy
+    call OmpCopyPointerpsorbgz; call OmpCopyPointerseec
+    call OmpCopyPointermsor; call OmpCopyPointerpsorg
+    call OmpCopyPointerrtaux; call OmpCopyPointerpsorcxg
+    call OmpCopyPointerpsorrg; call OmpCopyPointermsorxr
+    call OmpCopyPointerrtau; call OmpCopyPointernucx
+    call OmpCopyPointernueli; call OmpCopyPointerpsorxr
+    call OmpCopyPointerpsorxrc; call OmpCopyPointernuix
+
+  END SUBROUTINE OMPcalc_volumetric_sources
 
   SUBROUTINE OMPPandf1Rhs(neq,time,yl,yldot)
 ! Recreates Pandf using parallel structure
@@ -1450,7 +1615,8 @@ END SUBROUTINE OMPSplitIndex
     USE Ynorm, ONLY: isflxvar, isrscalf
     USE MCN_sources, ONLY: ismcnon
     USE UEpar, ONLY: isphion, svrpkg, isphiofft
-    USE PandfTiming, ONLY: TimePandf, TotTimePandf, TimingPandfOn
+    USE PandfTiming, ONLY: TimePandf, TotTimePandf, TimingPandfOn, TimeNeudif, &
+    &   TotTimeNeudif
     IMPLICIT NONE
  
     integer yinc_bkp,xrinc_bkp,xlinc_bkp,iv,tid
@@ -1495,17 +1661,20 @@ END SUBROUTINE OMPSplitIndex
             call OMPcalc_fqp(neq, yl, yldot)
         endif
         call OMPcalc_friction(neq, yl, yldot)
+        call OMPcalc_elec_velocities(neq, yl, yldot)
+        ! TODO: Add checks on ishosor and ispsorave: parallel only works for == 0
+        call OMPcalc_volumetric_sources(neq, yl, yldot)
 
                 call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
-!                call calc_friction(xc)
                 !******************************************************
                 !*     Calculate the currents fqx, fqy, fq2 and fqp, if
                 !*     isphion = 1 or if isphiofft = 1.
                 !******************************************************
 
-                call calc_elec_velocities
-                ! Add checks on ishosor and ispsorave: parallel only works for == 0
-                call calc_volumetric_sources(xc, yc)
+                if (TimingPandfOn.gt.0) TimeNeudif=tick()
+                call neudifpg
+                if (TimingPandfOn.gt.0) TotTimeNeudif=TotTimeNeudif+tock(TimeNeudif)
+                call calc_srcmod
 
 
 
