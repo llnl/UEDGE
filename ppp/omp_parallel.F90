@@ -1188,24 +1188,12 @@ END SUBROUTINE OMPSplitIndex
 
   END SUBROUTINE OMPcalc_driftterms2
 
-
-
-
-
-
-
-
-
-
   SUBROUTINE OMPcalc_currents(neq, yl, yldot)
     USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
     USE OmpCopybbb
-    USE Comflo, ONLY: fqya, fqp, fqyai, fqymi, fqydt, fq2d, fqym, fqyb, fqydti, fqyao, fqyae, fqxb, fq2, &
-    &    fqx, fmity, fqygp, fqy, fqyd
-    USE Compla, ONLY: netap, vyavis, vy
-    USE Bcond, ONLY: fqpsatlb, fqpsatrb
-    USE Poten, ONLY: dphi_iy1
+    USE Comflo, ONLY: fq2d, fmity, fqym, fqyai, fqyb, fqydti, fqymi, fqydt, fqyao, fqya, fqyae, fqygp, &
+    &    fq2, fqyd, fqy
     IMPLICIT NONE
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
@@ -1213,25 +1201,18 @@ END SUBROUTINE OMPSplitIndex
     INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc
     REAL:: yldotcopy(1:neq), ylcopy(1:neq+2)
 ! Define local variables
-    real:: fqya_tmp(0:nx+1,0:ny+1), netap_tmp(0:nx+1,0:ny+1), &
-    &      fqp_tmp(0:nx+1,0:ny+1), fqyai_tmp(0:nx+1,0:ny+1), &
-    &      fqymi_tmp(0:nx+1,0:ny+1,1:nisp), fqydt_tmp(0:nx+1,0:ny+1), &
-    &      fq2d_tmp(0:nx+1,0:ny+1), fqym_tmp(0:nx+1,0:ny+1), &
-    &      vyavis_tmp(0:nx+1,0:ny+1,1:nisp), fqpsatlb_tmp(0:ny+1,2), &
+    real:: fq2d_tmp(0:nx+1,0:ny+1), fmity_tmp(0:nx+1,0:ny+1,1:nisp), &
+    &      fqym_tmp(0:nx+1,0:ny+1), fqyai_tmp(0:nx+1,0:ny+1), &
     &      fqyb_tmp(0:nx+1,0:ny+1), fqydti_tmp(0:nx+1,0:ny+1,1:nisp), &
-    &      fqpsatrb_tmp(0:ny+1,2), vy_tmp(0:nx+1,0:ny+1,1:nisp), &
-    &      fqyao_tmp(0:nx+1,0:ny+1), fqyae_tmp(0:nx+1,0:ny+1), &
-    &      fqxb_tmp(0:nx+1,0:ny+1), fq2_tmp(0:nx+1,0:ny+1), fqx_tmp(0:nx+1,0:ny+1), &
-    &      fmity_tmp(0:nx+1,0:ny+1,1:nisp), dphi_iy1_tmp(0:nx+1), &
-    &      fqygp_tmp(0:nx+1,0:ny+1), fqy_tmp(0:nx+1,0:ny+1), &
-    &      fqyd_tmp(0:nx+1,0:ny+1)
+    &      fqymi_tmp(0:nx+1,0:ny+1,1:nisp), fqydt_tmp(0:nx+1,0:ny+1), &
+    &      fqyao_tmp(0:nx+1,0:ny+1), fqya_tmp(0:nx+1,0:ny+1), &
+    &      fqyae_tmp(0:nx+1,0:ny+1), fqygp_tmp(0:nx+1,0:ny+1), &
+    &      fq2_tmp(0:nx+1,0:ny+1), fqyd_tmp(0:nx+1,0:ny+1), fqy_tmp(0:nx+1,0:ny+1)
 
     ! Initialize arrays to zero
-    fqya_tmp=0.; netap_tmp=0.; fqp_tmp=0.; fqyai_tmp=0.; fqymi_tmp=0.
-    fqydt_tmp=0.; fq2d_tmp=0.; fqym_tmp=0.; vyavis_tmp=0.; fqpsatlb_tmp=0.
-    fqyb_tmp=0.; fqydti_tmp=0.; fqpsatrb_tmp=0.; vy_tmp=0.; fqyao_tmp=0.
-    fqyae_tmp=0.; fqxb_tmp=0.; fq2_tmp=0.; fqx_tmp=0.; fmity_tmp=0.
-    dphi_iy1_tmp=0.; fqygp_tmp=0.; fqy_tmp=0.; fqyd_tmp=0.
+    fq2d_tmp=0.; fmity_tmp=0.; fqym_tmp=0.; fqyai_tmp=0.; fqyb_tmp=0.
+    fqydti_tmp=0.; fqymi_tmp=0.; fqydt_tmp=0.; fqyao_tmp=0.; fqya_tmp=0.
+    fqyae_tmp=0.; fqygp_tmp=0.; fq2_tmp=0.; fqyd_tmp=0.; fqy_tmp=0.
 
     ylcopy(1:neq+1)=yl(1:neq+1); yldotcopy=0
 
@@ -1242,66 +1223,49 @@ END SUBROUTINE OMPSplitIndex
     !$OMP &      schedule(dynamic,OMPPandf1LoopNchunk) &
     !$OMP &      private(ichunk,xc,yc) &
     !$OMP &      firstprivate(ylcopy, yldotcopy) &
-    !$OMP &      REDUCTION(+:fqya_tmp, netap_tmp, fqp_tmp, fqyai_tmp, fqymi_tmp, fqydt_tmp, fq2d_tmp, &
-    !$OMP &         fqym_tmp, vyavis_tmp, fqpsatlb_tmp, fqyb_tmp, fqydti_tmp, fqpsatrb_tmp, &
-    !$OMP &         vy_tmp, fqyao_tmp, fqyae_tmp, fqxb_tmp, fq2_tmp, fqx_tmp, fmity_tmp, &
-    !$OMP &         dphi_iy1_tmp, fqygp_tmp, fqy_tmp, fqyd_tmp)
+    !$OMP &      REDUCTION(+:fq2d_tmp, fmity_tmp, fqym_tmp, fqyai_tmp, fqyb_tmp, fqydti_tmp, fqymi_tmp, &
+    !$OMP &         fqydt_tmp, fqyao_tmp, fqya_tmp, fqyae_tmp, fqygp_tmp, fq2_tmp, fqyd_tmp, &
+    !$OMP &         fqy_tmp)
     DO ichunk = 1, Nchunks
         xc = chunks(ichunk,1)
         yc = chunks(ichunk,2)
         call initialize_ranges(xc, yc, 0, 0, 0)
         call calc_currents
 
-        if (yc .eq. 1) &
-        &   dphi_iy1_tmp(xc)=dphi_iy1_tmp(xc)+dphi_iy1(xc)
-
         ! Update locally calculated variables
-        fqya_tmp(xc,yc)=fqya_tmp(xc,yc)+fqya(xc,yc)
-        netap_tmp(xc,yc)=netap_tmp(xc,yc)+netap(xc,yc)
-        fqp_tmp(xc,yc)=fqp_tmp(xc,yc)+fqp(xc,yc)
-        fqyai_tmp(xc,yc)=fqyai_tmp(xc,yc)+fqyai(xc,yc)
-        fqymi_tmp(xc,yc,:)=fqymi_tmp(xc,yc,:)+fqymi(xc,yc,:)
-        fqydt_tmp(xc,yc)=fqydt_tmp(xc,yc)+fqydt(xc,yc)
         fq2d_tmp(xc,yc)=fq2d_tmp(xc,yc)+fq2d(xc,yc)
+        fmity_tmp(xc,yc,:)=fmity_tmp(xc,yc,:)+fmity(xc,yc,:)
         fqym_tmp(xc,yc)=fqym_tmp(xc,yc)+fqym(xc,yc)
-        vyavis_tmp(xc,yc,:)=vyavis_tmp(xc,yc,:)+vyavis(xc,yc,:)
-        fqpsatlb_tmp(xc,yc)=fqpsatlb_tmp(xc,yc)+fqpsatlb(xc,yc)
+        fqyai_tmp(xc,yc)=fqyai_tmp(xc,yc)+fqyai(xc,yc)
         fqyb_tmp(xc,yc)=fqyb_tmp(xc,yc)+fqyb(xc,yc)
         fqydti_tmp(xc,yc,:)=fqydti_tmp(xc,yc,:)+fqydti(xc,yc,:)
-        fqpsatrb_tmp(xc,yc)=fqpsatrb_tmp(xc,yc)+fqpsatrb(xc,yc)
-        vy_tmp(xc,yc,:)=vy_tmp(xc,yc,:)+vy(xc,yc,:)
+        fqymi_tmp(xc,yc,:)=fqymi_tmp(xc,yc,:)+fqymi(xc,yc,:)
+        fqydt_tmp(xc,yc)=fqydt_tmp(xc,yc)+fqydt(xc,yc)
         fqyao_tmp(xc,yc)=fqyao_tmp(xc,yc)+fqyao(xc,yc)
+        fqya_tmp(xc,yc)=fqya_tmp(xc,yc)+fqya(xc,yc)
         fqyae_tmp(xc,yc)=fqyae_tmp(xc,yc)+fqyae(xc,yc)
-        fqxb_tmp(xc,yc)=fqxb_tmp(xc,yc)+fqxb(xc,yc)
-        fq2_tmp(xc,yc)=fq2_tmp(xc,yc)+fq2(xc,yc)
-        fqx_tmp(xc,yc)=fqx_tmp(xc,yc)+fqx(xc,yc)
-        fmity_tmp(xc,yc,:)=fmity_tmp(xc,yc,:)+fmity(xc,yc,:)
         fqygp_tmp(xc,yc)=fqygp_tmp(xc,yc)+fqygp(xc,yc)
-        fqy_tmp(xc,yc)=fqy_tmp(xc,yc)+fqy(xc,yc)
+        fq2_tmp(xc,yc)=fq2_tmp(xc,yc)+fq2(xc,yc)
         fqyd_tmp(xc,yc)=fqyd_tmp(xc,yc)+fqyd(xc,yc)
+        fqy_tmp(xc,yc)=fqy_tmp(xc,yc)+fqy(xc,yc)
     END DO
 
     ! Update global variables
-    fqya=fqya_tmp; netap=netap_tmp; fqp=fqp_tmp; fqyai=fqyai_tmp
-    fqymi=fqymi_tmp; fqydt=fqydt_tmp; fq2d=fq2d_tmp; fqym=fqym_tmp
-    vyavis=vyavis_tmp; fqpsatlb=fqpsatlb_tmp; fqyb=fqyb_tmp
-    fqydti=fqydti_tmp; fqpsatrb=fqpsatrb_tmp; vy=vy_tmp; fqyao=fqyao_tmp
-    fqyae=fqyae_tmp; fqxb=fqxb_tmp; fq2=fq2_tmp; fqx=fqx_tmp; fmity=fmity_tmp
-    dphi_iy1=dphi_iy1_tmp; fqygp=fqygp_tmp; fqy=fqy_tmp; fqyd=fqyd_tmp
-    call OmpCopyPointerfqya; call OmpCopyPointernetap
-    call OmpCopyPointerfqp; call OmpCopyPointerfqyai
-    call OmpCopyPointerfqymi; call OmpCopyPointerfqydt
-    call OmpCopyPointerfq2d; call OmpCopyPointerfqym
-    call OmpCopyPointervyavis; call OmpCopyPointerfqpsatlb
+    fq2d=fq2d_tmp; fmity=fmity_tmp; fqym=fqym_tmp; fqyai=fqyai_tmp
+    fqyb=fqyb_tmp; fqydti=fqydti_tmp; fqymi=fqymi_tmp; fqydt=fqydt_tmp
+    fqyao=fqyao_tmp; fqya=fqya_tmp; fqyae=fqyae_tmp; fqygp=fqygp_tmp
+    fq2=fq2_tmp; fqyd=fqyd_tmp; fqy=fqy_tmp
+    call OmpCopyPointerfq2d; call OmpCopyPointerfmity
+    call OmpCopyPointerfqym; call OmpCopyPointerfqyai
     call OmpCopyPointerfqyb; call OmpCopyPointerfqydti
-    call OmpCopyPointerfqpsatrb; call OmpCopyPointervy
-    call OmpCopyPointerfqyao; call OmpCopyPointerfqyae
-    call OmpCopyPointerfqxb; call OmpCopyPointerfq2; call OmpCopyPointerfqx
-    call OmpCopyPointerfmity; call OmpCopyPointerdphi_iy1
-    call OmpCopyPointerfqygp; call OmpCopyPointerfqy
-    call OmpCopyPointerfqyd
+    call OmpCopyPointerfqymi; call OmpCopyPointerfqydt
+    call OmpCopyPointerfqyao; call OmpCopyPointerfqya
+    call OmpCopyPointerfqyae; call OmpCopyPointerfqygp
+    call OmpCopyPointerfq2; call OmpCopyPointerfqyd; call OmpCopyPointerfqy
 
   END SUBROUTINE OMPcalc_currents
+
+
 
 
   SUBROUTINE OMPcalc_friction(neq, yl, yldot)
@@ -1385,6 +1349,7 @@ END SUBROUTINE OMPSplitIndex
     USE UEpar, ONLY: isphion, svrpkg, isphiofft
     USE PandfTiming, ONLY: TimePandf, TotTimePandf, TimingPandfOn
     
+    USE Comflo, ONLY: fqp
     IMPLICIT NONE
  
     integer yinc_bkp,xrinc_bkp,xlinc_bkp,iv,tid
@@ -1424,9 +1389,12 @@ END SUBROUTINE OMPSplitIndex
         call OMPinitialize_driftterms (neq, yl, yldot) 
         call OMPcalc_driftterms1(neq, yl, yldot)
         call OMPcalc_driftterms2(neq, yl, yldot)
+        if(isphion+isphiofft .eq. 1) then
+            call OMPcalc_currents(neq, yl, yldot)
+        endif
 
                 call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
-                if(isphion+isphiofft .eq. 1) call calc_currents
+                if(isphion+isphiofft .eq. 1) call calc_fqp
 
                 ! TODO: gather variables calculated in calc driftterms
                 !       v2 needed by calc_friction

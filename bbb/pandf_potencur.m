@@ -81,123 +81,6 @@ c-----------------------------------------------------------------------
       ifld = 1
 
 ************************************************************************
-*     Calculate fqp, the parallel current if isimpon.ne.5
-************************************************************************
-      if (isimpon.eq.5) goto 255
-
-      do 25 iy = j1p, j6p
-         do 24 ix = i1, i5
-	    iy1 = max(0,iy-1)
-            ix1 = ixp1(ix,iy)
-            ix3 = ixp1(ix,iy1)
-	    t0 = max(te(ix1,iy),temin*ev)
-	    t1 = max(te(ix,iy),temin*ev)
-            zfac0 = 1. / ( zeff(ix1,iy) * (1.193 - 0.2205*zeff(ix1,iy)
-     .                                + 0.0275*zeff(ix1,iy)**2) )
-            zfac1 = 1. / ( zeff(ix,iy) * (1.193 - 0.2205*zeff(ix,iy)
-     .                                + 0.0275*zeff(ix,iy)**2) )
-            if (isfqpave .eq. 0) then   # use linear interpolation for fqp
-               zfac = (zfac0*gx(ix1,iy) + zfac1*gx(ix,iy))/
-     .                                      (gx(ix1,iy) + gx(ix,iy))
-               nbarx = (ne(ix1,iy)*gx(ix1,iy) + ne(ix,iy)*gx(ix,iy))/
-     .                                      (gx(ix1,iy) + gx(ix,iy))
-               sigbarx = zfac * cfsigm * sigma1 *
-     .                   (rr(ix1,iy)*t0**1.5*gx(ix1,iy)
-     .                   +rr(ix,iy)*t1**1.5*gx(ix,iy))
-     .                   / ((gx(ix1,iy)+gx(ix,iy))*ev**1.5)
-            else   # use simple average for fqp components
-               zfac = 0.5*(zfac0 + zfac1)
-               nbarx = 0.5*(ne(ix1,iy) + ne(ix,iy))
-               sigbarx = zfac * cfsigm * sigma1 * rrv(ix,iy) *
-     .                                 ( 0.5*(t0+t1)/ev )**1.5
-            endif
-            netap(ix,iy) = nbarx/sigbarx   # used for frice in pandf
-c           temp1 = (gpry(ix,iy) + gpry(ix,iy1) +
-c    .               gpry(ix1,iy) + gpry(ix3,iy1))
-c           if(isxptx(ix,iy).eq.0) temp1 =
-c    .              4.0*(prtv(ix,iy) - prtv(ix,iy1)) * gyc(ix,iy)
-            fqp(ix,iy) = (rrv(ix,iy)*sx(ix,iy)*sigbarx*gxf(ix,iy)/qe)*
-     .                       ( (pre(ix1,iy) - pre(ix,iy))/nbarx
-     .                  - qe * (phi(ix1,iy) - phi(ix,iy))
-     .                  + qe * (pondpot(ix1,iy) - pondpot(ix,iy))
-     .                  + pondomfpare_use(ix,iy)/(rrv(ix,iy)*nbarx)
-     .               + cthe * ( te(ix1,iy) -  te(ix,iy)) )
-
-c           Special calculation for ix-boundary cells; able to retrieve
-c           old case with frfqpn=0 ...
-            do jx = 1, nxpt  # loop over all mesh regions
-               ixl   = ixlb(jx)     # analog of ix=0
-               ixlp1 = ixlb(jx)+1   # analog of ix=1
-               ixlp2 = ixlb(jx)+2   # analog of ix=2
-               ixr   = ixrb(jx)+1   # analog of ix=nx+1
-               ixrm1 = ixrb(jx)     # analog of ix=nx
-               ixrm2 = ixrb(jx)-1   # analog of ix=nx-1
-               if (ix==ixl .and. ixmnbcl==1) then  # at left boundary
-                  fqp_old = fqp(ix,iy)
-                  nbarx = ne(ixlp1,iy)
-                  sigbarx = zfac*cfsigm*sigma1*rrv(ixlp1,iy)*
-     .                                         (te(ixlp1,iy)/ev)**1.5
-                  fqp(ix,iy) =
-     .                  (rrv(ixlp1,iy)*sx(ixlp1,iy)*sigbarx*gxf(ixlp1,iy)/qe)*
-     .                       (  (pre(ixlp2,iy)-pre(ixlp1,iy))/nbarx -
-     .               qe*(phi(ixlp1,iy)-phi(ixl,iy))*gxf(ixl,iy)/gxf(ixlp1,iy) +
-     .                  cthe*(te(ixlp2,iy)- te(ixlp1,iy))  )
-                  fqp(ix,iy) = (1.-frfqpn)*fqp_old + frfqpn*fqp(ix,iy)
-                  fqpsatlb(iy,jx) = -qe*isfdiax*( ne(ixl,iy)*v2ce(ixl,iy,1)*
-     .                         rbfbt(ixl,iy)*sx(ixl,iy) + fdiaxlb(iy,jx) )
-                  do ifld = 1, nusp   # note fqp,fqpsat are poloidal proj. of || curr
-                     fqpsatlb(iy,jx)=fqpsatlb(iy,jx)-qe*zi(ifld)*ni(ixl,iy,ifld)*
-     .                         up(ixl,iy,ifld)*sx(ixl,iy)*rrv(ixl,iy)
-                  enddo
-                  if (fqp(ixl,iy) < 0.) then #limit to saturation current
-		     fp1 = fqp(ixl,iy)
-                     fp2 = cffqpsat*fqpsatlb(iy,jx)
-                     fqp(ixl,iy)=-( abs(fp1*fp2)**exjbdry/
-     .                             (abs(fp1)**exjbdry +
-     .                              abs(fp2)**exjbdry) )**(1/exjbdry)
-                  endif
-               elseif (ix==ixrm1 .and. ixmxbcl==1) then  # at right boundary
-                  fqp_old = fqp(ix,iy)
-                  nbarx = ne(ixrm1,iy)
-                  sigbarx = zfac*cfsigm*sigma1*rrv(ixrm2,iy)*
-     .                                         (te(ixrm1,iy)/ev)**1.5
-                  fqp(ix,iy) =
-     .                  (rrv(ixrm2,iy)*sx(ixrm2,iy)*sigbarx*gxf(ixrm2,iy)/qe)*
-     .                       (  (pre(ixrm1,iy)-pre(ixrm2,iy))/nbarx -
-     .               qe*(phi(ixr,iy)-phi(ixrm1,iy))*gxf(ixrm1,iy)/gxf(ixrm2,iy) +
-     .                  cthe*(te(ixrm1,iy)-te(ixrm2,iy))  )
-                  fqp(ix,iy) = (1.-frfqpn)*fqp_old +  frfqpn*fqp(ix,iy)
-                  fqpsatrb(iy,jx) = qe*isfdiax*( ne(ixr,iy)*v2ce(ixrm1,iy,1)*
-     .                      rbfbt(ixr,iy)*sx(ixrm1,iy) + fdiaxrb(iy,jx) )
-                  do ifld = 1, nusp   # note fqp,fqpsat are poloidal proj. of || curr
-                     fqpsatrb(iy,jx)=fqpsatrb(iy,jx)+qe*zi(ifld)*ni(ixr,iy,ifld)*
-     .                        up(ixrm1,iy,ifld)*sx(ixrm1,iy)*rrv(ixrm1,iy)
-                  enddo
-                  if (fqp(ixrm1,iy) > 0.) then #limit to saturation current
-		     fp1 = fqp(ixrm1,iy)
-                     fp2 = cffqpsat*fqpsatrb(iy,jx)
-                     fqp(ixrm1,iy)= ( abs(fp1*fp2)**exjbdry/
-     .                               (abs(fp1)**exjbdry +
-     .                                abs(fp2)**exjbdry) )**(1/exjbdry)
-                  endif
-               endif  # end if-test for ix boundary cells
-            enddo  # end do-loop on number of mesh regions
-
-            if(isudsym==1 .and. ix==nxc)  fqp(ix,iy) = 0.
-
-            if (iy .eq. 1) then
-               dphi_iy1(ix) = -fqp(ix,iy)/(rrv(ix,iy)*sx(ix,iy)*
-     .                         sigbarx*gxf(ix,iy)) +
-     .                         (pre(ix1,iy)-pre(ix,iy))/(qe*nbarx)
-            endif
-c    .        + cfjpx * sx(ix,iy) * 0.125 * temp1
-c    .               * (rbfbt2(ix,iy) + rbfbt2(ix1,iy))
-ccc         if (iy.eq.1 .and. isnewpot.eq.1) fqp(ix,1) = fqp(ix,2)
-   24    continue
-   25 continue
-
- 255  continue   # jump here if isimpon=5
-************************************************************************
 *     Calculate fq2, the 2-current
 ************************************************************************
       do 37 iy = j1p, j6p
@@ -408,7 +291,170 @@ c ... Sum contributions for fqy; ave old fqyao & fqya with rnewpot
             endif
          enddo
       enddo
+      return
+      end
+c ***  End of subroutine calc_currents  **********
 
+      subroutine calc_fqp
+      implicit none
+
+*  -- local variables
+      real  nbarx, nbary, sigbarx, sigbary, zfac, temp1, utm, ut0, utp,
+     .      ut0n, fqp_old, omgci, zfac0, zfac1, tiy1d, tiy0d,
+     .      niy1d, niy0d, phiy1d, phiy0d, fp1, fp2, nzvibtot
+      integer iy1, ifld
+      #Former Aux module variables
+      integer ix,iy,ix1,ix2,ix3,ix4
+      real t0,t1
+      integer jx,ixl,ixlp1,ixlp2,ixr,ixrm1,ixrm2,iyp2
+
+      Use(Dim)               # nx,ny,nxpt
+      Use(Share)             # geometry,nxc,islimon,isudsym
+      Use(Xpoint_indices)    # ixlb,ixpt1,ixpt2,ixrb,iysptrx
+      Use(Math_problem_size) # neqmx(for arrays not used here)
+      Use(Phyvar)            # ev,qe
+      Use(Coefeq)            # cfjp2,cfjpy,cftnm,cfvycf,cfqybf,cfq2bf,cfqydt
+      Use(Selec)             # i1,i5,i6,j1,j5,j6,ixm1,ixp1,j1p,j2p,j5p,j6p,i3
+      Use(Comgeo)            # gx,gy,gxf,gyf,gxc,gyc,sx,sy,rr,isxptx,isxpty,
+                             # isixcore
+      Use(Compla)            # te,prtv,phi,ne,zeff,up,vycf,netap,niy1,tiy1,
+                             # phiy1
+      Use(Comtra)            # difutm
+      Use(Comflo)            # fqp,fq2,fqx,fqy,fqya,fmity,fnxg,fngxy,
+                             # fqyd,fq2d,fqydt
+      Use(Ynorm)             # sigbar0
+      Use(Poten)             # cthe,sigma1,rsigpl,rsigplcore,cfsigm
+      Use(Bfield)            # btot,rbfbt,rbfbt2,bfacyrozh,bfacxrozh
+      Use(Gradients)         # gprx,gpry,ey
+      Use(RZ_grid_info)      # rm
+      Use(UEpar)             # isnewpot,r0slab,isfqpave,rrmin,frfqpn
+      Use(Imprad)            # isimpon
+      Use(Conduc)            # nucx
+      Use(Bcond)             # isexunif,fqpsatlb,fqpsatrb,isextrnp
+      Use(Parallv)           # nxg,nyg
+      Use(Time_dep_nwt)      # dtreal
+      Use(Interp)            # nxold,nyold
+      Use(Indices_domain_dcl)# ixmnbcl,ixmxbcl
+      Use(Volsrc)            # pondpot
+
+
+************************************************************************
+*     Calculate fqp, the parallel current if isimpon.ne.5
+************************************************************************
+      if (isimpon.eq.5) goto 255
+
+      do 25 iy = j1p, j6p
+         do 24 ix = i1, i5
+	    iy1 = max(0,iy-1)
+            ix1 = ixp1(ix,iy)
+            ix3 = ixp1(ix,iy1)
+	    t0 = max(te(ix1,iy),temin*ev)
+	    t1 = max(te(ix,iy),temin*ev)
+            zfac0 = 1. / ( zeff(ix1,iy) * (1.193 - 0.2205*zeff(ix1,iy)
+     .                                + 0.0275*zeff(ix1,iy)**2) )
+            zfac1 = 1. / ( zeff(ix,iy) * (1.193 - 0.2205*zeff(ix,iy)
+     .                                + 0.0275*zeff(ix,iy)**2) )
+            if (isfqpave .eq. 0) then   # use linear interpolation for fqp
+               zfac = (zfac0*gx(ix1,iy) + zfac1*gx(ix,iy))/
+     .                                      (gx(ix1,iy) + gx(ix,iy))
+               nbarx = (ne(ix1,iy)*gx(ix1,iy) + ne(ix,iy)*gx(ix,iy))/
+     .                                      (gx(ix1,iy) + gx(ix,iy))
+               sigbarx = zfac * cfsigm * sigma1 *
+     .                   (rr(ix1,iy)*t0**1.5*gx(ix1,iy)
+     .                   +rr(ix,iy)*t1**1.5*gx(ix,iy))
+     .                   / ((gx(ix1,iy)+gx(ix,iy))*ev**1.5)
+            else   # use simple average for fqp components
+               zfac = 0.5*(zfac0 + zfac1)
+               nbarx = 0.5*(ne(ix1,iy) + ne(ix,iy))
+               sigbarx = zfac * cfsigm * sigma1 * rrv(ix,iy) *
+     .                                 ( 0.5*(t0+t1)/ev )**1.5
+            endif
+            netap(ix,iy) = nbarx/sigbarx   # used for frice in pandf
+c           temp1 = (gpry(ix,iy) + gpry(ix,iy1) +
+c    .               gpry(ix1,iy) + gpry(ix3,iy1))
+c           if(isxptx(ix,iy).eq.0) temp1 =
+c    .              4.0*(prtv(ix,iy) - prtv(ix,iy1)) * gyc(ix,iy)
+            fqp(ix,iy) = (rrv(ix,iy)*sx(ix,iy)*sigbarx*gxf(ix,iy)/qe)*
+     .                       ( (pre(ix1,iy) - pre(ix,iy))/nbarx
+     .                  - qe * (phi(ix1,iy) - phi(ix,iy))
+     .                  + qe * (pondpot(ix1,iy) - pondpot(ix,iy))
+     .                  + pondomfpare_use(ix,iy)/(rrv(ix,iy)*nbarx)
+     .               + cthe * ( te(ix1,iy) -  te(ix,iy)) )
+
+c           Special calculation for ix-boundary cells; able to retrieve
+c           old case with frfqpn=0 ...
+            do jx = 1, nxpt  # loop over all mesh regions
+               ixl   = ixlb(jx)     # analog of ix=0
+               ixlp1 = ixlb(jx)+1   # analog of ix=1
+               ixlp2 = ixlb(jx)+2   # analog of ix=2
+               ixr   = ixrb(jx)+1   # analog of ix=nx+1
+               ixrm1 = ixrb(jx)     # analog of ix=nx
+               ixrm2 = ixrb(jx)-1   # analog of ix=nx-1
+               if (ix==ixl .and. ixmnbcl==1) then  # at left boundary
+                  fqp_old = fqp(ix,iy)
+                  nbarx = ne(ixlp1,iy)
+                  sigbarx = zfac*cfsigm*sigma1*rrv(ixlp1,iy)*
+     .                                         (te(ixlp1,iy)/ev)**1.5
+                  fqp(ix,iy) =
+     .                  (rrv(ixlp1,iy)*sx(ixlp1,iy)*sigbarx*gxf(ixlp1,iy)/qe)*
+     .                       (  (pre(ixlp2,iy)-pre(ixlp1,iy))/nbarx -
+     .               qe*(phi(ixlp1,iy)-phi(ixl,iy))*gxf(ixl,iy)/gxf(ixlp1,iy) +
+     .                  cthe*(te(ixlp2,iy)- te(ixlp1,iy))  )
+                  fqp(ix,iy) = (1.-frfqpn)*fqp_old + frfqpn*fqp(ix,iy)
+                  fqpsatlb(iy,jx) = -qe*isfdiax*( ne(ixl,iy)*v2ce(ixl,iy,1)*
+     .                         rbfbt(ixl,iy)*sx(ixl,iy) + fdiaxlb(iy,jx) )
+                  do ifld = 1, nusp   # note fqp,fqpsat are poloidal proj. of || curr
+                     fqpsatlb(iy,jx)=fqpsatlb(iy,jx)-qe*zi(ifld)*ni(ixl,iy,ifld)*
+     .                         up(ixl,iy,ifld)*sx(ixl,iy)*rrv(ixl,iy)
+                  enddo
+                  if (fqp(ixl,iy) < 0.) then #limit to saturation current
+		     fp1 = fqp(ixl,iy)
+                     fp2 = cffqpsat*fqpsatlb(iy,jx)
+                     fqp(ixl,iy)=-( abs(fp1*fp2)**exjbdry/
+     .                             (abs(fp1)**exjbdry +
+     .                              abs(fp2)**exjbdry) )**(1/exjbdry)
+                  endif
+               elseif (ix==ixrm1 .and. ixmxbcl==1) then  # at right boundary
+                  fqp_old = fqp(ix,iy)
+                  nbarx = ne(ixrm1,iy)
+                  sigbarx = zfac*cfsigm*sigma1*rrv(ixrm2,iy)*
+     .                                         (te(ixrm1,iy)/ev)**1.5
+                  fqp(ix,iy) =
+     .                  (rrv(ixrm2,iy)*sx(ixrm2,iy)*sigbarx*gxf(ixrm2,iy)/qe)*
+     .                       (  (pre(ixrm1,iy)-pre(ixrm2,iy))/nbarx -
+     .               qe*(phi(ixr,iy)-phi(ixrm1,iy))*gxf(ixrm1,iy)/gxf(ixrm2,iy) +
+     .                  cthe*(te(ixrm1,iy)-te(ixrm2,iy))  )
+                  fqp(ix,iy) = (1.-frfqpn)*fqp_old +  frfqpn*fqp(ix,iy)
+                  fqpsatrb(iy,jx) = qe*isfdiax*( ne(ixr,iy)*v2ce(ixrm1,iy,1)*
+     .                      rbfbt(ixr,iy)*sx(ixrm1,iy) + fdiaxrb(iy,jx) )
+                  do ifld = 1, nusp   # note fqp,fqpsat are poloidal proj. of || curr
+                     fqpsatrb(iy,jx)=fqpsatrb(iy,jx)+qe*zi(ifld)*ni(ixr,iy,ifld)*
+     .                        up(ixrm1,iy,ifld)*sx(ixrm1,iy)*rrv(ixrm1,iy)
+                  enddo
+                  if (fqp(ixrm1,iy) > 0.) then #limit to saturation current
+		     fp1 = fqp(ixrm1,iy)
+                     fp2 = cffqpsat*fqpsatrb(iy,jx)
+                     fqp(ixrm1,iy)= ( abs(fp1*fp2)**exjbdry/
+     .                               (abs(fp1)**exjbdry +
+     .                                abs(fp2)**exjbdry) )**(1/exjbdry)
+                  endif
+               endif  # end if-test for ix boundary cells
+            enddo  # end do-loop on number of mesh regions
+
+            if(isudsym==1 .and. ix==nxc)  fqp(ix,iy) = 0.
+
+            if (iy .eq. 1) then
+               dphi_iy1(ix) = -fqp(ix,iy)/(rrv(ix,iy)*sx(ix,iy)*
+     .                         sigbarx*gxf(ix,iy)) +
+     .                         (pre(ix1,iy)-pre(ix,iy))/(qe*nbarx)
+            endif
+c    .        + cfjpx * sx(ix,iy) * 0.125 * temp1
+c    .               * (rbfbt2(ix,iy) + rbfbt2(ix1,iy))
+ccc         if (iy.eq.1 .and. isnewpot.eq.1) fqp(ix,1) = fqp(ix,2)
+   24    continue
+   25 continue
+
+ 255  continue   # jump here if isimpon=5
 ************************************************************************
 *     Calculate fqx, the poloidal current
 ************************************************************************

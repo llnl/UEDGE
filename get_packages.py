@@ -7,12 +7,10 @@ def write_subpandf1():
     lines = write_ompsubroutine('calc_plasma_diffusivities', "", True)
     lines = write_ompsubroutine('initialize_driftterms', "", True)
     lines = write_ompsubroutine('calc_driftterms1', "", True)
-    for line in lines:
-        print(line)
     lines = write_ompsubroutine('calc_driftterms2', "", True)
+    lines = write_ompsubroutine('calc_currents', "", True)
     for line in lines:
         print(line)
-#    lines = write_ompsubroutine('calc_currents', "", True)
 #   lines = write_ompsubroutine('calc_friction', "(xc)", True)
 #   lines = write_ompsubroutine('calc_gas_energy_residuals', "", True)
     
