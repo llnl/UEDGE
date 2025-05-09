@@ -291,11 +291,130 @@ c ... Sum contributions for fqy; ave old fqyao & fqya with rnewpot
             endif
          enddo
       enddo
+
+c ... Add anomalous perp vis vy using calc_currents result - awkward,change
+      if (cfvyavis > 0.) then
+        do ifld = 1, 1  # nfsp  # only good for ifld=1
+          do iy = max(j1,2), min(j5,ny-1)
+            do ix = max(i1,2), min(i6,nx-1)
+              vyavis(ix,iy,ifld) = fqya(ix,iy)*2/(
+     .                  qe*(niy1(ix,iy,1)+niy0(ix,iy,1))*sy(ix,iy) )
+              vy(ix,iy,ifld) = vy(ix,iy,ifld) + cfvyavis*vyavis(ix,iy,ifld)
+            enddo
+          enddo
+        enddo
+      endif          
+
+
       return
       end
 c ***  End of subroutine calc_currents  **********
 
-      subroutine calc_fqp
+      SUBROUTINE calc_fqp
+      IMPLICIT NONE
+      call calc_fqp1
+      call calc_fqp2
+      END SUBROUTINE calc_fqp
+
+
+
+      subroutine calc_fqp1
+      implicit none
+
+*  -- local variables
+      real  nbarx, nbary, sigbarx, sigbary, zfac, temp1, utm, ut0, utp,
+     .      ut0n, fqp_old, omgci, zfac0, zfac1, tiy1d, tiy0d,
+     .      niy1d, niy0d, phiy1d, phiy0d, fp1, fp2, nzvibtot
+      integer iy1, ifld
+      #Former Aux module variables
+      integer ix,iy,ix1,ix2,ix3,ix4
+      real t0,t1
+      integer jx,ixl,ixlp1,ixlp2,ixr,ixrm1,ixrm2,iyp2
+
+      Use(Dim)               # nx,ny,nxpt
+      Use(Share)             # geometry,nxc,islimon,isudsym
+      Use(Xpoint_indices)    # ixlb,ixpt1,ixpt2,ixrb,iysptrx
+      Use(Math_problem_size) # neqmx(for arrays not used here)
+      Use(Phyvar)            # ev,qe
+      Use(Coefeq)            # cfjp2,cfjpy,cftnm,cfvycf,cfqybf,cfq2bf,cfqydt
+      Use(Selec)             # i1,i5,i6,j1,j5,j6,ixm1,ixp1,j1p,j2p,j5p,j6p,i3
+      Use(Comgeo)            # gx,gy,gxf,gyf,gxc,gyc,sx,sy,rr,isxptx,isxpty,
+                             # isixcore
+      Use(Compla)            # te,prtv,phi,ne,zeff,up,vycf,netap,niy1,tiy1,
+                             # phiy1
+      Use(Comtra)            # difutm
+      Use(Comflo)            # fqp,fq2,fqx,fqy,fqya,fmity,fnxg,fngxy,
+                             # fqyd,fq2d,fqydt
+      Use(Ynorm)             # sigbar0
+      Use(Poten)             # cthe,sigma1,rsigpl,rsigplcore,cfsigm
+      Use(Bfield)            # btot,rbfbt,rbfbt2,bfacyrozh,bfacxrozh
+      Use(Gradients)         # gprx,gpry,ey
+      Use(RZ_grid_info)      # rm
+      Use(UEpar)             # isnewpot,r0slab,isfqpave,rrmin,frfqpn
+      Use(Imprad)            # isimpon
+      Use(Conduc)            # nucx
+      Use(Bcond)             # isexunif,fqpsatlb,fqpsatrb,isextrnp
+      Use(Parallv)           # nxg,nyg
+      Use(Time_dep_nwt)      # dtreal
+      Use(Interp)            # nxold,nyold
+      Use(Indices_domain_dcl)# ixmnbcl,ixmxbcl
+      Use(Volsrc)            # pondpot
+
+
+************************************************************************
+*     Calculate fqp, the parallel current if isimpon.ne.5
+************************************************************************
+      if (isimpon.ne.5) then
+
+      do iy = j1p, j6p
+         do ix = i1, i5
+	    iy1 = max(0,iy-1)
+            ix1 = ixp1(ix,iy)
+            ix3 = ixp1(ix,iy1)
+	    t0 = max(te(ix1,iy),temin*ev)
+	    t1 = max(te(ix,iy),temin*ev)
+            zfac0 = 1. / ( zeff(ix1,iy) * (1.193 - 0.2205*zeff(ix1,iy)
+     .                                + 0.0275*zeff(ix1,iy)**2) )
+            zfac1 = 1. / ( zeff(ix,iy) * (1.193 - 0.2205*zeff(ix,iy)
+     .                                + 0.0275*zeff(ix,iy)**2) )
+            if (isfqpave .eq. 0) then   # use linear interpolation for fqp
+               zfac = (zfac0*gx(ix1,iy) + zfac1*gx(ix,iy))/
+     .                                      (gx(ix1,iy) + gx(ix,iy))
+               nbarx = (ne(ix1,iy)*gx(ix1,iy) + ne(ix,iy)*gx(ix,iy))/
+     .                                      (gx(ix1,iy) + gx(ix,iy))
+               sigbarx = zfac * cfsigm * sigma1 *
+     .                   (rr(ix1,iy)*t0**1.5*gx(ix1,iy)
+     .                   +rr(ix,iy)*t1**1.5*gx(ix,iy))
+     .                   / ((gx(ix1,iy)+gx(ix,iy))*ev**1.5)
+            else   # use simple average for fqp components
+               zfac = 0.5*(zfac0 + zfac1)
+               nbarx = 0.5*(ne(ix1,iy) + ne(ix,iy))
+               sigbarx = zfac * cfsigm * sigma1 * rrv(ix,iy) *
+     .                                 ( 0.5*(t0+t1)/ev )**1.5
+            endif
+            netap(ix,iy) = nbarx/sigbarx   # used for frice in pandf
+c           temp1 = (gpry(ix,iy) + gpry(ix,iy1) +
+c    .               gpry(ix1,iy) + gpry(ix3,iy1))
+c           if(isxptx(ix,iy).eq.0) temp1 =
+c    .              4.0*(prtv(ix,iy) - prtv(ix,iy1)) * gyc(ix,iy)
+            fqp(ix,iy) = (rrv(ix,iy)*sx(ix,iy)*sigbarx*gxf(ix,iy)/qe)*
+     .                       ( (pre(ix1,iy) - pre(ix,iy))/nbarx
+     .                  - qe * (phi(ix1,iy) - phi(ix,iy))
+     .                  + qe * (pondpot(ix1,iy) - pondpot(ix,iy))
+     .                  + pondomfpare_use(ix,iy)/(rrv(ix,iy)*nbarx)
+     .               + cthe * ( te(ix1,iy) -  te(ix,iy)) )
+          end do
+        end do
+      end if
+      return
+      end
+c ***  End of subroutine calc_currents  **********
+
+
+
+
+
+      subroutine calc_fqp2
       implicit none
 
 *  -- local variables
@@ -369,18 +488,6 @@ c ***  End of subroutine calc_currents  **********
                sigbarx = zfac * cfsigm * sigma1 * rrv(ix,iy) *
      .                                 ( 0.5*(t0+t1)/ev )**1.5
             endif
-            netap(ix,iy) = nbarx/sigbarx   # used for frice in pandf
-c           temp1 = (gpry(ix,iy) + gpry(ix,iy1) +
-c    .               gpry(ix1,iy) + gpry(ix3,iy1))
-c           if(isxptx(ix,iy).eq.0) temp1 =
-c    .              4.0*(prtv(ix,iy) - prtv(ix,iy1)) * gyc(ix,iy)
-            fqp(ix,iy) = (rrv(ix,iy)*sx(ix,iy)*sigbarx*gxf(ix,iy)/qe)*
-     .                       ( (pre(ix1,iy) - pre(ix,iy))/nbarx
-     .                  - qe * (phi(ix1,iy) - phi(ix,iy))
-     .                  + qe * (pondpot(ix1,iy) - pondpot(ix,iy))
-     .                  + pondomfpare_use(ix,iy)/(rrv(ix,iy)*nbarx)
-     .               + cthe * ( te(ix1,iy) -  te(ix,iy)) )
-
 c           Special calculation for ix-boundary cells; able to retrieve
 c           old case with frfqpn=0 ...
             do jx = 1, nxpt  # loop over all mesh regions
@@ -482,20 +589,6 @@ c ...     Force boundary fqx to be uniform; these fqx only for phi B.C.
      &                           .and. nxc.gt.0) fqx(nxc,iy) = 0.
          if (islimon.ne.0 .and. iy.ge.iy_lims) fqx(ix_lim,iy)=0.
    47 continue
-
-c ... Add anomalous perp vis vy using calc_currents result - awkward,change
-      if (cfvyavis > 0.) then
-        do ifld = 1, 1  # nfsp  # only good for ifld=1
-          do iy = max(j1,2), min(j5,ny-1)
-            do ix = max(i1,2), min(i6,nx-1)
-              vyavis(ix,iy,ifld) = fqya(ix,iy)*2/(
-     .                  qe*(niy1(ix,iy,1)+niy0(ix,iy,1))*sy(ix,iy) )
-              vy(ix,iy,ifld) = vy(ix,iy,ifld) + cfvyavis*vyavis(ix,iy,ifld)
-            enddo
-          enddo
-        enddo
-      endif          
-
 
       return
       end

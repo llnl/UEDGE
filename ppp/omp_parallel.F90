@@ -610,6 +610,7 @@ END SUBROUTINE OMPSplitIndex
         lng_tmp(xc,yc,:)=lng_tmp(xc,yc,:)+lng(xc,yc,:)
         ni_tmp(xc,yc,:)=ni_tmp(xc,yc,:)+ni(xc,yc,:)
     END DO
+    !$OMP END PARALLEL DO
 
     ! Update global variables
     ne=ne_tmp; phi=phi_tmp; ti=ti_tmp; tg=tg_tmp; te=te_tmp; nit=nit_tmp
@@ -659,6 +660,7 @@ END SUBROUTINE OMPSplitIndex
         ! Update locally calculated variables
         up_tmp(xc,yc,:)=up_tmp(xc,yc,:)+up(xc,yc,:)
     END DO
+    !$OMP END PARALLEL DO
 
     ! Update global variables
     up=up_tmp
@@ -708,6 +710,7 @@ END SUBROUTINE OMPSplitIndex
         pri_tmp(xc,yc,:)=pri_tmp(xc,yc,:)+pri(xc,yc,:)
         tg_tmp(xc,yc,:)=tg_tmp(xc,yc,:)+tg(xc,yc,:)
     END DO
+    !$OMP END PARALLEL DO
 
     ! Update global variables
     pg=pg_tmp; pr=pr_tmp; pre=pre_tmp; pri=pri_tmp; tg=tg_tmp
@@ -839,6 +842,7 @@ END SUBROUTINE OMPSplitIndex
         nity0_tmp(xc,yc)=nity0_tmp(xc,yc)+nity0(xc,yc)
         ngy1_tmp(xc,yc,:)=ngy1_tmp(xc,yc,:)+ngy1(xc,yc,:)
     END DO
+    !$OMP END PARALLEL DO
 
     ! Update global variables
     pgy0=pgy0_tmp; tgy0=tgy0_tmp; gpry=gpry_tmp; niy1=niy1_tmp
@@ -939,6 +943,7 @@ END SUBROUTINE OMPSplitIndex
         tray_use_tmp(xc,yc,:)=tray_use_tmp(xc,yc,:)+tray_use(xc,yc,:)
         dif2_use_tmp(xc,yc,:)=dif2_use_tmp(xc,yc,:)+dif2_use(xc,yc,:)
     END DO
+    !$OMP END PARALLEL DO
 
     ! Update global variables
     dutm_use=dutm_use_tmp; difp_use=difp_use_tmp; dif_use=dif_use_tmp
@@ -1005,6 +1010,7 @@ END SUBROUTINE OMPSplitIndex
         ctaue_tmp(xc,yc,:)=ctaue_tmp(xc,yc,:)+ctaue(xc,yc,:)
         dclass_i_tmp(xc,yc)=dclass_i_tmp(xc,yc)+dclass_i(xc,yc)
     END DO
+    !$OMP END PARALLEL DO
 
     ! Update global variables
     eta1=eta1_tmp; ctaui=ctaui_tmp; dclass_e=dclass_e_tmp
@@ -1084,6 +1090,7 @@ END SUBROUTINE OMPSplitIndex
         vycp_tmp(xc,yc,:)=vycp_tmp(xc,yc,:)+vycp(xc,yc,:)
         vy_cft_tmp(xc,yc,:)=vy_cft_tmp(xc,yc,:)+vy_cft(xc,yc,:)
     END DO
+    !$OMP END PARALLEL DO
 
     ! Update global variables
     vydd=vydd_tmp; veycb=veycb_tmp; coll_fe=coll_fe_tmp
@@ -1172,6 +1179,7 @@ END SUBROUTINE OMPSplitIndex
         v2cb_tmp(xc,yc,:)=v2cb_tmp(xc,yc,:)+v2cb(xc,yc,:)
         v2_tmp(xc,yc,:)=v2_tmp(xc,yc,:)+v2(xc,yc,:)
     END DO
+    !$OMP END PARALLEL DO
 
     ! Update global variables
     v2dd=v2dd_tmp; ve2cb=ve2cb_tmp; vytan=vytan_tmp; v2rd=v2rd_tmp
@@ -1249,6 +1257,7 @@ END SUBROUTINE OMPSplitIndex
         fqyd_tmp(xc,yc)=fqyd_tmp(xc,yc)+fqyd(xc,yc)
         fqy_tmp(xc,yc)=fqy_tmp(xc,yc)+fqy(xc,yc)
     END DO
+    !$OMP END PARALLEL DO
 
     ! Update global variables
     fq2d=fq2d_tmp; fmity=fmity_tmp; fqym=fqym_tmp; fqyai=fqyai_tmp
@@ -1265,7 +1274,99 @@ END SUBROUTINE OMPSplitIndex
 
   END SUBROUTINE OMPcalc_currents
 
+  SUBROUTINE OMPcalc_fqp(neq, yl, yldot)
+    USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt
+    USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
+    USE OmpCopybbb
+    USE Poten, ONLY: dphi_iy1
+    USE Compla, ONLY: vy, netap, vyavis
+    USE Bcond, ONLY: fqpsatrb, fqpsatlb
+    USE Comflo, ONLY: fqp, fqx, fqxb
+    USE Xpoint_indices, ONLY: ixlb, ixrb
+    IMPLICIT NONE
+    INTEGER, INTENT(IN):: neq
+    REAL, INTENT(IN):: yl(*)
+    REAL, INTENT(OUT):: yldot(*)
+    INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc, jx
+    REAL:: yldotcopy(1:neq), ylcopy(1:neq+2)
+! Define local variables
+    real:: dphi_iy1_tmp(0:nx+1), vy_tmp(0:nx+1,0:ny+1,1:nisp), &
+    &      netap_tmp(0:nx+1,0:ny+1), fqpsatrb_tmp(0:ny+1,nxpt), &
+    &      vyavis_tmp(0:nx+1,0:ny+1,1:nisp), fqp_tmp(0:nx+1,0:ny+1), &
+    &      fqx_tmp(0:nx+1,0:ny+1), fqpsatlb_tmp(0:ny+1,nxpt), &
+    &      fqxb_tmp(0:nx+1,0:ny+1)
 
+    ! Initialize arrays to zero
+    dphi_iy1_tmp=0.; vy_tmp=0.; netap_tmp=0.; fqpsatrb_tmp=0.; vyavis_tmp=0.
+    fqp_tmp=0.; fqx_tmp=0.; fqpsatlb_tmp=0.; fqxb_tmp=0.
+
+    ylcopy(1:neq+1)=yl(1:neq+1); yldotcopy=0
+
+    call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)
+
+    !$OMP    PARALLEL DO &
+    !$OMP &      default(shared) &
+    !$OMP &      schedule(dynamic,OMPPandf1LoopNchunk) &
+    !$OMP &      private(ichunk,xc,yc) &
+    !$OMP &      firstprivate(ylcopy, yldotcopy) &
+    !$OMP &      REDUCTION(+:fqp_tmp,netap_tmp)
+    DO ichunk = 1, Nchunks
+        xc = chunks(ichunk,1)
+        yc = chunks(ichunk,2)
+        call initialize_ranges(xc, yc, 0, 0, 0)
+        call calc_fqp1
+
+        ! Update locally calculated variables
+        fqp_tmp(xc,yc)=fqp_tmp(xc,yc)+fqp(xc,yc)
+        netap_tmp(xc,yc)=netap_tmp(xc,yc)+netap(xc,yc)
+    END DO
+    !$OMP END PARALLEL DO
+    fqp=fqp_tmp;netap=netap_tmp
+    fqp_tmp = 0;netap_tmp=0
+    call OmpCopyPointernetap; call OmpCopyPointerfqp
+    !$OMP    PARALLEL DO &
+    !$OMP &      default(shared) &
+    !$OMP &      schedule(dynamic,OMPPandf1LoopNchunk) &
+    !$OMP &      private(ichunk,xc,yc) &
+    !$OMP &      firstprivate(ylcopy, yldotcopy) &
+    !$OMP &      REDUCTION(+:dphi_iy1_tmp, vy_tmp, netap_tmp, fqpsatrb_tmp, vyavis_tmp, fqp_tmp, fqx_tmp, &
+    !$OMP &         fqpsatlb_tmp, fqxb_tmp)
+    DO ichunk = 1, Nchunks
+        xc = chunks(ichunk,1)
+        yc = chunks(ichunk,2)
+        call initialize_ranges(xc, yc, 0, 0, 0)
+        call calc_fqp2
+    
+        if (yc .eq. 1) &
+        & dphi_iy1_tmp(xc)=dphi_iy1_tmp(xc)+dphi_iy1(xc)
+
+        do jx = 1, nxpt
+            if (xc .eq. ixlb(jx)) &
+            &   fqpsatlb_tmp(yc, jx)=fqpsatlb_tmp(yc,jx)+fqpsatlb(yc,jx)
+            if (xc .eq. ixrb(jx)) &
+            &   fqpsatrb_tmp(yc, jx)=fqpsatrb_tmp(yc,jx)+fqpsatrb(yc,jx)
+        end do
+
+        ! Update locally calculated variables
+        vy_tmp(xc,yc,:)=vy_tmp(xc,yc,:)+vy(xc,yc,:)
+        vyavis_tmp(xc,yc,:)=vyavis_tmp(xc,yc,:)+vyavis(xc,yc,:)
+        fqp_tmp(xc,yc)=fqp_tmp(xc,yc)+fqp(xc,yc)
+        fqx_tmp(xc,yc)=fqx_tmp(xc,yc)+fqx(xc,yc)
+        fqxb_tmp(xc,yc)=fqxb_tmp(xc,yc)+fqxb(xc,yc)
+    END DO
+    !$OMP END PARALLEL DO
+
+    ! Update global variables
+    dphi_iy1=dphi_iy1_tmp; vy=vy_tmp; fqpsatrb=fqpsatrb_tmp
+    vyavis=vyavis_tmp; fqp=fqp_tmp; fqx=fqx_tmp; fqpsatlb=fqpsatlb_tmp
+    fqxb=fqxb_tmp
+    call OmpCopyPointerdphi_iy1; call OmpCopyPointervy
+    call OmpCopyPointerfqpsatrb
+    call OmpCopyPointervyavis; call OmpCopyPointerfqp
+    call OmpCopyPointerfqx; call OmpCopyPointerfqpsatlb
+    call OmpCopyPointerfqxb
+
+  END SUBROUTINE OMPcalc_fqp
 
 
   SUBROUTINE OMPcalc_friction(neq, yl, yldot)
@@ -1317,6 +1418,7 @@ END SUBROUTINE OMPSplitIndex
         uup_tmp(xc,yc,:)=uup_tmp(xc,yc,:)+uup(xc,yc,:)
         ex_tmp(xc,yc)=ex_tmp(xc,yc)+ex(xc,yc)
     END DO
+    !$OMP END PARALLEL DO
 
     ! Update global variables
     upi=upi_tmp; uu=uu_tmp; frici=frici_tmp; uz=uz_tmp
@@ -1348,8 +1450,6 @@ END SUBROUTINE OMPSplitIndex
     USE MCN_sources, ONLY: ismcnon
     USE UEpar, ONLY: isphion, svrpkg, isphiofft
     USE PandfTiming, ONLY: TimePandf, TotTimePandf, TimingPandfOn
-    
-    USE Comflo, ONLY: fqp
     IMPLICIT NONE
  
     integer yinc_bkp,xrinc_bkp,xlinc_bkp,iv,tid
@@ -1391,10 +1491,11 @@ END SUBROUTINE OMPSplitIndex
         call OMPcalc_driftterms2(neq, yl, yldot)
         if(isphion+isphiofft .eq. 1) then
             call OMPcalc_currents(neq, yl, yldot)
+            call OMPcalc_fqp(neq, yl, yldot)
         endif
 
                 call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
-                if(isphion+isphiofft .eq. 1) call calc_fqp
+!                if(isphion+isphiofft .eq. 1) call calc_fqp
 
                 ! TODO: gather variables calculated in calc driftterms
                 !       v2 needed by calc_friction
