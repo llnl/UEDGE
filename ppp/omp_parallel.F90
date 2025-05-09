@@ -1595,6 +1595,294 @@ END SUBROUTINE OMPSplitIndex
 
   END SUBROUTINE OMPcalc_volumetric_sources
 
+  SUBROUTINE OMPneudifpg(neq, yl, yldot)
+    USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt
+    USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
+    USE OmpCopybbb
+    USE Locflux, ONLY: floxg, conyg, conxg, floyg
+    USE Compla, ONLY: vy, vyg, uu, v2, vygtan, uug, uuxg
+    USE Comflo, ONLY: fngy4ord, fngy, fngxy, fngx, fngx4ord
+    IMPLICIT NONE
+    INTEGER, INTENT(IN):: neq
+    REAL, INTENT(IN):: yl(*)
+    REAL, INTENT(OUT):: yldot(*)
+    INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc
+    REAL:: yldotcopy(1:neq), ylcopy(1:neq+2)
+! Define local variables
+    real:: floxg_tmp(0:nx+1,0:ny+1), vy_tmp(0:nx+1,0:ny+1,1:nisp), &
+    &      conyg_tmp(0:nx+1,0:ny+1), vyg_tmp(0:nx+1,0:ny+1,1:ngsp), &
+    &      fngy4ord_tmp(0:nx+1,0:ny+1,1:ngsp), fngy_tmp(0:nx+1,0:ny+1,1:ngsp), &
+    &      fngxy_tmp(0:nx+1,0:ny+1,1:ngsp), uu_tmp(0:nx+1,0:ny+1,1:nisp), &
+    &      v2_tmp(0:nx+1,0:ny+1,1:nisp), conxg_tmp(0:nx+1,0:ny+1), &
+    &      fngx_tmp(0:nx+1,0:ny+1,1:ngsp), vygtan_tmp(0:nx+1,0:ny+1,1:ngsp), &
+    &      floyg_tmp(0:nx+1,0:ny+1), uug_tmp(0:nx+1,0:ny+1,1:ngsp), &
+    &      fngx4ord_tmp(0:nx+1,0:ny+1,1:ngsp), uuxg_tmp(0:nx+1,0:ny+1,1:ngsp)
+
+    ! Initialize arrays to zero
+    floxg_tmp=0.; vy_tmp=0.; conyg_tmp=0.; vyg_tmp=0.
+    fngy4ord_tmp=0.; fngy_tmp=0.; fngxy_tmp=0.; uu_tmp=0.; v2_tmp=0.
+    conxg_tmp=0.; fngx_tmp=0.; vygtan_tmp=0.; floyg_tmp=0.
+    uug_tmp=0.; fngx4ord_tmp=0.; uuxg_tmp=0.
+
+    ylcopy(1:neq+1)=yl(1:neq+1); yldotcopy=0
+
+    call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)
+
+    !$OMP    PARALLEL DO &
+    !$OMP &      default(shared) &
+    !$OMP &      schedule(dynamic,OMPPandf1LoopNchunk) &
+    !$OMP &      private(ichunk,xc,yc) &
+    !$OMP &      firstprivate(ylcopy, yldotcopy) &
+    !$OMP &      REDUCTION(+:floxg_tmp, vy_tmp, conyg_tmp, vyg_tmp, fngy4ord_tmp, &
+    !$OMP &         fngy_tmp, fngxy_tmp, uu_tmp, v2_tmp, conxg_tmp, fngx_tmp, vygtan_tmp, &
+    !$OMP &         floyg_tmp, uug_tmp, fngx4ord_tmp, uuxg_tmp)
+    DO ichunk = 1, Nchunks
+        xc = chunks(ichunk,1)
+        yc = chunks(ichunk,2)
+        call initialize_ranges(xc, yc, 0, 0, 0)
+        call neudifpg
+
+        ! Update locally calculated variables
+        floxg_tmp(xc,yc)=floxg_tmp(xc,yc)+floxg(xc,yc)
+        vy_tmp(xc,yc,:)=vy_tmp(xc,yc,:)+vy(xc,yc,:)
+        conyg_tmp(xc,yc)=conyg_tmp(xc,yc)+conyg(xc,yc)
+        vyg_tmp(xc,yc,:)=vyg_tmp(xc,yc,:)+vyg(xc,yc,:)
+        fngy4ord_tmp(xc,yc,:)=fngy4ord_tmp(xc,yc,:)+fngy4ord(xc,yc,:)
+        fngy_tmp(xc,yc,:)=fngy_tmp(xc,yc,:)+fngy(xc,yc,:)
+        fngxy_tmp(xc,yc,:)=fngxy_tmp(xc,yc,:)+fngxy(xc,yc,:)
+        uu_tmp(xc,yc,:)=uu_tmp(xc,yc,:)+uu(xc,yc,:)
+        v2_tmp(xc,yc,:)=v2_tmp(xc,yc,:)+v2(xc,yc,:)
+        conxg_tmp(xc,yc)=conxg_tmp(xc,yc)+conxg(xc,yc)
+        fngx_tmp(xc,yc,:)=fngx_tmp(xc,yc,:)+fngx(xc,yc,:)
+        vygtan_tmp(xc,yc,:)=vygtan_tmp(xc,yc,:)+vygtan(xc,yc,:)
+        floyg_tmp(xc,yc)=floyg_tmp(xc,yc)+floyg(xc,yc)
+        uug_tmp(xc,yc,:)=uug_tmp(xc,yc,:)+uug(xc,yc,:)
+        fngx4ord_tmp(xc,yc,:)=fngx4ord_tmp(xc,yc,:)+fngx4ord(xc,yc,:)
+        uuxg_tmp(xc,yc,:)=uuxg_tmp(xc,yc,:)+uuxg(xc,yc,:)
+    END DO
+    !$OMP  END PARALLEL DO
+
+    ! Update global variables
+    floxg=floxg_tmp; vy=vy_tmp; conyg=conyg_tmp
+    vyg=vyg_tmp; fngy4ord=fngy4ord_tmp; fngy=fngy_tmp; fngxy=fngxy_tmp
+    uu=uu_tmp; v2=v2_tmp; conxg=conxg_tmp; fngx=fngx_tmp; vygtan=vygtan_tmp
+    floyg=floyg_tmp; uug=uug_tmp; fngx4ord=fngx4ord_tmp
+    uuxg=uuxg_tmp
+    call OmpCopyPointerfloxg; call OmpCopyPointervy
+    call OmpCopyPointerconyg; call OmpCopyPointervyg
+    call OmpCopyPointerfngy4ord; call OmpCopyPointerfngy
+    call OmpCopyPointerfngxy; call OmpCopyPointeruu; call OmpCopyPointerv2
+    call OmpCopyPointerconxg; call OmpCopyPointerfngx
+    call OmpCopyPointervygtan; 
+    call OmpCopyPointerfloyg; call OmpCopyPointeruug
+    call OmpCopyPointerfngx4ord; call OmpCopyPointeruuxg
+
+  END SUBROUTINE OMPneudifpg
+
+  SUBROUTINE OMPcalc_srcmod(neq, yl, yldot)
+    USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt, nusp
+    USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
+    USE OmpCopybbb
+    USE Rhsides, ONLY: smoc, seic, seec, snic
+    IMPLICIT NONE
+    INTEGER, INTENT(IN):: neq
+    REAL, INTENT(IN):: yl(*)
+    REAL, INTENT(OUT):: yldot(*)
+    INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc
+    REAL:: yldotcopy(1:neq), ylcopy(1:neq+2)
+! Define local variables
+    real:: smoc_tmp(0:nx+1,0:ny+1,1:nusp), seic_tmp(0:nx+1,0:ny+1), &
+    &      seec_tmp(0:nx+1,0:ny+1), snic_tmp(0:nx+1,0:ny+1,1:nisp)
+
+    ! Initialize arrays to zero
+    smoc_tmp=0.; seic_tmp=0.; seec_tmp=0.; snic_tmp=0.
+
+    ylcopy(1:neq+1)=yl(1:neq+1); yldotcopy=0
+
+    call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)
+
+    !$OMP    PARALLEL DO &
+    !$OMP &      default(shared) &
+    !$OMP &      schedule(dynamic,OMPPandf1LoopNchunk) &
+    !$OMP &      private(ichunk,xc,yc) &
+    !$OMP &      firstprivate(ylcopy, yldotcopy) &
+    !$OMP &      REDUCTION(+:smoc_tmp, seic_tmp, seec_tmp, snic_tmp)
+    DO ichunk = 1, Nchunks
+        xc = chunks(ichunk,1)
+        yc = chunks(ichunk,2)
+        call initialize_ranges(xc, yc, 0, 0, 0)
+        call calc_srcmod
+
+        ! Update locally calculated variables
+        smoc_tmp(xc,yc,:)=smoc_tmp(xc,yc,:)+smoc(xc,yc,:)
+        seic_tmp(xc,yc)=seic_tmp(xc,yc)+seic(xc,yc)
+        seec_tmp(xc,yc)=seec_tmp(xc,yc)+seec(xc,yc)
+        snic_tmp(xc,yc,:)=snic_tmp(xc,yc,:)+snic(xc,yc,:)
+    END DO
+    !$OMP  END PARALLEL DO
+
+    ! Update global variables
+    smoc=smoc_tmp; seic=seic_tmp; seec=seec_tmp; snic=snic_tmp
+    call OmpCopyPointersmoc; call OmpCopyPointerseic
+    call OmpCopyPointerseec; call OmpCopyPointersnic
+
+  END SUBROUTINE OMPcalc_srcmod
+
+
+  SUBROUTINE OMPcalc_plasma_viscosities(neq, yl, yldot)
+    USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt
+    USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
+    USE OmpCopybbb
+    USE UEpar, ONLY: ctaui
+    USE Conduc, ONLY: alfneo, visy, ktneo, visxneo, nuiistar, nuii, visx, k2neo
+    USE Wkspace, ONLY: w
+    IMPLICIT NONE
+    INTEGER, INTENT(IN):: neq
+    REAL, INTENT(IN):: yl(*)
+    REAL, INTENT(OUT):: yldot(*)
+    INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc
+    REAL:: yldotcopy(1:neq), ylcopy(1:neq+2)
+! Define local variables
+    real:: alfneo_tmp(0:nx+1,0:ny+1,1:nisp), &
+    &      visy_tmp(0:nx+1,0:ny+1,1:nisp), &
+    &      ctaui_tmp(0:nx+1,0:ny+1,nisp), ktneo_tmp(0:nx+1,0:ny+1,1:nisp), &
+    &      visxneo_tmp(0:nx+1,0:ny+1,1:nisp), &
+    &      nuiistar_tmp(0:nx+1,0:ny+1,1:nisp), nuii_tmp(0:nx+1,0:ny+1,1:nisp), &
+    &      w_tmp(0:nx+1,0:ny+1), visx_tmp(0:nx+1,0:ny+1,1:nisp), &
+    &      k2neo_tmp(0:nx+1,0:ny+1,1:nisp)
+
+    ! Initialize arrays to zero
+    alfneo_tmp=0.; visy_tmp=0.
+    ctaui_tmp=0.; ktneo_tmp=0.; visxneo_tmp=0.; nuiistar_tmp=0.
+    nuii_tmp=0.; w_tmp=0.; visx_tmp=0.; k2neo_tmp=0.
+
+    ylcopy(1:neq+1)=yl(1:neq+1); yldotcopy=0
+
+    call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)
+
+    !$OMP    PARALLEL DO &
+    !$OMP &      default(shared) &
+    !$OMP &      schedule(dynamic,OMPPandf1LoopNchunk) &
+    !$OMP &      private(ichunk,xc,yc) &
+    !$OMP &      firstprivate(ylcopy, yldotcopy) &
+    !$OMP &      REDUCTION(+:alfneo_tmp, visy_tmp, ctaui_tmp, &
+    !$OMP &         ktneo_tmp, visxneo_tmp, nuiistar_tmp, nuii_tmp, w_tmp, visx_tmp, &
+    !$OMP &         k2neo_tmp)
+    DO ichunk = 1, Nchunks
+        xc = chunks(ichunk,1)
+        yc = chunks(ichunk,2)
+        call initialize_ranges(xc, yc, 0, 0, 0)
+        call calc_plasma_viscosities
+
+        ! Update locally calculated variables
+        alfneo_tmp(xc,yc,:)=alfneo_tmp(xc,yc,:)+alfneo(xc,yc,:)
+        visy_tmp(xc,yc,:)=visy_tmp(xc,yc,:)+visy(xc,yc,:)
+        ctaui_tmp(xc,yc,:)=ctaui_tmp(xc,yc,:)+ctaui(xc,yc,:)
+        ktneo_tmp(xc,yc,:)=ktneo_tmp(xc,yc,:)+ktneo(xc,yc,:)
+        visxneo_tmp(xc,yc,:)=visxneo_tmp(xc,yc,:)+visxneo(xc,yc,:)
+        nuiistar_tmp(xc,yc,:)=nuiistar_tmp(xc,yc,:)+nuiistar(xc,yc,:)
+        nuii_tmp(xc,yc,:)=nuii_tmp(xc,yc,:)+nuii(xc,yc,:)
+        w_tmp(xc,yc)=w_tmp(xc,yc)+w(xc,yc)
+        visx_tmp(xc,yc,:)=visx_tmp(xc,yc,:)+visx(xc,yc,:)
+        k2neo_tmp(xc,yc,:)=k2neo_tmp(xc,yc,:)+k2neo(xc,yc,:)
+    END DO
+    !$OMP  END PARALLEL DO
+
+    ! Update global variables
+    alfneo=alfneo_tmp; 
+    visy=visy_tmp; ctaui=ctaui_tmp; ktneo=ktneo_tmp; visxneo=visxneo_tmp
+    nuiistar=nuiistar_tmp; nuii=nuii_tmp; w=w_tmp; visx=visx_tmp
+    k2neo=k2neo_tmp
+    call OmpCopyPointeralfneo; 
+    call OmpCopyPointervisy
+    call OmpCopyPointerctaui; call OmpCopyPointerktneo
+    call OmpCopyPointervisxneo; 
+    call OmpCopyPointernuiistar; call OmpCopyPointernuii
+    call OmpCopyPointerw; call OmpCopyPointervisx; call OmpCopyPointerk2neo
+
+  END SUBROUTINE OMPcalc_plasma_viscosities
+
+  SUBROUTINE OMPcalc_plasma_heatconductivities(neq, yl, yldot)
+    USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt
+    USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
+    USE OmpCopybbb
+    USE UEpar, ONLY: ctaui, ctaue
+    USE Conduc, ONLY: hcxineo, hcyij, hcxij, hcyi, hcyn, hcye, hcxi, hcxe, hcxn
+    USE Wkspace, ONLY: w2, w1
+    USE Comflo, ONLY: qipar
+    IMPLICIT NONE
+    INTEGER, INTENT(IN):: neq
+    REAL, INTENT(IN):: yl(*)
+    REAL, INTENT(OUT):: yldot(*)
+    INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc
+    REAL:: yldotcopy(1:neq), ylcopy(1:neq+2)
+! Define local variables
+    real:: hcxineo_tmp(0:nx+1,0:ny+1), &
+    &      ctaui_tmp(0:nx+1,0:ny+1,nisp), w2_tmp(0:nx+1,0:ny+1), &
+    &      hcyij_tmp(0:nx+1,0:ny+1,1:nisp), hcxij_tmp(0:nx+1,0:ny+1,1:nisp), &
+    &      hcyi_tmp(0:nx+1,0:ny+1), ctaue_tmp(0:nx+1,0:ny+1,nisp), &
+    &      hcyn_tmp(0:nx+1,0:ny+1), hcye_tmp(0:nx+1,0:ny+1), &
+    &      qipar_tmp(0:nx+1,0:ny+1,nisp), hcxi_tmp(0:nx+1,0:ny+1), &
+    &      w1_tmp(0:nx+1,0:ny+1), hcxe_tmp(0:nx+1,0:ny+1), hcxn_tmp(0:nx+1,0:ny+1)
+
+    ! Initialize arrays to zero
+    hcxineo_tmp=0.; ctaui_tmp=0.; w2_tmp=0.
+    hcyij_tmp=0.; hcxij_tmp=0.; hcyi_tmp=0.; ctaue_tmp=0.; hcyn_tmp=0.
+    hcye_tmp=0.; qipar_tmp=0.; hcxi_tmp=0.; w1_tmp=0.
+    hcxe_tmp=0.; hcxn_tmp=0.
+
+    ylcopy(1:neq+1)=yl(1:neq+1); yldotcopy=0
+
+    call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)
+
+    !$OMP    PARALLEL DO &
+    !$OMP &      default(shared) &
+    !$OMP &      schedule(dynamic,OMPPandf1LoopNchunk) &
+    !$OMP &      private(ichunk,xc,yc) &
+    !$OMP &      firstprivate(ylcopy, yldotcopy) &
+    !$OMP &      REDUCTION(+:hcxineo_tmp, ctaui_tmp, w2_tmp, hcyij_tmp, hcxij_tmp, &
+    !$OMP &         hcyi_tmp, ctaue_tmp, hcyn_tmp, hcye_tmp, qipar_tmp, hcxi_tmp, &
+    !$OMP &         w1_tmp, hcxe_tmp, hcxn_tmp)
+    DO ichunk = 1, Nchunks
+        xc = chunks(ichunk,1)
+        yc = chunks(ichunk,2)
+        call initialize_ranges(xc, yc, 0, 0, 0)
+        call calc_plasma_heatconductivities
+
+        ! Update locally calculated variables
+        hcxineo_tmp(xc,yc)=hcxineo_tmp(xc,yc)+hcxineo(xc,yc)
+        ctaui_tmp(xc,yc,:)=ctaui_tmp(xc,yc,:)+ctaui(xc,yc,:)
+        w2_tmp(xc,yc)=w2_tmp(xc,yc)+w2(xc,yc)
+        hcyij_tmp(xc,yc,:)=hcyij_tmp(xc,yc,:)+hcyij(xc,yc,:)
+        hcxij_tmp(xc,yc,:)=hcxij_tmp(xc,yc,:)+hcxij(xc,yc,:)
+        hcyi_tmp(xc,yc)=hcyi_tmp(xc,yc)+hcyi(xc,yc)
+        ctaue_tmp(xc,yc,:)=ctaue_tmp(xc,yc,:)+ctaue(xc,yc,:)
+        hcyn_tmp(xc,yc)=hcyn_tmp(xc,yc)+hcyn(xc,yc)
+        hcye_tmp(xc,yc)=hcye_tmp(xc,yc)+hcye(xc,yc)
+        qipar_tmp(xc,yc,:)=qipar_tmp(xc,yc,:)+qipar(xc,yc,:)
+        hcxi_tmp(xc,yc)=hcxi_tmp(xc,yc)+hcxi(xc,yc)
+        w1_tmp(xc,yc)=w1_tmp(xc,yc)+w1(xc,yc)
+        hcxe_tmp(xc,yc)=hcxe_tmp(xc,yc)+hcxe(xc,yc)
+        hcxn_tmp(xc,yc)=hcxn_tmp(xc,yc)+hcxn(xc,yc)
+    END DO
+    !$OMP  END PARALLEL DO
+
+    ! Update global variables
+    hcxineo=hcxineo_tmp; ctaui=ctaui_tmp; w2=w2_tmp
+    hcyij=hcyij_tmp; hcxij=hcxij_tmp; hcyi=hcyi_tmp; ctaue=ctaue_tmp
+    hcyn=hcyn_tmp; hcye=hcye_tmp; qipar=qipar_tmp; 
+    hcxi=hcxi_tmp; w1=w1_tmp; hcxe=hcxe_tmp; hcxn=hcxn_tmp
+    call OmpCopyPointerhcxineo
+    call OmpCopyPointerctaui; call OmpCopyPointerw2
+    call OmpCopyPointerhcyij; call OmpCopyPointerhcxij
+    call OmpCopyPointerhcyi; call OmpCopyPointerctaue
+    call OmpCopyPointerhcyn; call OmpCopyPointerhcye
+    call OmpCopyPointerqipar; 
+    call OmpCopyPointerhcxi; call OmpCopyPointerw1; call OmpCopyPointerhcxe
+    call OmpCopyPointerhcxn
+
+  END SUBROUTINE OMPcalc_plasma_heatconductivities
+
   SUBROUTINE OMPPandf1Rhs(neq,time,yl,yldot)
 ! Recreates Pandf using parallel structure
     USE omp_lib
@@ -1664,24 +1952,15 @@ END SUBROUTINE OMPSplitIndex
         call OMPcalc_elec_velocities(neq, yl, yldot)
         ! TODO: Add checks on ishosor and ispsorave: parallel only works for == 0
         call OMPcalc_volumetric_sources(neq, yl, yldot)
+        if (TimingPandfOn.gt.0) TimeNeudif=tick()
+        call OMPneudifpg(neq, yl, yldot)
+        if (TimingPandfOn.gt.0) TotTimeNeudif=TotTimeNeudif+tock(TimeNeudif)
+        call OMPcalc_srcmod(neq, yl, yldot)
+        call OMPcalc_plasma_viscosities(neq, yl, yldot)
+        call OMPcalc_plasma_heatconductivities(neq, yl, yldot)
 
                 call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
-                !******************************************************
-                !*     Calculate the currents fqx, fqy, fq2 and fqp, if
-                !*     isphion = 1 or if isphiofft = 1.
-                !******************************************************
 
-                if (TimingPandfOn.gt.0) TimeNeudif=tick()
-                call neudifpg
-                if (TimingPandfOn.gt.0) TotTimeNeudif=TotTimeNeudif+tock(TimeNeudif)
-                call calc_srcmod
-
-
-
-
-                call calc_plasma_viscosities
-
-                call calc_plasma_heatconductivities
 
                 call calc_plasma_equipartition
 

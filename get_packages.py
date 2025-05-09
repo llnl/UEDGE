@@ -13,6 +13,10 @@ def write_subpandf1():
     lines = write_ompsubroutine('calc_friction', "(xc)", True)
     lines = write_ompsubroutine('calc_elec_velocities', "", True)
     lines = write_ompsubroutine('calc_volumetric_sources', "(xc,yc)", True)
+    lines = write_ompsubroutine('neudifpg', "", True)
+    lines = write_ompsubroutine('calc_srcmod', "", True)
+    lines = write_ompsubroutine('calc_plasma_viscosities', "", True)
+    lines = write_ompsubroutine('calc_plasma_heatconductivities', "", True)
     for line in lines:
         print(line)
     
