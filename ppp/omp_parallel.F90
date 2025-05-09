@@ -1373,10 +1373,10 @@ END SUBROUTINE OMPSplitIndex
     USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
     USE OmpCopybbb
-    USE UEpar, ONLY: cs
-    USE Compla, ONLY: upi, uu, uz, uup
+    USE Compla, ONLY: upi, uz, uu, uup
     USE Cfric, ONLY: frici, frice
     USE Gradients, ONLY: ex
+    USE UEpar, ONLY: cs
     IMPLICIT NONE
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
@@ -1384,14 +1384,14 @@ END SUBROUTINE OMPSplitIndex
     INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc
     REAL:: yldotcopy(1:neq), ylcopy(1:neq+2)
 ! Define local variables
-    real:: upi_tmp(0:nx+1,0:ny+1,1:nisp), &
+    real:: upi_tmp(0:nx+1,0:ny+1,1:nisp), uz_tmp(0:nx+1,0:ny+1,1:nisp), &
     &      uu_tmp(0:nx+1,0:ny+1,1:nisp), frici_tmp(0:nx+1,0:ny+1,nisp), &
-    &      uz_tmp(0:nx+1,0:ny+1,1:nisp), frice_tmp(0:nx+1,0:ny+1), &
-    &      uup_tmp(0:nx+1,0:ny+1,1:nisp), ex_tmp(0:nx+1,0:ny+1)
+    &      ex_tmp(0:nx+1,0:ny+1), uup_tmp(0:nx+1,0:ny+1,1:nisp), &
+    &      frice_tmp(0:nx+1,0:ny+1)
 
     ! Initialize arrays to zero
-    upi_tmp=0.; uu_tmp=0.; frici_tmp=0.; uz_tmp=0.; frice_tmp=0.
-    uup_tmp=0.; ex_tmp=0.
+    upi_tmp=0.; uz_tmp=0.; uu_tmp=0.; frici_tmp=0.; ex_tmp=0.; uup_tmp=0.
+    frice_tmp=0.
 
     ylcopy(1:neq+1)=yl(1:neq+1); yldotcopy=0
 
@@ -1402,7 +1402,7 @@ END SUBROUTINE OMPSplitIndex
     !$OMP &      schedule(dynamic,OMPPandf1LoopNchunk) &
     !$OMP &      private(ichunk,xc,yc) &
     !$OMP &      firstprivate(ylcopy, yldotcopy) &
-    !$OMP &      REDUCTION(+:upi_tmp, uu_tmp, frici_tmp, uz_tmp, frice_tmp, uup_tmp, ex_tmp)
+    !$OMP &      REDUCTION(+:upi_tmp, uz_tmp, uu_tmp, frici_tmp, ex_tmp, uup_tmp, frice_tmp)
     DO ichunk = 1, Nchunks
         xc = chunks(ichunk,1)
         yc = chunks(ichunk,2)
@@ -1411,23 +1411,24 @@ END SUBROUTINE OMPSplitIndex
 
         ! Update locally calculated variables
         upi_tmp(xc,yc,:)=upi_tmp(xc,yc,:)+upi(xc,yc,:)
+        uz_tmp(xc,yc,:)=uz_tmp(xc,yc,:)+uz(xc,yc,:)
         uu_tmp(xc,yc,:)=uu_tmp(xc,yc,:)+uu(xc,yc,:)
         frici_tmp(xc,yc,:)=frici_tmp(xc,yc,:)+frici(xc,yc,:)
-        uz_tmp(xc,yc,:)=uz_tmp(xc,yc,:)+uz(xc,yc,:)
-        frice_tmp(xc,yc)=frice_tmp(xc,yc)+frice(xc,yc)
-        uup_tmp(xc,yc,:)=uup_tmp(xc,yc,:)+uup(xc,yc,:)
         ex_tmp(xc,yc)=ex_tmp(xc,yc)+ex(xc,yc)
+        uup_tmp(xc,yc,:)=uup_tmp(xc,yc,:)+uup(xc,yc,:)
+        frice_tmp(xc,yc)=frice_tmp(xc,yc)+frice(xc,yc)
     END DO
-    !$OMP END PARALLEL DO
+    !$OMP  END PARALLEL DO
 
     ! Update global variables
-    upi=upi_tmp; uu=uu_tmp; frici=frici_tmp; uz=uz_tmp
-    frice=frice_tmp; uup=uup_tmp; ex=ex_tmp
-    call OmpCopyPointerupi; call OmpCopyPointeruu
-    call OmpCopyPointerfrici; call OmpCopyPointeruz
-    call OmpCopyPointerfrice; call OmpCopyPointeruup; call OmpCopyPointerex
+    upi=upi_tmp; uz=uz_tmp; uu=uu_tmp; frici=frici_tmp; ex=ex_tmp; uup=uup_tmp
+    frice=frice_tmp
+    call OmpCopyPointerupi; call OmpCopyPointeruz; call OmpCopyPointeruu
+    call OmpCopyPointerfrici; call OmpCopyPointerex; call OmpCopyPointeruup
+    call OmpCopyPointerfrice
 
   END SUBROUTINE OMPcalc_friction
+
 
   SUBROUTINE OMPPandf1Rhs(neq,time,yl,yldot)
 ! Recreates Pandf using parallel structure
@@ -1493,14 +1494,10 @@ END SUBROUTINE OMPSplitIndex
             call OMPcalc_currents(neq, yl, yldot)
             call OMPcalc_fqp(neq, yl, yldot)
         endif
+        call OMPcalc_friction(neq, yl, yldot)
 
                 call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
-!                if(isphion+isphiofft .eq. 1) call calc_fqp
-
-                ! TODO: gather variables calculated in calc driftterms
-                !       v2 needed by calc_friction
-                ! TODO: Break out conditionals, move to top
-                call calc_friction(xc)
+!                call calc_friction(xc)
                 !******************************************************
                 !*     Calculate the currents fqx, fqy, fq2 and fqp, if
                 !*     isphion = 1 or if isphiofft = 1.

@@ -10,9 +10,9 @@ def write_subpandf1():
     lines = write_ompsubroutine('calc_driftterms2', "", True)
     lines = write_ompsubroutine('calc_currents', "", True)
     lines = write_ompsubroutine('calc_fqp', "", True)
+    lines = write_ompsubroutine('calc_friction', "(xc)", True)
     for line in lines:
         print(line)
-#   lines = write_ompsubroutine('calc_friction', "(xc)", True)
 #   lines = write_ompsubroutine('calc_gas_energy_residuals', "", True)
     
 
@@ -110,7 +110,7 @@ def write_ompsubroutine(subroutine, arguments, bounds=False, subcalls=[]):
 #            break_long_words=False)]
     outlines.append(8*" " + "\n        ".join(lines))
     outlines.append(4*" " + "END DO") 
-    outlines.append(4*" " + "!$OMP  END PARALLEL DO
+    outlines.append(4*" " + "!$OMP  END PARALLEL DO")
 
     outlines.append("\n    ! Update global variables")        
     lines =  [x.replace(" ","; ") for x in wrap(
