@@ -1883,6 +1883,158 @@ END SUBROUTINE OMPSplitIndex
 
   END SUBROUTINE OMPcalc_plasma_heatconductivities
 
+  SUBROUTINE OMPcalc_plasma_equipartition(neq, yl, yldot)
+    USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt
+    USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
+    USE OmpCopybbb
+    USE Conduc, ONLY: eqp
+    IMPLICIT NONE
+    INTEGER, INTENT(IN):: neq
+    REAL, INTENT(IN):: yl(*)
+    REAL, INTENT(OUT):: yldot(*)
+    INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc
+    REAL:: yldotcopy(1:neq), ylcopy(1:neq+2)
+! Define local variables
+    real:: eqp_tmp(0:nx+1,0:ny+1)
+
+    ! Initialize arrays to zero
+    eqp_tmp=0.
+
+    ylcopy(1:neq+1)=yl(1:neq+1); yldotcopy=0
+
+    call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)
+
+    !$OMP    PARALLEL DO &
+    !$OMP &      default(shared) &
+    !$OMP &      schedule(dynamic,OMPPandf1LoopNchunk) &
+    !$OMP &      private(ichunk,xc,yc) &
+    !$OMP &      firstprivate(ylcopy, yldotcopy) &
+    !$OMP &      REDUCTION(+:eqp_tmp)
+    DO ichunk = 1, Nchunks
+        xc = chunks(ichunk,1)
+        yc = chunks(ichunk,2)
+        call initialize_ranges(xc, yc, 0, 0, 0)
+        call calc_plasma_equipartition
+
+        ! Update locally calculated variables
+        eqp_tmp(xc,yc)=eqp_tmp(xc,yc)+eqp(xc,yc)
+    END DO
+    !$OMP  END PARALLEL DO
+    eqp=eqp_tmp
+
+    ! Update global variables
+    call OmpCopyPointereqp
+
+  END SUBROUTINE OMPcalc_plasma_equipartition
+
+  SUBROUTINE OMPcalc_gas_heatconductivities(neq, yl, yldot)
+    USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt
+    USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
+    USE OmpCopybbb
+    USE Conduc, ONLY: hcxg, hcyg
+    IMPLICIT NONE
+    INTEGER, INTENT(IN):: neq
+    REAL, INTENT(IN):: yl(*)
+    REAL, INTENT(OUT):: yldot(*)
+    INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc
+    REAL:: yldotcopy(1:neq), ylcopy(1:neq+2)
+! Define local variables
+    real:: hcxg_tmp(0:nx+1,0:ny+1,1:ngsp), hcyg_tmp(0:nx+1,0:ny+1,1:ngsp)
+
+    ! Initialize arrays to zero
+    hcxg_tmp=0.; hcyg_tmp=0.
+
+    ylcopy(1:neq+1)=yl(1:neq+1); yldotcopy=0
+
+    call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)
+
+    !$OMP    PARALLEL DO &
+    !$OMP &      default(shared) &
+    !$OMP &      schedule(dynamic,OMPPandf1LoopNchunk) &
+    !$OMP &      private(ichunk,xc,yc) &
+    !$OMP &      firstprivate(ylcopy, yldotcopy) &
+    !$OMP &      REDUCTION(+:hcxg_tmp, hcyg_tmp)
+    DO ichunk = 1, Nchunks
+        xc = chunks(ichunk,1)
+        yc = chunks(ichunk,2)
+        call initialize_ranges(xc, yc, 0, 0, 0)
+        call calc_gas_heatconductivities
+
+        ! Update locally calculated variables
+        hcxg_tmp(xc,yc,:)=hcxg_tmp(xc,yc,:)+hcxg(xc,yc,:)
+        hcyg_tmp(xc,yc,:)=hcyg_tmp(xc,yc,:)+hcyg(xc,yc,:)
+    END DO
+    !$OMP  END PARALLEL DO
+
+    ! Update global variables
+    hcxg=hcxg_tmp; hcyg=hcyg_tmp
+    call OmpCopyPointerhcxg; call OmpCopyPointerhcyg
+
+  END SUBROUTINE OMPcalc_gas_heatconductivities
+
+  SUBROUTINE OMPengbalg(neq, yl, yldot)
+    USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt
+    USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
+    USE OmpCopybbb
+    USE Locflux, ONLY: floxge, floyge, conxge, conyge
+    USE Comflo, ONLY: fegx, fegy, fegxy
+    USE Rhsides, ONLY: segc
+    IMPLICIT NONE
+    INTEGER, INTENT(IN):: neq
+    REAL, INTENT(IN):: yl(*)
+    REAL, INTENT(OUT):: yldot(*)
+    INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc
+    REAL:: yldotcopy(1:neq), ylcopy(1:neq+2)
+! Define local variables
+    real:: floxge_tmp(0:nx+1,0:ny+1,1:ngsp), segc_tmp(0:nx+1,0:ny+1,1:ngsp), &
+    &      floyge_tmp(0:nx+1,0:ny+1,1:ngsp), conxge_tmp(0:nx+1,0:ny+1,1:ngsp), &
+    &      conyge_tmp(0:nx+1,0:ny+1,1:ngsp), fegx_tmp(0:nx+1,0:ny+1,1:ngsp), &
+    &      fegxy_tmp(0:nx+1,0:ny+1,1:ngsp), fegy_tmp(0:nx+1,0:ny+1,1:ngsp)
+
+
+
+    ! Initialize arrays to zero
+    floxge_tmp=0.; segc_tmp=0.; floyge_tmp=0.; conxge_tmp=0.; conyge_tmp=0.
+    fegx_tmp=0;fegxy_tmp=0;fegy_tmp=0
+
+    ylcopy(1:neq+1)=yl(1:neq+1); yldotcopy=0
+
+    call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)
+
+    !$OMP    PARALLEL DO &
+    !$OMP &      default(shared) &
+    !$OMP &      schedule(dynamic,OMPPandf1LoopNchunk) &
+    !$OMP &      private(ichunk,xc,yc) &
+    !$OMP &      firstprivate(ylcopy, yldotcopy) &
+    !$OMP &      REDUCTION(+:floxge_tmp, segc_tmp, floyge_tmp, conxge_tmp, & 
+    !$OMP &      conyge_tmp, fegx_tmp, fegxy_tmp, fegy_tmp)
+    DO ichunk = 1, Nchunks
+        xc = chunks(ichunk,1)
+        yc = chunks(ichunk,2)
+        call initialize_ranges(xc, yc, 0, 0, 0)
+        call engbalg
+
+        ! Update locally calculated variables
+        floxge_tmp(xc,yc,:)=floxge_tmp(xc,yc,:)+floxge(xc,yc,:)
+        segc_tmp(xc,yc,:)=segc_tmp(xc,yc,:)+segc(xc,yc,:)
+        fegx_tmp(xc,yc,:)=fegx_tmp(xc,yc,:)+fegx(xc,yc,:)
+        fegxy_tmp(xc,yc,:)=fegxy_tmp(xc,yc,:)+fegxy(xc,yc,:)
+        fegy_tmp(xc,yc,:)=fegy_tmp(xc,yc,:)+fegy(xc,yc,:)
+        floyge_tmp(xc,yc,:)=floyge_tmp(xc,yc,:)+floyge(xc,yc,:)
+        conxge_tmp(xc,yc,:)=conxge_tmp(xc,yc,:)+conxge(xc,yc,:)
+        conyge_tmp(xc,yc,:)=conyge_tmp(xc,yc,:)+conyge(xc,yc,:)
+    END DO
+    !$OMP  END PARALLEL DO
+
+    ! Update global variables
+    floxge=floxge_tmp; segc=segc_tmp; floyge=floyge_tmp; conxge=conxge_tmp
+    conyge=conyge_tmp; fegx=fegx_tmp; fegy=fegy_tmp;fegxy=fegxy_tmp
+    call OmpCopyPointerfloxge; call OmpCopyPointersegc
+    call OmpCopyPointerfloyge; call OmpCopyPointerconxge
+    call OmpCopyPointerconyge; call OmpCopyPointerfegx
+    call OmpCopyPointerfegxy; call OmpCopyPointerfegy
+  END SUBROUTINE OMPengbalg
+
   SUBROUTINE OMPPandf1Rhs(neq,time,yl,yldot)
 ! Recreates Pandf using parallel structure
     USE omp_lib
@@ -1905,6 +2057,8 @@ END SUBROUTINE OMPSplitIndex
     USE UEpar, ONLY: isphion, svrpkg, isphiofft
     USE PandfTiming, ONLY: TimePandf, TotTimePandf, TimingPandfOn, TimeNeudif, &
     &   TotTimeNeudif
+
+    USE Conduc, ONLY: eqp
     IMPLICIT NONE
  
     integer yinc_bkp,xrinc_bkp,xlinc_bkp,iv,tid
@@ -1958,30 +2112,13 @@ END SUBROUTINE OMPSplitIndex
         call OMPcalc_srcmod(neq, yl, yldot)
         call OMPcalc_plasma_viscosities(neq, yl, yldot)
         call OMPcalc_plasma_heatconductivities(neq, yl, yldot)
+        call OMPcalc_plasma_equipartition(neq, yl, yldot)
+        call OMPcalc_gas_heatconductivities(neq, yl, yldot)
+        call OMPengbalg(neq, yl, yldot)
 
                 call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
 
-
-                call calc_plasma_equipartition
-
-                call calc_gas_heatconductivities
-                ! ... Call routine to evaluate gas energy fluxes
-                !******************************************************
-                call engbalg
-
                 call calc_plasma_transport
-
-                !------------------------------------------------------
-                !   SCALE SOURCE TERMS FROM MONTE-CARLO-NEUTRALS MODEL
-                !
-                ! These sources are used in the residuals (resco,resmo,
-                ! resee,resei) so the call to scale_mcn must occur 
-                ! BEFORE these residuals are evaluated.  Since they 
-                ! scale with fnix at the divertor plates, the call to 
-                ! scale_mcn must occur AFTER fnix has been calculated.
-
-                if (ismcnon .ne. 0) call scale_mcnsor
-
                 !******************************************************
                 !  Here we do the neutral gas diffusion model
                 !  The diffusion is flux limited using the thermal flux

@@ -1491,25 +1491,22 @@ c
 *  ---------------------------------------------------------------------
 
 *     -- initialize w3 --
-      do iy = j1, j6
-         do ix = i1, i6
-            w3(ix,iy) = 0.0e0
-          end do
-        end do
+c      do iy = j1, j6
+c         do ix = i1, i6
+c            w3(ix,iy) = 0.0e0
+c          end do
+c        end do
+      w3=0
 
-      do ifld = 1, nisp
-         tv = zi(ifld)**2/mi(ifld)
-         do iy = j2, j5
-            do ix = i2, i5
-               w3(ix,iy) = w3(ix,iy) + tv*ni(ix,iy,ifld)
-          end do
-        end do
-      end do
 
 *  -- compute equipartition --
 ccc In detail, coef1 = qe**4*sqrt(me)*lnlam / ((2*pi)**1.5*eps0**2)
       do iy = j2, j5
          do ix = i2, i5
+            do ifld = 1, nisp
+              tv = zi(ifld)**2/mi(ifld)
+              w3(ix,iy) = w3(ix,iy) + tv*ni(ix,iy,ifld)
+            end do
             ix2 = ixm1(ix,iy)
             a = max (te(ix,iy), temin*ev)
             loglmcc = 0.5*(loglambda(ix,iy)+loglambda(ix2,iy))

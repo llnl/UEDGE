@@ -17,6 +17,10 @@ def write_subpandf1():
     lines = write_ompsubroutine('calc_srcmod', "", True)
     lines = write_ompsubroutine('calc_plasma_viscosities', "", True)
     lines = write_ompsubroutine('calc_plasma_heatconductivities', "", True)
+    lines = write_ompsubroutine('calc_plasma_equipartition', "", True)
+    lines = write_ompsubroutine('calc_gas_heatconductivities', "", True)
+    lines = write_ompsubroutine('engbalg1', "", True)
+    lines = write_ompsubroutine('engbalg2', "", True)
     for line in lines:
         print(line)
     
