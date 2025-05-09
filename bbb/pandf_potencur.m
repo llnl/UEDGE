@@ -732,7 +732,7 @@ c ... Calculate collis. factors eta1 and rtaue for the simple Braginski model
       END SUBROUTINE initialize_driftterms
 
 
-      SUBROUTINE calc_driftterms
+      SUBROUTINE calc_driftterms1
       IMPLICIT NONE
       Use(Selec)
       Use(Compla)
@@ -923,7 +923,63 @@ c ... Compute radial vel v_grad_P eng eqn terms;cfydd+cfybf=1 or 0
             enddo  #loop over iy
          enddo     #loop over ix
 
-	    do iy = j1, j6
+
+
+
+        else    # test on zi > 1.e-10 to skip whole loop
+        endif
+        end do  # Giant loop over ifld (species)
+
+
+      END SUBROUTINE calc_driftterms1
+
+
+      SUBROUTINE calc_driftterms2
+      IMPLICIT NONE
+      Use(Selec)
+      Use(Compla)
+      Use(Phyvar)
+      Use(UEpar)
+      Use(Dim)
+      Use(Coefeq)
+      Use(Bcond)
+      Use(Conduc)
+      Use(Share)
+      Use(Comtra)
+      Use(Comgeo)
+      Use(Bfield)
+      Use(Comflo)
+      Use(Noggeo)
+      Use(Gradients)
+      Use(Indices_domain_dcl)
+      Use(Xpoint_indices)
+      integer iy, ix, ix1, ifld, iy1, ix6, ix4, ix3, ix2, jx, iyp1, iym1,
+     .iy2
+      real teev, nexface, t0, t1, dgeyy1, difnimix, dgeyy0, geyy0, geyym,
+     .geyyp, grdnv, qion, lambd_ci, lambd_ce, temp1, temp2, temp3, temp4,
+     .v2dia
+      real ave, etaper
+      ave(t0,t1) = 2*t0*t1 / (cutlo+t0+t1)
+      etaper(ix,iy) = 3.234e-9*loglambda(ix,iy)/(max(te(ix,iy),temin*ev)
+     .                                          /(1000.*ev))**(1.5)
+
+
+
+************************************************************************
+*  Transverse Drifts in y-direction and in 2-direction 
+*  (normal to B and y)
+************************************************************************
+*  ---------------------------------------------------------------------
+*  compute drifts
+*  ---------------------------------------------------------------------
+*  -- loop over species number --
+
+      do ifld = 1, nfsp
+c --- If this is the neutral species (zi(ifld).eq.0)) we dont want velocities
+        if(zi(ifld) > 1.e-10) then  # if not, skip to end of 100 loop
+         qion = zi(ifld)*qe
+
+        do iy = j1, j6
 	      do ix = i1, i6
 	      iy1 = max(0,iy-1)            # does iy=0 properly
               iy2 = min(ny+1,iy+1) # use ex*fqx since phi(0,) may be large 
@@ -1091,6 +1147,12 @@ c ... Add anomalous perp vis vy using calc_currents result - awkward,change
       endif
 
 
+      END SUBROUTINE calc_driftterms2
+
+
+
+      SUBROUTINE calc_driftterms
+      IMPLICIT NONE
+      call calc_driftterms1
+      call calc_driftterms2
       END SUBROUTINE calc_driftterms
-
-
