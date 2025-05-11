@@ -1241,10 +1241,7 @@ c                   if (ix .eq. 1 .and. iy .eq. 1) write(*,*) 'sng_ue', ifld, jf
           end do
         end do
        enddo       # end of ifld loop
-
-
       END SUBROUTINE calc_plasma_particle_residuals
-
 
 
       SUBROUTINE calc_plasma_transport
@@ -1264,7 +1261,7 @@ c                   if (ix .eq. 1 .and. iy .eq. 1) write(*,*) 'sng_ue', ifld, jf
       Use(Bcond)
       integer ifld, methnx, methny, iy, ix, ix2, iym1, iyp1, iyp2
       real dndym1, dndy0, dndyp1, d2ndy20, d2ndy2p1, d3ndy3, 
-     .  fniycboave, sycore, corecells, t0, t1, t2
+     .  fniycboave(1:nx), sycore, corecells, t0, t1, t2
    
 *****************************************************************
 *****************************************************************
@@ -1425,51 +1422,61 @@ c ... Add rad flux of 4th order diff operator; damp grid-scale oscillations
         endif
       enddo
 
+ 
+      END SUBROUTINE calc_plasma_transport
+
+
+      SUBROUTINE calc_fniycbo
+      IMPLICIT NONE
+      Use(Dim)
+      Use(UEpar)
+      Use(Selec)
+      Use(Compla)
+      Use(Comgeo)
+      Use(Comflo)
+      Use(Share)
+      Use(Coefeq)
+      Use(Bfield)
+      Use(Indices_domain_dcl)
+      Use(Xpoint_indices)
+      Use(Comtra)
+      Use(Bcond)
+      integer ifld, iy, ix, jx
+      real sycore, corecells, fniycboave
 c ... Setup a correction to surface-flux for grad_B and grad_P effects at iy=0
+      fniycbo = 0.0
       do ifld = 1, nfsp
-        do ix = i4, i8
-           fniycbo(ix,ifld) = 0.0
-        enddo
-         do ix = i4, i8
-            fniycbo(ix,ifld) = ( ni(ix,0,ifld)*sy(ix,0) ) *
-     .                         ( (1-cfniybbo)*cfybf*vycb(ix,0,ifld) -
-     .                            cfniydbo*(1-cfydd)*vycp(ix,0,ifld) )
-         enddo
+        fniycbo(:,ifld) = ( ni(:,0,ifld)*sy(:,0) ) *
+     .                         ( (1-cfniybbo)*cfybf*vycb(:,0,ifld) -
+     .                            cfniydbo*(1-cfydd)*vycp(:,0,ifld) )
       enddo
 
 c ... Normalize core flux to zero to avoid introducing artifical core source/sink
       do ifld = 1, nfsp
           if (isfniycbozero(ifld) .gt. 0) then 
             fniycboave = 0
+            corecells = 0
             sycore = 0
-            do ix = ixpt1(1)+1, ixpt2(1)
-              fniycboave = fniycboave + fniycbo(ix, ifld)
+            do jx = 1, nxpt
+                fniycboave = fniycboave + SUM(fniycbo(ixpt1(jx)+1:ixpt2(jx), ifld))
+                corecells =  corecells + (ixpt2(jx) - ixpt1(jx))
             end do
-            corecells =  (ixpt2(1) - ixpt1(1))
-            if (geometry == 'dnull') then
-                do ix = ixpt1(2)+1, ixpt2(2)
-                  fniycboave = fniycboave + fniycbo(ix, ifld)
-                end do
-                corecells =  corecells + (ixpt2(2) - ixpt1(2))
-            end if 
 c ... TODO: Add double-null fix here (now only does one half-mesh...)            
             fniycboave = fniycboave / corecells
-            do ix = ixpt1(1)+1, ixpt2(1)
-              fniycbo(ix, ifld) = fniycbo(ix, ifld) - isfniycbozero(ifld)*fniycboave
+            do jx = 1, nxpt
+                do ix = ixpt1(jx)+1, ixpt2(jx)
+                  fniycbo(ix, ifld) = fniycbo(ix, ifld) - isfniycbozero(ifld)*fniycboave
+                end do
             end do
           else if (isfniycbozero(ifld) .lt. 0) then 
-            do ix = ixpt1(1)+1, ixpt2(1)
-              fniycbo(ix, ifld) = 0
+            do jx = 1, nxpt
+              fniycbo(ixpt1(jx)+1:ixpt2(jx), ifld) = 0
+
             end do
-            if (geometry == 'dnull') then
-                do ix = ixpt1(2)+1, ixpt2(2)
-                  fniycbo(ix, ifld) = 0
-                end do
-            end if
           end if
       end do
              
  
-      END SUBROUTINE calc_plasma_transport
+      END SUBROUTINE calc_fniycbo
 
 

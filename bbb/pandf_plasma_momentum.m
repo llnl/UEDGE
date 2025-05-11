@@ -238,9 +238,6 @@ c ...   now for the trapped particle drag (sloppy)
         enddo
       endif
       
-c...  Compute total viscosity for nonuniform B-field; put in visvol_v,q
-      if (cfvisxneov+cfvisxneoq > 0.) call upvisneo
-
 c...  Now fix the fluxes touching the x-point(s):
 
 

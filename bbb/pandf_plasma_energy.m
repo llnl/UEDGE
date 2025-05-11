@@ -203,12 +203,6 @@ c IJ 2016/10/10	add cfneutsor_ei multiplier to control fraction of neutral energ
      .                    (ney0(ix,iy)+ney1(ix,iy))*vey(ix,iy)*sy(ix,iy)
      .                + (vyte_use(ix,iy)+vyte_cft(ix,iy))*0.5*sy(ix,iy)*
      .                     (ney0(ix,iy)+ney1(ix,iy))
-            if (iy == 0) then
-               feeycbo(ix) =  cfloye*
-     .                          ( ne(ix,0)*te(ix,0)*sy(ix,0) ) *
-     .                         ( (1-cfeeybbo)*cfybf*veycb(ix,0) -
-     .                             cfeeydbo*(1-cfydd)*veycp(ix,0) )
-            endif
         end do
       end do
 
@@ -242,10 +236,6 @@ c ...       Make correction at walls to prevent recyc neutrals injecting pwr
      .                            + (vyti_use(ix,iy)+vyti_cft(ix,iy))*
      .                                                  0.5*sy(ix,iy)*
      .                              (niy0(ix,iy,ifld)+niy1(ix,iy,ifld))
-                  if (iy == 0) then
-                     feiycbo(ix) = feiycbo(ix) + cfloyi*fniycbo(ix,ifld)*
-     .                                                  ti(ix,0)
-                  endif
                end do
              end do
          endif
@@ -418,9 +408,39 @@ c  -- Add rad flux of 4th order diff operator; damp grid-scale oscillations
       END SUBROUTINE calc_plasma_energy
 
 
+
+      SUBROUTINE calc_feeiycbo
+      IMPLICIT NONE
+      Use(Comflo)
+      Use(Compla)
+      Use(Coefeq)
+      Use(Comgeo)
+      Use(UEpar)
+      Use(Dim)
+      Use(Bcond)
+      integer  ifld
+
+*  ---------------------------------------------------------------------
+*  compute the electron and the ion energy flow.
+*  --------------------------------------------------------
+      feeycbo =  cfloye*( ne(:,0)*te(:,0)*sy(:,0) ) *
+     .      ( (1-cfeeybbo)*cfybf*veycb(:,0) - cfeeydbo*(1-cfydd)*veycp(:,0) )
+
+
+      do ifld = 1, nfsp
+         if ((isupgon(1) .eq. 1) .and. (ifld .eq. iigsp)) then
+         else
+               feiycbo = feiycbo(:) + cfloyi*fniycbo(:,ifld)*ti(:,0)
+         end if
+      end do
+
+
+      END SUBROUTINE calc_feeiycbo
+
+
       SUBROUTINE calc_plasma_energy_residuals(xc, yc)
       IMPLICIT NONE
-            Use(Selec)
+      Use(Selec)
       Use(Rhsides)
       Use(Compla)
       Use(Volsrc)

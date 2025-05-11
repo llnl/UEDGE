@@ -441,6 +441,7 @@ c    yldot is the RHS of ODE solver or RHS=0 for Newton solver (NKSOL)
       Use(Ynorm)
       Use(Timing)
       Use(Selec)
+      Use(Coefeq)
       Use(Time_dep_nwt)   # nufak,dtreal,ylodt,dtuse
       real tick, tock, tsfe, tsjf, tsnpg
       external tick, tock
@@ -560,6 +561,8 @@ c ... Call routine to evaluate gas energy fluxes
       call engbalg
 
       call calc_plasma_transport
+    
+      call calc_fniycbo
 
 c----------------------------------------------------------------------c
 c          SCALE SOURCE TERMS FROM MONTE-CARLO-NEUTRALS MODEL
@@ -580,8 +583,13 @@ c  The diffusion is flux limited using the thermal flux
 
       call calc_plasma_momentum(xc, yc)
 
+c...  Compute total viscosity for nonuniform B-field; put in visvol_v,q
+      if (cfvisxneov+cfvisxneoq > 0.) call upvisneo
+
+
 
       call calc_plasma_energy
+      call calc_feeiycbo ! Nothing much to parallelize here, just do serial
 
       call calc_plasma_particle_residuals
       call calc_gas_continuity_residuals
