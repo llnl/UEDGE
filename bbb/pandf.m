@@ -10,9 +10,12 @@ c ... Interface for pandf rhs calculation for nksol only (added by. J.Guterl)
           Use(Math_problem_size) # neqmx
           Use(ParallelEval)      # ParallelPandf1
           Use(Cdv)             # pandfitertag
+          Use(Timing)
           integer neq
           real time, yl(neqmx),yldot(neq)
+          real tick, tock, tsfe
 
+          tsfe = tick()
 c!omp     if (ParallelPandf1.gt.0) then
 c!omp         pandfitertag = "OMP iter="
 c!omp         call OMPPandf1Rhs(neq, time, yl, yldot)
@@ -20,6 +23,7 @@ c!omp     else
               pandfitertag = "iter="
               call pandf(-1, -1, neq, time, yl, yldot)
 c!omp     endif
+          ttotfe = ttotfe + tock(tsfe)
 
       end subroutine PandfRHS_interface
 
@@ -461,11 +465,6 @@ c     check if a "ctrl-c" has been type to interrupt - from basis
 ************************************************************************
 
 c ... Get initial value of system cpu timer.
-      if(xc .lt. 0) then
-         tsfe = tick()
-      else
-         tsjf = tick()
-      endif
 !     Initialize loop ranges based on xc and yc
       call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
 
@@ -613,11 +612,6 @@ c  the perturbed variables are reset below to get Jacobian correct
       if (xc .ge. 0 .and. yc .ge. 0) call jacobian_reset(xc, yc)
 
 c ... Accumulate cpu time spent here.
-      if(xc .lt. 0) then
-            ttotfe = ttotfe + tock(tsfe)
-      else
-            ttotjf = ttotjf + tock(tsjf)
-      endif
       if (TimingPandfOn.gt.0) 
      .      TotTimePandf=TotTimePandf+tock(TimePandf)
 

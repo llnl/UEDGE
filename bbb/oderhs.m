@@ -4790,7 +4790,7 @@ c ***** End of subroutine jacwrite **********
      .                     nnzmx, jac, ja, ia)
 
 c ... Interface for Jacobian matrix calculation for nksol only(added by. J.Guterl)
-
+      Use(Timing)
       implicit none
 
 c ... Input arguments:
@@ -4808,9 +4808,10 @@ c ... Output arguments:
       real jac(nnzmx)     # nonzero Jacobian elements
       integer ja(nnzmx)   # col indices of nonzero Jacobian elements
       integer ia(neq+1)   # pointers to beginning of each row in jac,ja
+      real tick, tock, tsjf
 
       Use(ParallelEval)   # ParallelJac
-
+      tsjf = tick()
 c!omp if (ParallelJac.eq.1) then
 c!omp    call jac_calc_parallel (neq, t, yl, yldot00, ml, mu, wk,
 c!omp.             nnzmx, jac, ja, ia)
@@ -4818,6 +4819,7 @@ c!omp else
          call jac_calc (neq, t, yl, yldot00, ml, mu, wk,
      .               nnzmx, jac, ja, ia)
 c!omp  endif
+       ttotjf = ttotjf + tock(tsjf)
        end subroutine jac_calc_interface
 
 
