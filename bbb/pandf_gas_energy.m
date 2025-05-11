@@ -325,6 +325,7 @@ c-----------------------------------------------------------------------
 c  END subroutine engbalg - THE NEUTRAL GAS ENERGY EQUATION
 c-----------------------------------------------------------------------
 
+
       SUBROUTINE calc_gas_energy_residuals
       IMPLICIT NONE
       integer igsp, iy, iy1, ix, ix1
@@ -380,9 +381,7 @@ c               Should scale with cftiexclg to conserve energy when
 c               transitioning with 0<cftiexclg<1
                 reseg(ix,iy,1)= reseg(ix,iy,1) 
      .              + vol(ix,iy)*eqpg(ix,iy,1)*(ti(ix,iy)-tg(ix,iy,1))
-                seic(ix,iy) = seic(ix,iy)
-     .              - (1.0-cftiexclg)*vol(ix,iy)*eqpg(ix,iy,1)
-     .              * (ti(ix,iy)-tg(ix,iy,1))
+c               Atom seic added in separate subroutine  calc_atom_seic
             else
 *               Thermal equipartition coupling of ions and gas
 *               --------------------------------------------------------
@@ -507,6 +506,23 @@ c               Only apply drift heating for inertial atoms?
 
 
       END SUBROUTINE calc_gas_energy_residuals
+
+
+
+      SUBROUTINE calc_atom_seic
+      IMPLICIT NONE
+      Use(Conduc)
+      Use(Coefeq)
+      Use(Compla)
+      Use(Rhsides)
+      Use(Comgeo)
+*     Thermal equipartition coupling of atoms and ions
+*     --------------------------------------------------------
+
+      seic = seic - (1.0-cftiexclg)*vol*eqpg(:,:,1)*(ti-tg(:,:,1))
+
+
+      END SUBROUTINE calc_atom_seic
 
 
       SUBROUTINE calc_gas_heatconductivities

@@ -2429,6 +2429,56 @@ END SUBROUTINE OMPSplitIndex
 
   END SUBROUTINE OMPcalc_plasma_momentum_residuals
 
+  SUBROUTINE OMPcalc_gas_energy_residuals(neq, yl, yldot)
+    USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt
+    USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
+    USE OmpCopybbb
+    USE Rhsides, ONLY: seic, reseg, eiamoldiss
+    USE Conduc, ONLY: eqpg
+    IMPLICIT NONE
+    INTEGER, INTENT(IN):: neq
+    REAL, INTENT(IN):: yl(*)
+    REAL, INTENT(OUT):: yldot(*)
+    INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc
+    REAL:: yldotcopy(1:neq), ylcopy(1:neq+2)
+! Define local variables
+    real:: seic_tmp(0:nx+1,0:ny+1), reseg_tmp(0:nx+1,0:ny+1,1:ngsp), &
+    &      eiamoldiss_tmp(0:nx+1,0:ny+1,1:nisp), eqpg_tmp(0:nx+1,0:ny+1,ngsp)
+
+    ! Initialize arrays to zero
+    seic_tmp=0.; reseg_tmp=0.; eiamoldiss_tmp=0.; eqpg_tmp=0.
+
+    ylcopy(1:neq+1)=yl(1:neq+1); yldotcopy=0
+
+    call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)
+
+    !$OMP    PARALLEL DO &
+    !$OMP &      default(shared) &
+    !$OMP &      schedule(dynamic,OMPPandf1LoopNchunk) &
+    !$OMP &      private(ichunk,xc,yc) &
+    !$OMP &      firstprivate(ylcopy, yldotcopy) &
+    !$OMP &      REDUCTION(+:seic_tmp, reseg_tmp, eiamoldiss_tmp, eqpg_tmp)
+    DO ichunk = 1, Nchunks
+        xc = chunks(ichunk,1)
+        yc = chunks(ichunk,2)
+        call initialize_ranges(xc, yc, 0, 0, 0)
+        call calc_gas_energy_residuals
+
+        ! Update locally calculated variables
+        seic_tmp(xc,yc)=seic_tmp(xc,yc)+seic(xc,yc)
+        reseg_tmp(xc,yc,:)=reseg_tmp(xc,yc,:)+reseg(xc,yc,:)
+        eiamoldiss_tmp(xc,yc,:)=eiamoldiss_tmp(xc,yc,:)+eiamoldiss(xc,yc,:)
+        eqpg_tmp(xc,yc,:)=eqpg_tmp(xc,yc,:)+eqpg(xc,yc,:)
+    END DO
+    !$OMP  END PARALLEL DO
+
+    ! Update global variables
+    seic=seic_tmp; reseg=reseg_tmp; eiamoldiss=eiamoldiss_tmp; eqpg=eqpg_tmp
+    call OmpCopyPointerseic; call OmpCopyPointerreseg
+    call OmpCopyPointereiamoldiss; call OmpCopyPointereqpg
+
+  END SUBROUTINE OMPcalc_gas_energy_residuals
+
   SUBROUTINE OMPPandf1Rhs(neq,time,yl,yldot)
 ! Recreates Pandf using parallel structure
     USE omp_lib
@@ -2519,6 +2569,8 @@ END SUBROUTINE OMPSplitIndex
         call OMPcalc_plasma_particle_residuals(neq, yl, yldot)
         call OMPcalc_gas_continuity_residuals(neq, yl, yldot)
         call OMPcalc_plasma_momentum_residuals(neq, yl, yldot)
+        call OMPcalc_gas_energy_residuals(neq, yl, yldot)
+        call calc_atom_seic ! Nothing much to parallelize here, just do serial
 
 
                 call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
@@ -2526,9 +2578,6 @@ END SUBROUTINE OMPSplitIndex
 
 
 
-!                call calc_gas_continuity_residuals
-!                call calc_plasma_momentum_residuals()
-                call calc_gas_energy_residuals
                 !  Requires gas energy residuals
                 call calc_plasma_energy_residuals(xc, yc)
                 call calc_rhs(yldot)

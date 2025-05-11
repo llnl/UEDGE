@@ -595,6 +595,7 @@ c...  Compute total viscosity for nonuniform B-field; put in visvol_v,q
       call calc_gas_continuity_residuals
       call calc_plasma_momentum_residuals()
       call calc_gas_energy_residuals
+      call calc_atom_seic
 c...  Requires gas energy residuals
       call calc_plasma_energy_residuals(xc, yc)
 
