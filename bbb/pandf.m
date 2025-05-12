@@ -216,6 +216,9 @@ c...  boundary cells of a mesh region.  Used in subroutine bouncon.
 
 
       SUBROUTINE calc_rhs(yldot)
+      Use(Bcond)
+      Use(Aux)
+      Use(Compla)
       IMPLICIT NONE
       Use(Selec)
       Use(Dim)
@@ -227,7 +230,8 @@ c...  boundary cells of a mesh region.  Used in subroutine bouncon.
       Use(Xpoint_indices)
       Use(Indices_domain_dcl)
       real yldot(*)
-      integer iy, ix, ifld, iv, jx, iv1, igsp, iv2
+      integer iy, ix, ifld, iv, jx, iv1, igsp, iv2, iv3
+      logical isgc, isgc1
 
 **********************************************************************
 *  --  Equations to be solved --
@@ -279,6 +283,46 @@ c...  boundary cells of a mesh region.  Used in subroutine bouncon.
 c ... The factor (1-iseqalg(iv)) above forces yldot=0 for algebraic
 c ... equations, except up(nx,,); these yldot are subsequently set in
 c ... subroutine bouncon.
+
+      if (isphion.eq.1) then 
+      do iy = j2p, j5p
+         do ix = i2, i5
+            iv3 = idxphi(ix,iy)
+            isgc = .false.
+            isgc1 = .false.
+            do jx = 1, nxpt
+               if (ix==ixlb(jx) .or. ix==(ixrb(jx)+1)) isgc=.true.
+               if (ix==(ixlb(jx)+1) .or. ix==ixrb(jx)) isgc1=.true.
+            enddo
+            if (isexunif==0) then
+               if (.not. isgc) then
+                  yldot(iv3) = resphi(ix,iy)/(vol(ix,iy)*temp0)
+               endif
+            else
+               if ((.not. isgc) .and. (.not. isgc1)) then
+                  yldot(iv3) = resphi(ix,iy)/(vol(ix,iy)*temp0)
+               endif
+            endif
+          end do
+        end do
+ccc         yldot(idxphi(1,iy)) = -nurlxp*(phi(1,iy) - phi(0,iy))/temp0
+ccc         yldot(idxphi(nx,iy)) = -nurlxp*(phi(nx,iy) -
+ccc     .                                           phi(nx+1,iy))/temp0
+cc    If isphicore0=1, eset core potential everywhere to midplane pot
+cc    just outside separatrix (phi(ixmp,iysptrx+1) 
+      if (isphicore0 == 1) then
+        do jx = 1, nxpt
+          do iy = 0, iysptrx  #iy=0 & 1 set by BCs
+            do ix = ixpt1(1)+1, ixpt2(1)
+              iv3 = idxphi(ix,iy)
+              yldot(iv3) = -nurlxp*(phi(ix,iy)-phi(ixmp,iysptrx+1))/temp0
+            enddo
+          enddo
+        enddo
+      endif
+      end if ! Ends check on isphion
+
+
 
 
 c  POTEN calculates the electrostatic potential, and BOUNCON calculates the 
@@ -598,6 +642,8 @@ c...  Compute total viscosity for nonuniform B-field; put in visvol_v,q
 c...  Requires gas energy residuals
       call calc_plasma_energy_residuals(xc, yc)
 
+      if (isphion.eq.1) call calc_potential_residuals 
+
       call calc_rhs(yldot)
 
 c  POTEN calculates the electrostatic potential, and BOUNCON calculates the 
@@ -605,7 +651,6 @@ c  equations for the boundaries. For the vodpk solver, the B.C. are ODEs
 c  in time (rate equations).  Both bouncon and poten must be called before
 c  the perturbed variables are reset below to get Jacobian correct
 
-      if (isphion.eq.1) call calc_potential_residuals (neq, yl, yldot)
 
       call bouncon (neq, yldot)
 

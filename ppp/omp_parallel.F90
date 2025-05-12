@@ -2625,6 +2625,52 @@ END SUBROUTINE OMPSplitIndex
 
   END SUBROUTINE OMPcalc_plasma_energy_residuals
 
+  SUBROUTINE OMPcalc_potential_residuals(neq, yl, yldot)
+    USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt
+    USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
+    USE OmpCopybbb
+    USE Rhsides, ONLY: resphi
+    IMPLICIT NONE
+    INTEGER, INTENT(IN):: neq
+    REAL, INTENT(IN):: yl(*)
+    REAL, INTENT(OUT):: yldot(*)
+    INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc
+    REAL:: yldotcopy(1:neq), ylcopy(1:neq+2)
+! Define local variables
+    real:: resphi_tmp(0:nx+1,0:ny+1)
+
+    ! Initialize arrays to zero
+    resphi_tmp=0.
+
+    ylcopy(1:neq+1)=yl(1:neq+1); yldotcopy=0
+
+    call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)
+
+    !$OMP    PARALLEL DO &
+    !$OMP &      default(shared) &
+    !$OMP &      schedule(dynamic,OMPPandf1LoopNchunk) &
+    !$OMP &      private(ichunk,xc,yc) &
+    !$OMP &      firstprivate(ylcopy, yldotcopy) &
+    !$OMP &      REDUCTION(+:resphi_tmp)
+    DO ichunk = 1, Nchunks
+        xc = chunks(ichunk,1)
+        yc = chunks(ichunk,2)
+        call initialize_ranges(xc, yc, 0, 0, 0)
+        call calc_potential_residuals
+
+        ! Update locally calculated variables
+        resphi_tmp(xc,yc)=resphi_tmp(xc,yc)+resphi(xc,yc)
+    END DO
+    !$OMP  END PARALLEL DO
+
+    ! Update global variables
+    resphi=resphi_tmp
+    call OmpCopyPointerresphi
+
+  END SUBROUTINE OMPcalc_potential_residuals
+
+
+
   SUBROUTINE OMPcalc_rhs(neq, yl, yldot)
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
     USE Dim, ONLY: nx, ny, ngsp, nusp, nisp, nxpt
@@ -2637,13 +2683,17 @@ END SUBROUTINE OMPSplitIndex
       Use Ynorm
       Use Xpoint_indices
       Use Indices_domain_dcl
+      Use Bcond
+      Use Aux
+      Use Compla
     IMPLICIT NONE
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
     REAL, INTENT(OUT):: yldot(*)
     INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc
     REAL:: yldotcopy(1:neq), yldottot(1:neq)
-    integer iy, ix, ifld, iv, jx, iv1, igsp, iv2, ii
+    integer iy, ix, ifld, iv, jx, iv1, igsp, iv2, ii, iv3
+    logical isgc, isgc1
 
     yldotcopy = 0.
 
@@ -2713,6 +2763,45 @@ END SUBROUTINE OMPSplitIndex
             end do
           end do
         end do
+
+      if (isphion.eq.1) then 
+      do iy = j2p, j5p
+         do ix = i2, i5
+            iv3 = idxphi(ix,iy)
+            isgc = .false.
+            isgc1 = .false.
+            do jx = 1, nxpt
+               if (ix==ixlb(jx) .or. ix==(ixrb(jx)+1)) isgc=.true.
+               if (ix==(ixlb(jx)+1) .or. ix==ixrb(jx)) isgc1=.true.
+            enddo
+            if (isexunif==0) then
+               if (.not. isgc) then
+                  yldot(iv3) = resphi(ix,iy)/(vol(ix,iy)*temp0)
+               endif
+            else
+               if ((.not. isgc) .and. (.not. isgc1)) then
+                  yldot(iv3) = resphi(ix,iy)/(vol(ix,iy)*temp0)
+               endif
+            endif
+          end do
+        end do
+!ccc         yldot(idxphi(1,iy)) = -nurlxp*(phi(1,iy) - phi(0,iy))/temp0
+!ccc         yldot(idxphi(nx,iy)) = -nurlxp*(phi(nx,iy) -
+!ccc     .                                           phi(nx+1,iy))/temp0
+!cc    If isphicore0=1, eset core potential everywhere to midplane pot
+!cc    just outside separatrix (phi(ixmp,iysptrx+1) 
+      if (isphicore0 == 1) then
+        do jx = 1, nxpt
+          do iy = 0, iysptrx  ! iy=0 & 1 set by BCs
+            do ix = ixpt1(1)+1, ixpt2(1)
+              iv3 = idxphi(ix,iy)
+              yldot(iv3) = -nurlxp*(phi(ix,iy)-phi(ixmp,iysptrx+1))/temp0
+            enddo
+          enddo
+        enddo
+      endif
+      end if ! Ends check on isphion
+
 
         
     END DO
@@ -2824,8 +2913,11 @@ END SUBROUTINE OMPSplitIndex
                 !  Requires gas energy residuals
                 call calc_plasma_energy_residuals2(xc, yc)
 
-        call OMPcalc_rhs(neq, yl, yldot)
-!                call calc_rhs(yldot)
+        if (isphion.eq.1) call OMPcalc_potential_residuals(neq, yl, yldot)
+!        call OMPcalc_rhs(neq, yl, yldot)
+                call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
+!                if (isphion.eq.1) call calc_potential_residuals
+                call calc_rhs(yldot)
 
                 !  POTEN calculates the electrostatic potential, and 
                 !  BOUNCON calculates the equations for the boundaries.
@@ -2834,8 +2926,6 @@ END SUBROUTINE OMPSplitIndex
                 !  called before the perturbed variables are reset 
                 !  below to get Jacobian correct
 
-                call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
-                if (isphion.eq.1) call calc_potential_residuals (neq, yl, yldot)
 
                 call bouncon (neq, yldot)
 

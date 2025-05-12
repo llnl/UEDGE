@@ -28,6 +28,7 @@ def write_subpandf1():
     lines = write_ompsubroutine('calc_plasma_momentum_residuals', "", True)
     lines = write_ompsubroutine('calc_gas_energy_residuals', "", True)
     lines = write_ompsubroutine('calc_plasma_energy_residuals', "(xc,yc)", True)
+    lines = write_ompsubroutine('calc_potential_residuals', "", True)
     for line in lines:
         print(line)
     

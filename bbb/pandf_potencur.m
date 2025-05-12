@@ -647,7 +647,7 @@ c ... Add contributions to fqy
 c ***  End of subroutine calc_cur_cx  ************
 c-----------------------------------------------------------------------
 
-      subroutine calc_potential_residuals (neq, yl, yldot)
+      subroutine calc_potential_residuals 
 
 c...  Calculates the potential equation.  It can not be called alone,
 c...  It requires that pandf be called first to evaluate the range
@@ -656,8 +656,6 @@ c...  of the calculation in the grid.
       implicit none
 
 *  -- input arguments
-      integer neq
-      real yl(neq),yldot(neq)
 
 *  -- local variables
       integer jx
@@ -709,43 +707,6 @@ c...  of the calculation in the grid.
 *****************************************************************
 *   Potential equation to be solved
 *****************************************************************
-      do 270 iy = j2p, j5p
-         do 260 ix = i2, i5
-            iv3 = idxphi(ix,iy)
-            isgc = .false.
-            isgc1 = .false.
-            do jx = 1, nxpt
-               if (ix==ixlb(jx) .or. ix==(ixrb(jx)+1)) isgc=.true.
-               if (ix==(ixlb(jx)+1) .or. ix==ixrb(jx)) isgc1=.true.
-            enddo
-            if (isexunif==0) then
-               if (.not. isgc) then
-                  yldot(iv3) = resphi(ix,iy)/(vol(ix,iy)*temp0)
-               endif
-            else
-               if ((.not. isgc) .and. (.not. isgc1)) then
-                  yldot(iv3) = resphi(ix,iy)/(vol(ix,iy)*temp0)
-               endif
-            endif
-  260    continue
-ccc         yldot(idxphi(1,iy)) = -nurlxp*(phi(1,iy) - phi(0,iy))/temp0
-ccc         yldot(idxphi(nx,iy)) = -nurlxp*(phi(nx,iy) -
-ccc     .                                           phi(nx+1,iy))/temp0
-  270 continue
-cc    If isphicore0=1, eset core potential everywhere to midplane pot
-cc    just outside separatrix (phi(ixmp,iysptrx+1) 
-      if (isphicore0 == 1) then
-        do jx = 1, nxpt
-          do iy = 0, iysptrx  #iy=0 & 1 set by BCs
-            do ix = ixpt1(1)+1, ixpt2(1)
-              iv3 = idxphi(ix,iy)
-              yldot(iv3) = -nurlxp*(phi(ix,iy)-phi(ixmp,iysptrx+1))/
-     .                                                          temp0
-            enddo
-          enddo
-        enddo
-      endif
-
       return
       end subroutine calc_potential_residuals
 c-----------------------------------------------------------------------
