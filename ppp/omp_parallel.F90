@@ -558,6 +558,48 @@ END SUBROUTINE OMPSplitIndex
   END SUBROUTINE OMPPandf1Rhs_old
 
 
+  SUBROUTINE OMPinitialize_ranges(xc, yc)
+    Use Selec 
+    IMPLICIT NONE
+    integer, intent(in):: xc, yc
+
+      i1 = xc
+      i2 = xc
+      i2p = xc
+      i3 = xc
+      i4 = xc
+      i5 = xc
+      i5m = xc
+      i6 = xc
+      i7 = xc
+      i8 = xc
+      j1 = yc
+      j1p = yc
+      j2 = yc
+      j2p = yc
+      j3 = yc
+      j4 = yc
+      j5 = yc
+      j5m = yc
+      j5p = yc
+      j6 = yc
+      j6p = yc
+      j7 = yc
+      j8 = yc
+
+            ixs = xc
+            ixf = xc
+            iys = yc
+            iyf = yc
+            ixs1 = xc
+            ixf6 = xc
+            iys1 = yc
+            iyf6 = yc
+
+      END SUBROUTINE OMPinitialize_ranges
+
+
+
   SUBROUTINE OMPconvsr_vo1(neq, yl, yldot)
     USE Dim, ONLY: nx, ny, ngsp, nisp
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
@@ -594,7 +636,7 @@ END SUBROUTINE OMPSplitIndex
     DO ichunk = 1, Nchunks
         xc = chunks(ichunk,1)
         yc = chunks(ichunk,2)
-        call initialize_ranges(xc, yc, 0, 0, 0)
+        call OMPinitialize_ranges(xc, yc)
         call convsr_vo1(xc, yc, ylcopy)
 
         ! Update locally calculated variables
@@ -654,7 +696,7 @@ END SUBROUTINE OMPSplitIndex
     DO ichunk = 1, Nchunks
         xc = chunks(ichunk,1)
         yc = chunks(ichunk,2)
-        call initialize_ranges(xc, yc, 0, 0, 0)
+        call OMPinitialize_ranges(xc, yc)
         call convsr_vo2(xc, yc, ylcopy)
 
         ! Update locally calculated variables
@@ -700,7 +742,7 @@ END SUBROUTINE OMPSplitIndex
     DO ichunk = 1, Nchunks
         xc = chunks(ichunk,1)
         yc = chunks(ichunk,2)
-        call initialize_ranges(xc, yc, 0, 0, 0)
+        call OMPinitialize_ranges(xc, yc)
         call convsr_aux1(xc, yc)
 
         ! Update locally calculated variables
@@ -790,7 +832,7 @@ END SUBROUTINE OMPSplitIndex
     DO ichunk = 1, Nchunks
         xc = chunks(ichunk,1)
         yc = chunks(ichunk,2)
-        call initialize_ranges(xc, yc, 0, 0, 0)
+        call OMPinitialize_ranges(xc, yc)
         call convsr_aux2(xc, yc)
 
         ! Update locally calculated variables
@@ -888,6 +930,7 @@ END SUBROUTINE OMPSplitIndex
     USE Conduc, ONLY: dutm_use, difp_use, dif_use, kyi_use, trax_use, kxbohm, kxe_use, kxi_use, &
     &    kye_use, vy_use, kybohm, tray_use, dif2_use
     USE Compla, ONLY: betap
+    USE OMPTiming
     IMPLICIT NONE
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
@@ -924,7 +967,7 @@ END SUBROUTINE OMPSplitIndex
     DO ichunk = 1, Nchunks
         xc = chunks(ichunk,1)
         yc = chunks(ichunk,2)
-        call initialize_ranges(xc, yc, 0, 0, 0)
+        call OMPinitialize_ranges(xc, yc)
         call calc_plasma_diffusivities
 
         ! Update locally calculated variables
@@ -998,7 +1041,7 @@ END SUBROUTINE OMPSplitIndex
     DO ichunk = 1, Nchunks
         xc = chunks(ichunk,1)
         yc = chunks(ichunk,2)
-        call initialize_ranges(xc, yc, 0, 0, 0)
+        call OMPinitialize_ranges(xc, yc)
         call initialize_driftterms
 
         ! Update locally calculated variables
@@ -1068,7 +1111,7 @@ END SUBROUTINE OMPSplitIndex
     DO ichunk = 1, Nchunks
         xc = chunks(ichunk,1)
         yc = chunks(ichunk,2)
-        call initialize_ranges(xc, yc, 0, 0, 0)
+        call OMPinitialize_ranges(xc, yc)
         call calc_driftterms1
 
         ! Update locally calculated variables
@@ -1153,7 +1196,7 @@ END SUBROUTINE OMPSplitIndex
     DO ichunk = 1, Nchunks
         xc = chunks(ichunk,1)
         yc = chunks(ichunk,2)
-        call initialize_ranges(xc, yc, 0, 0, 0)
+        call OMPinitialize_ranges(xc, yc)
         call calc_driftterms2
 
 
@@ -1237,7 +1280,7 @@ END SUBROUTINE OMPSplitIndex
     DO ichunk = 1, Nchunks
         xc = chunks(ichunk,1)
         yc = chunks(ichunk,2)
-        call initialize_ranges(xc, yc, 0, 0, 0)
+        call OMPinitialize_ranges(xc, yc)
         call calc_currents
 
         ! Update locally calculated variables
@@ -1313,7 +1356,7 @@ END SUBROUTINE OMPSplitIndex
     DO ichunk = 1, Nchunks
         xc = chunks(ichunk,1)
         yc = chunks(ichunk,2)
-        call initialize_ranges(xc, yc, 0, 0, 0)
+        call OMPinitialize_ranges(xc, yc)
         call calc_fqp1
 
         ! Update locally calculated variables
@@ -1334,7 +1377,7 @@ END SUBROUTINE OMPSplitIndex
     DO ichunk = 1, Nchunks
         xc = chunks(ichunk,1)
         yc = chunks(ichunk,2)
-        call initialize_ranges(xc, yc, 0, 0, 0)
+        call OMPinitialize_ranges(xc, yc)
         call calc_fqp2
     
         if (yc .eq. 1) &
@@ -1406,7 +1449,7 @@ END SUBROUTINE OMPSplitIndex
     DO ichunk = 1, Nchunks
         xc = chunks(ichunk,1)
         yc = chunks(ichunk,2)
-        call initialize_ranges(xc, yc, 0, 0, 0)
+        call OMPinitialize_ranges(xc, yc)
         call calc_friction(xc)
 
         ! Update locally calculated variables
@@ -1459,7 +1502,7 @@ END SUBROUTINE OMPSplitIndex
     DO ichunk = 1, Nchunks
         xc = chunks(ichunk,1)
         yc = chunks(ichunk,2)
-        call initialize_ranges(xc, yc, 0, 0, 0)
+        call OMPinitialize_ranges(xc, yc)
         call calc_elec_velocities
 
         ! Update locally calculated variables
@@ -1531,7 +1574,7 @@ END SUBROUTINE OMPSplitIndex
     DO ichunk = 1, Nchunks
         xc = chunks(ichunk,1)
         yc = chunks(ichunk,2)
-        call initialize_ranges(xc, yc, 0, 0, 0)
+        call OMPinitialize_ranges(xc, yc)
         call calc_volumetric_sources(xc,yc)
 
         ! Update locally calculated variables
@@ -1639,7 +1682,7 @@ END SUBROUTINE OMPSplitIndex
     DO ichunk = 1, Nchunks
         xc = chunks(ichunk,1)
         yc = chunks(ichunk,2)
-        call initialize_ranges(xc, yc, 0, 0, 0)
+        call OMPinitialize_ranges(xc, yc)
         call neudifpg
 
         ! Update locally calculated variables
@@ -1710,7 +1753,7 @@ END SUBROUTINE OMPSplitIndex
     DO ichunk = 1, Nchunks
         xc = chunks(ichunk,1)
         yc = chunks(ichunk,2)
-        call initialize_ranges(xc, yc, 0, 0, 0)
+        call OMPinitialize_ranges(xc, yc)
         call calc_srcmod
 
         ! Update locally calculated variables
@@ -1771,7 +1814,7 @@ END SUBROUTINE OMPSplitIndex
     DO ichunk = 1, Nchunks
         xc = chunks(ichunk,1)
         yc = chunks(ichunk,2)
-        call initialize_ranges(xc, yc, 0, 0, 0)
+        call OMPinitialize_ranges(xc, yc)
         call calc_plasma_viscosities
 
         ! Update locally calculated variables
@@ -1846,7 +1889,7 @@ END SUBROUTINE OMPSplitIndex
     DO ichunk = 1, Nchunks
         xc = chunks(ichunk,1)
         yc = chunks(ichunk,2)
-        call initialize_ranges(xc, yc, 0, 0, 0)
+        call OMPinitialize_ranges(xc, yc)
         call calc_plasma_heatconductivities
 
         ! Update locally calculated variables
@@ -1913,7 +1956,7 @@ END SUBROUTINE OMPSplitIndex
     DO ichunk = 1, Nchunks
         xc = chunks(ichunk,1)
         yc = chunks(ichunk,2)
-        call initialize_ranges(xc, yc, 0, 0, 0)
+        call OMPinitialize_ranges(xc, yc)
         call calc_plasma_equipartition
 
         ! Update locally calculated variables
@@ -1957,7 +2000,7 @@ END SUBROUTINE OMPSplitIndex
     DO ichunk = 1, Nchunks
         xc = chunks(ichunk,1)
         yc = chunks(ichunk,2)
-        call initialize_ranges(xc, yc, 0, 0, 0)
+        call OMPinitialize_ranges(xc, yc)
         call calc_gas_heatconductivities
 
         ! Update locally calculated variables
@@ -2011,7 +2054,7 @@ END SUBROUTINE OMPSplitIndex
     DO ichunk = 1, Nchunks
         xc = chunks(ichunk,1)
         yc = chunks(ichunk,2)
-        call initialize_ranges(xc, yc, 0, 0, 0)
+        call OMPinitialize_ranges(xc, yc)
         call engbalg
 
         ! Update locally calculated variables
@@ -2068,7 +2111,7 @@ END SUBROUTINE OMPSplitIndex
     DO ichunk = 1, Nchunks
         xc = chunks(ichunk,1)
         yc = chunks(ichunk,2)
-        call initialize_ranges(xc, yc, 0, 0, 0)
+        call OMPinitialize_ranges(xc, yc)
         call calc_plasma_transport
 
         ! Update locally calculated variables
@@ -2230,7 +2273,7 @@ END SUBROUTINE OMPSplitIndex
     DO ichunk = 1, Nchunks
         xc = chunks(ichunk,1)
         yc = chunks(ichunk,2)
-        call initialize_ranges(xc, yc, 0, 0, 0)
+        call OMPinitialize_ranges(xc, yc)
         call calc_plasma_energy
 
         if (yc .eq. 0) then
@@ -2316,7 +2359,7 @@ END SUBROUTINE OMPSplitIndex
     DO ichunk = 1, Nchunks
         xc = chunks(ichunk,1)
         yc = chunks(ichunk,2)
-        call initialize_ranges(xc, yc, 0, 0, 0)
+        call OMPinitialize_ranges(xc, yc)
         call calc_plasma_particle_residuals
 
         ! Update locally calculated variables
@@ -2363,7 +2406,7 @@ END SUBROUTINE OMPSplitIndex
     DO ichunk = 1, Nchunks
         xc = chunks(ichunk,1)
         yc = chunks(ichunk,2)
-        call initialize_ranges(xc, yc, 0, 0, 0)
+        call OMPinitialize_ranges(xc, yc)
         call calc_gas_continuity_residuals
 
         ! Update locally calculated variables
@@ -2411,7 +2454,7 @@ END SUBROUTINE OMPSplitIndex
     DO ichunk = 1, Nchunks
         xc = chunks(ichunk,1)
         yc = chunks(ichunk,2)
-        call initialize_ranges(xc, yc, 0, 0, 0)
+        call OMPinitialize_ranges(xc, yc)
         call calc_plasma_momentum_residuals
 
         ! Update locally calculated variables
@@ -2461,7 +2504,7 @@ END SUBROUTINE OMPSplitIndex
     DO ichunk = 1, Nchunks
         xc = chunks(ichunk,1)
         yc = chunks(ichunk,2)
-        call initialize_ranges(xc, yc, 0, 0, 0)
+        call OMPinitialize_ranges(xc, yc)
         call calc_gas_energy_residuals
 
         ! Update locally calculated variables
@@ -2546,7 +2589,7 @@ END SUBROUTINE OMPSplitIndex
     DO ichunk = 1, Nchunks
         xc = chunks(ichunk,1)
         yc = chunks(ichunk,2)
-        call initialize_ranges(xc, yc, 0, 0, 0)
+        call OMPinitialize_ranges(xc, yc)
         call calc_plasma_energy_residuals1(xc, yc)
 
         ! Update locally calculated variables
@@ -2655,7 +2698,7 @@ END SUBROUTINE OMPSplitIndex
     DO ichunk = 1, Nchunks
         xc = chunks(ichunk,1)
         yc = chunks(ichunk,2)
-        call initialize_ranges(xc, yc, 0, 0, 0)
+        call OMPinitialize_ranges(xc, yc)
         call calc_potential_residuals
 
         ! Update locally calculated variables
@@ -2671,151 +2714,79 @@ END SUBROUTINE OMPSplitIndex
 
 
 
-  SUBROUTINE OMPcalc_rhs(neq, yl, yldot)
+
+  SUBROUTINE OMPcalc_rhs(neq,yl,yldot)
+    USE omp_lib
+    USE OmpCopybbb
+    USE ParallelSettings, ONLY: Nthreads,CheckPandf1
+    USE OMPPandf1Settings, ONLY: OMPTimeParallelPandf1,OMPTimeSerialPandf1, &
+            OMPPandf1Stamp,OMPPandf1Verbose,OMPPandf1Debug
+    USE OMPPandf1, ONLY: Nivchunk,ivchunk,yincchunk,xincchunk, &
+            iychunk,ixchunk,NchunksPandf1
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
-    USE Dim, ONLY: nx, ny, ngsp, nusp, nisp, nxpt
+    USE Dim, ONLY:nx,ny,nisp
+    USE Imprad, ONLY: prad
+    USE Selec, ONLY:yinc,xrinc,xlinc
+    USE Indexes, ONLY: idxn
     USE Math_problem_size, ONLY: numvar
-      Use Selec
-      Use UEpar
-      Use Indexes
-      Use Rhsides
-      Use Comgeo
-      Use Ynorm
-      Use Xpoint_indices
-      Use Indices_domain_dcl
-      Use Bcond
-      Use Aux
-      Use Compla
+    USE Ynorm, ONLY: isflxvar, isrscalf
+    USE Time_dep_nwt, ONLY: dtreal
+    USE UEpar, ONLY: svrpkg
     IMPLICIT NONE
-    INTEGER, INTENT(IN):: neq
-    REAL, INTENT(IN):: yl(*)
-    REAL, INTENT(OUT):: yldot(*)
+ 
+    integer yinc_bkp,xrinc_bkp,xlinc_bkp,iv,tid
+    integer,intent(in)::neq
+    real,intent(in)::yl(*)
+    real,intent(out)::yldot(*)
+    real::yldotcopy(1:neq)
+    real yldotsave(1:neq),ylcopy(1:neq+2), yldottot(1:neq)
     INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc
-    REAL:: yldotcopy(1:neq), yldottot(1:neq)
-    integer iy, ix, ifld, iv, jx, iv1, igsp, iv2, ii, iv3
-    logical isgc, isgc1
-
-    yldotcopy = 0.
-
-    call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)
-
-    !$OMP    PARALLEL DO &
-    !$OMP &      default(shared) &
-    !$OMP &      schedule(dynamic,OMPPandf1LoopNchunk) &
-    !$OMP &      private(ichunk,xc,yc, iy, ix, iv, jx, iv1, igsp, iv2) &
-!    !$OMP &      firstprivate(yldotcopy) &
-    !$OMP &      REDUCTION(+:yldotcopy)
-    DO ichunk = 1, Nchunks
+    character*80 ::FileName
+    real time1,time2
+    real tmp_prad(0:nx+1, 0:ny+1)
+    ylcopy(1:neq+1)=yl(1:neq+1)
+    yldotcopy = 0
+    yldottot = 0
 
 
-        xc = chunks(ichunk,1)
-        yc = chunks(ichunk,2)
-        call initialize_ranges(xc, yc, 0, 0, 0)
+        call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)
 
+        call OmpCopyPointerup
+          !$omp parallel do default(shared) schedule(dynamic,OMPPandf1LoopNchunk) &
+          !$omp& private(iv,ichunk) firstprivate(ylcopy,yldotcopy) copyin(yinc,xlinc,xrinc) &
+          !$omp& REDUCTION(+:yldottot)
+            loopthread: do ichunk=1,Nchunks !ichunk from 1 to Nthread, tid from 0 to Nthread-1
+            ! we keep all these parameters as it is easier to debug LocalJacBuilder and deal wichunk private/shared attributes
 
-
-!**********************************************************************
-!*  --  Equations to be solved --
-!**********************************************************************
-      do iy = j2, j5
-         do ix = i2, i5
-            do ifld = 1, nisp
-	       if(isnionxy(ix,iy,ifld) .eq. 1) then
-                  iv = idxn(ix,iy,ifld)
-                    yldotcopy(iv) = yldotcopy(iv) &
-                    &   + (1-iseqalg(iv))*resco(ix,iy,ifld)/(vol(ix,iy)*n0(ifld))
-               endif
-            end do
-            do ifld = 1, nusp
-	       if(isuponxy(ix,iy,ifld) .eq. 1) then
-                  iv = idxu(ix,iy,ifld)
-                    yldotcopy(iv) = yldotcopy(iv) &
-                    & + (1-iseqalg(iv)) * resmo(ix,iy,ifld)/(volv(ix,iy)*fnorm(ifld))
-                  do jx = 1, nxpt
-                     if (ix.eq.ixrb(jx) .and. ixmxbcl.eq.1) then
-                        yldotcopy(iv) = yldotcopy(iv) &
-                        & + resmo(ix,iy,ifld)/(volv(ix,iy)*fnorm(ifld))
-                     end if
-                  enddo
-               endif
-            end do
-            if(isteonxy(ix,iy) == 1) then
-              iv =  idxte(ix,iy)
-	            yldotcopy(iv) = yldotcopy(iv) &
-                & + (1-iseqalg(iv))*resee(ix,iy)/(vol(ix,iy)*ennorm)
-            endif
-            if(istionxy(ix,iy) == 1) then
-              iv1 = idxti(ix,iy)
-	            yldotcopy(iv1) = yldotcopy(iv) &
-                & + (1-iseqalg(iv1))*resei(ix,iy)/(vol(ix,iy)*ennorm)
-            endif
-            do igsp = 1, ngsp
-	      if(isngonxy(ix,iy,igsp).eq.1) then
-                iv2 = idxg(ix,iy,igsp)
-                yldotcopy(iv2) = yldotcopy(iv2) &
-                & + (1-iseqalg(iv2)) *resng(ix,iy,igsp)/(vol(ix,iy)*n0g(igsp))
-              endif
-	      if(istgonxy(ix,iy,igsp).eq.1) then
-                iv2 = idxtg(ix,iy,igsp) 
-                yldotcopy(iv2) = yldotcopy(iv2) + (1-iseqalg(iv2)) * &
-                &   reseg(ix,iy,igsp)/(vol(ix,iy)*ennorm)
-              endif
-            end do
-          end do
-        end do
-
-      if (isphion.eq.1) then 
-      do iy = j2p, j5p
-         do ix = i2, i5
-            iv3 = idxphi(ix,iy)
-            isgc = .false.
-            isgc1 = .false.
-            do jx = 1, nxpt
-               if (ix==ixlb(jx) .or. ix==(ixrb(jx)+1)) isgc=.true.
-               if (ix==(ixlb(jx)+1) .or. ix==ixrb(jx)) isgc1=.true.
-            enddo
-            if (isexunif==0) then
-               if (.not. isgc) then
-                  yldot(iv3) = resphi(ix,iy)/(vol(ix,iy)*temp0)
-               endif
-            else
-               if ((.not. isgc) .and. (.not. isgc1)) then
-                  yldot(iv3) = resphi(ix,iy)/(vol(ix,iy)*temp0)
-               endif
-            endif
-          end do
-        end do
-!ccc         yldot(idxphi(1,iy)) = -nurlxp*(phi(1,iy) - phi(0,iy))/temp0
-!ccc         yldot(idxphi(nx,iy)) = -nurlxp*(phi(nx,iy) -
-!ccc     .                                           phi(nx+1,iy))/temp0
-!cc    If isphicore0=1, eset core potential everywhere to midplane pot
-!cc    just outside separatrix (phi(ixmp,iysptrx+1) 
-      if (isphicore0 == 1) then
-        do jx = 1, nxpt
-          do iy = 0, iysptrx  ! iy=0 & 1 set by BCs
-            do ix = ixpt1(1)+1, ixpt2(1)
-              iv3 = idxphi(ix,iy)
-              yldot(iv3) = -nurlxp*(phi(ix,iy)-phi(ixmp,iysptrx+1))/temp0
-            enddo
-          enddo
-        enddo
-      endif
-      end if ! Ends check on isphion
-
-
-        
-    END DO
-    !$OMP  END PARALLEL DO
-
-    ! Update global variables
-    do ii = 1, neq
-        if (yldotcopy(ii) .ne. 0.) then
-            yldot(ii) = yldotcopy(ii)
-        end if
-    end do
+                xc = chunks(ichunk,1)
+                yc = chunks(ichunk,2)
+                iv = idxn(xc,yc,1)
+                call OMPinitialize_ranges(xc, yc)
+                call calc_rhs(yldotcopy) 
+                call bouncon (neq, yldot)
+                if(isflxvar.ne.1 .and. isrscalf.eq.1) call rscalf(ylcopy,yldotcopy)
+                if(dtreal < 1.e15) then
+                    if ( &
+                    &   (svrpkg=='nksol' .and. ylcopy(neq+1)<0) &
+                    &   .or. svrpkg == 'petsc' &
+                    & ) then
+                        call add_timestep(neq, ylcopy, yldotcopy)
+                    endif   !if-test on svrpkg and ylcopy(neq+1)
+                endif    !if-test on dtreal
 
 
 
+
+
+                yldottot(iv:iv+numvar-1) = yldottot(iv:iv+numvar-1) &
+                &   + yldotcopy(iv:iv+numvar-1)
+
+            enddo loopthread
+          !$omp  END PARALLEL DO
+
+        yldot(:neq) = yldottot
+  
+    RETURN
   END SUBROUTINE OMPcalc_rhs
 
 
@@ -2833,7 +2804,7 @@ END SUBROUTINE OMPSplitIndex
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
     USE Dim, ONLY: nx, ny
     USE Imprad, ONLY: prad
-    USE Selec, ONLY:yinc,xrinc,xlinc
+    USE Selec, ONLY:yinc,xrinc,xlinc, i1, i6, j1, j6
     USE Grid, ONLY:ijactot
     USE Cdv, ONLY: comnfe
     USE Rhsides, ONLY: psorcxg, psorrg, psordis
@@ -2843,6 +2814,7 @@ END SUBROUTINE OMPSplitIndex
     USE UEpar, ONLY: isphion, svrpkg, isphiofft
     USE PandfTiming, ONLY: TimePandf, TotTimePandf, TimingPandfOn, TimeNeudif, &
     &   TotTimeNeudif
+    USE OMPTiming, ONLY: ParaTime, SerialTime
     USE Coefeq, ONLY: cfvisxneov, cfvisxneoq
 
     USE Comflo, ONLY: feeycbo, feiycbo
@@ -2859,7 +2831,7 @@ END SUBROUTINE OMPSplitIndex
     real time1,time2
     integer::ichunk, xc, yc
     real tmp_prad(0:nx+1, 0:ny+1)
-    real tick,tock, tsfe, tsjf, ttotfe, ttotjf
+    real tick,tock, tsfe, tsjf, ttotfe, ttotjf, tserial, tpara
     external tick, tock
     ylcopy(1:neq+1)=yl(1:neq+1)
     yldotcopy = 0
@@ -2870,12 +2842,20 @@ END SUBROUTINE OMPSplitIndex
     if (ijactot.gt.0) then
         Time1=omp_get_wtime()
         call MakeChunksPandf1
-
         call OMPconvsr_vo1 (neq, yl, yldot) 
         call OMPconvsr_vo2 (neq, yl, yldot) 
         call OMPconvsr_aux1 (neq, yl, yldot) 
         call OMPconvsr_aux2 (neq, yl, yldot) 
+
+!        tpara = tick()
         call OMPcalc_plasma_diffusivities (neq, yl, yldot) 
+!        ParaTime = ParaTime + tock(tpara)
+
+!        tserial = tick()
+!        call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
+!        call calc_plasma_diffusivities 
+!        SerialTime = SerialTime + tock(tserial)
+
         call OMPinitialize_driftterms (neq, yl, yldot) 
         call OMPcalc_driftterms1(neq, yl, yldot)
         call OMPcalc_driftterms2(neq, yl, yldot)
@@ -2885,7 +2865,6 @@ END SUBROUTINE OMPSplitIndex
         endif
         call OMPcalc_friction(neq, yl, yldot)
         call OMPcalc_elec_velocities(neq, yl, yldot)
-        ! TODO: Add checks on ishosor and ispsorave: parallel only works for == 0
         call OMPcalc_volumetric_sources(neq, yl, yldot)
         if (TimingPandfOn.gt.0) TimeNeudif=tick()
         call OMPneudifpg(neq, yl, yldot)
@@ -2893,13 +2872,16 @@ END SUBROUTINE OMPSplitIndex
         call OMPcalc_srcmod(neq, yl, yldot)
         call OMPcalc_plasma_viscosities(neq, yl, yldot)
         call OMPcalc_plasma_heatconductivities(neq, yl, yldot)
+        ! TODO: Add checks on ishosor and ispsorave: parallel only works for == 0
         call OMPcalc_plasma_equipartition(neq, yl, yldot)
         call OMPcalc_gas_heatconductivities(neq, yl, yldot)
         call OMPengbalg(neq, yl, yldot)
         call OMPcalc_plasma_transport(neq, yl, yldot)
         call calc_fniycbo ! Nothing much to parallelize here, just do serial
-        call OMPcalc_plasma_momentum(neq, yl, yldot)
-        if (cfvisxneov+cfvisxneoq > 0.) call upvisneo ! Routine not yet parallelized
+            call OMPcalc_plasma_momentum(neq, yl, yldot) ! TODO: Needs to be fixed for indices!
+                call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
+                !call calc_plasma_momentum(xc,yc) ! TODO: Needs to be fixed for indices!
+                if (cfvisxneov+cfvisxneoq > 0.) call upvisneo ! Routine not yet parallelized
         call OMPcalc_plasma_energy(neq, yl, yldot)
         call calc_feeiycbo ! Nothing much to parallelize here, just do serial
         call OMPcalc_plasma_particle_residuals(neq, yl, yldot)
@@ -2911,13 +2893,14 @@ END SUBROUTINE OMPSplitIndex
 
                 call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
                 !  Requires gas energy residuals
-                call calc_plasma_energy_residuals2(xc, yc)
+                call calc_plasma_energy_residuals(xc, yc)
 
         if (isphion.eq.1) call OMPcalc_potential_residuals(neq, yl, yldot)
 !        call OMPcalc_rhs(neq, yl, yldot)
                 call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
 !                if (isphion.eq.1) call calc_potential_residuals
                 call calc_rhs(yldot)
+!                call calc_rhs2(yldot)
 
                 !  POTEN calculates the electrostatic potential, and 
                 !  BOUNCON calculates the equations for the boundaries.

@@ -112,6 +112,8 @@ ixminchunk(NchunksPandf1)   _integer
 DebugTime       integer /0/     # Display execution times of various subroutines
 ShowTime        integer /1/     # Show execution time of routines
 SerialDebug     integer /0/     # Show execution time of routines
+ParaTime        real    /0./    
+SerialTime      real    /0./
 
 #OMPTotJacCalc      real  /0./ # time to calculate jacobian in jac_calc_omp
 #OMPTotTimeCollect  real  /0./ # time to collect jacobian elements in jac_calc_omp
