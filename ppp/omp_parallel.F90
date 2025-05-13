@@ -2186,14 +2186,16 @@ END SUBROUTINE OMPSplitIndex
     USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt, nusp
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
     USE OmpCopybbb
-    USE Compla, ONLY: fmivxpt, fmihxpt, vyvxpt, nixpt, vyhxpt, visyxpt, upxpt
+    USE Compla, ONLY: fmivxpt, fmihxpt, vyvxpt, nixpt, vyhxpt, visyxpt, upxpt, up
     USE Comflo, ONLY: fmixy, fmix, fmiy
     USE Rhsides, ONLY: smoc
+    USE UEpar, ONLY: methu, isupon
+    USE Locflux, ONLY: flox, floy, conx, cony
     IMPLICIT NONE
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
     REAL, INTENT(OUT):: yldot(*)
-    INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc, iusp, ixpt
+    INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc, iusp, ixpt, ifld
     REAL:: yldotcopy(1:neq), ylcopy(1:neq+2)
 ! Define local variables
     real:: fmivxpt_tmp(1:nusp,1:nxpt), fmihxpt_tmp(1:nusp,1:nxpt), &
@@ -2253,6 +2255,16 @@ END SUBROUTINE OMPSplitIndex
     fmihxpt=fmihxpt_tmp; fmixy=fmixy_tmp; vyvxpt=vyvxpt_tmp
     nixpt=nixpt_tmp; vyhxpt=vyhxpt_tmp; visyxpt=visyxpt_tmp; upxpt=upxpt_tmp
     smoc=smoc_tmp; fmix=fmix_tmp; fmiy=fmiy_tmp
+    ! TODO: Come up with a more sustainable solution for the fd2tra call
+    call initialize_ranges(-1, -1, 0, 0, 0)
+      do ifld = 1, nusp
+      if(isupon(ifld) .ne. 0) then
+         call fd2tra (nx,ny,flox(:,:,ifld),floy(:,:,ifld),conx(:,:,ifld),cony(:,:,ifld), &
+         &            up(0:nx+1,0:ny+1,ifld),fmix(0:nx+1,0:ny+1,ifld), &
+         &            fmiy(0:nx+1,0:ny+1,ifld),1, methu)
+      end if
+    end do
+
     call OmpCopyPointerfmivxpt; call OmpCopyPointerfmihxpt
     call OmpCopyPointerfmixy
     call OmpCopyPointervyvxpt; call OmpCopyPointernixpt
@@ -2884,6 +2896,14 @@ END SUBROUTINE OMPSplitIndex
     tmp_prad = 0
     xc=-1; yc=-1
 
+!        tpara = tick()
+!        ParaTime = ParaTime + tock(tpara)
+
+!        tserial = tick()
+!        call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
+!        SerialTime = SerialTime + tock(tserial)
+
+
     if (ijactot.gt.0) then
         Time1=omp_get_wtime()
         call MakeChunksPandf1
@@ -2891,16 +2911,7 @@ END SUBROUTINE OMPSplitIndex
         call OMPconvsr_vo2 (neq, yl, yldot) 
         call OMPconvsr_aux1 (neq, yl, yldot) 
         call OMPconvsr_aux2 (neq, yl, yldot) 
-
-!        tpara = tick()
         call OMPcalc_plasma_diffusivities (neq, yl, yldot) 
-!        ParaTime = ParaTime + tock(tpara)
-
-!        tserial = tick()
-!        call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
-!        call calc_plasma_diffusivities 
-!        SerialTime = SerialTime + tock(tserial)
-
         call OMPinitialize_driftterms (neq, yl, yldot) 
         call OMPcalc_driftterms1(neq, yl, yldot)
         call OMPcalc_driftterms2(neq, yl, yldot)
@@ -2923,13 +2934,9 @@ END SUBROUTINE OMPSplitIndex
         call OMPengbalg(neq, yl, yldot)
         call OMPcalc_plasma_transport(neq, yl, yldot)
         call calc_fniycbo ! Nothing much to parallelize here, just do serial
-
-        ! TODO: Same splits on transport coefficients likely needed for 
-        ! all routines calling pandf2
-        call OMPcalc_plasma_momentum_coeffs(neq, yl, yldot) ! TODO: Needs to be fixed for indices!
-!        call OMPcalc_plasma_momentum(neq, yl, yldot) ! TODO: Needs to be fixed for indices!
+        call OMPcalc_plasma_momentum_coeffs(neq, yl, yldot)
+        call OMPcalc_plasma_momentum(neq, yl, yldot) 
                 call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
-                call calc_plasma_momentum(xc,yc) ! TODO: Needs to be fixed for indices!
                 if (cfvisxneov+cfvisxneoq > 0.) call upvisneo ! Routine not yet parallelized
         call OMPcalc_plasma_energy(neq, yl, yldot)
         call calc_feeiycbo ! Nothing much to parallelize here, just do serial
@@ -2938,8 +2945,8 @@ END SUBROUTINE OMPSplitIndex
         call OMPcalc_plasma_momentum_residuals(neq, yl, yldot)
         call OMPcalc_gas_energy_residuals(neq, yl, yldot)
         call calc_atom_seic ! Nothing much to parallelize here, just do serial
-!        call OMPcalc_plasma_energy_residuals(neq, yl, yldot)
 
+!        call OMPcalc_plasma_energy_residuals(neq, yl, yldot)
                 call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
                 !  Requires gas energy residuals
                 call calc_plasma_energy_residuals(xc, yc)
