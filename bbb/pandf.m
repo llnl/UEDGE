@@ -624,6 +624,8 @@ c  Here we do the neutral gas diffusion model
 c  The diffusion is flux limited using the thermal flux
 **********************************************************************
 
+    
+      call calc_plasma_momentum_coeffs
       call calc_plasma_momentum(xc, yc)
 
 c...  Compute total viscosity for nonuniform B-field; put in visvol_v,q

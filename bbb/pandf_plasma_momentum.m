@@ -4,6 +4,152 @@ c!include "../mppl.h"
 c!include "../sptodp.h"
 
 
+      SUBROUTINE calc_plasma_momentum_coeffs
+      IMPLICIT NONE
+      Use(UEpar)
+      Use(Compla)
+      Use(Dim)
+      Use(Selec)
+      Use(Locflux)
+      Use(Imprad)
+      Use(Comgeo)
+      Use(Bfield)
+      Use(Coefeq)
+      Use(Conduc)
+      Use(Xpoint_indices)
+      Use(Indices_domain_dcg)
+      Use(Npes_mpi)
+      Use(Comflo)
+      Use(Share)
+      Use(Noggeo)
+      Use(Phyvar)
+      Use(Comtra)
+      Use(Rhsides)
+      integer ifld, iy, ix, ix1, ix2, ix4, iy1, ix3, ix5, iysepu, k, k1, 
+     .k2, ixpt1u, ixpt2u
+      real uuv, grdnv, vtn, b_ctr, dbds_m, dbds_p, eta_h0, eta_hm,
+     .  eta_hp, drag_1, drag_2, nu_ii, drag_3, mf_path, frac_col, 
+     .  t0, t1
+      real ave
+      ave(t0,t1) = 2*t0*t1 / (cutlo+t0+t1)
+
+*****************************************************************
+*  Here starts the old MOMBAL_B2
+*****************************************************************
+
+
+*  ---------------------------------------------------------------------
+*  loop over all species.
+*  ---------------------------------------------------------------------
+
+      do ifld = 1, nusp
+      if(isupon(ifld) .ne. 0) then
+*     ------------------------------------------------------------------
+*     compute the residual.
+*     ------------------------------------------------------------------
+
+*  -- evaluate flox and conx --
+
+         do iy = j4, j8
+            flox(0,iy,ifld) = 0.0e0
+            conx(0,iy,ifld) = 0.0e0
+            do ix = i2, i6
+               ix1 = ixm1(ix,iy)
+               if (isimpon.ge.5 .and. ifld.eq.1) then
+                   #up(,,1) is total mass vel, whereas uu(,,i) for each ion
+                  uuv =0.5*( (up(ix1,iy,ifld)*rrv(ix1,iy)+
+     .                        up(ix,iy,ifld)*rrv(ix,iy)) +
+     .                     (v2(ix1,iy,ifld)+v2(ix,iy,ifld))*rbfbt(ix,iy)-
+     .                     (vytan(ix1,iy,ifld)+vytan(ix,iy,ifld)) )
+               else
+                  uuv = 0.5 * (uu(ix1,iy,ifld)+uu(ix,iy,ifld))
+               endif
+               flox(ix,iy,ifld) = cmfx * nm(ix,iy,ifld) * uuv *
+     .                          vol(ix,iy) * gx(ix,iy)
+ccc Distance between veloc. cell centers:
+               if (isgxvon .eq. 0) then     # dx(ix)=1/gx(ix)
+                 conx(ix,iy,ifld) = visx(ix,iy,ifld) * vol(ix,iy) * gx(ix,iy)
+     .                            * gx(ix,iy)
+               elseif (isgxvon .eq. 1) then # dx(ix)=.5/gxf(ix-1) + .5/gxf(ix)
+                 conx(ix,iy,ifld) = visx(ix,iy,ifld) * vol(ix,iy) * gx(ix,iy)
+     .               * 2*gxf(ix,iy)*gxf(ix1,iy)/(gxf(ix,iy)+gxf(ix1,iy))
+               endif
+            end do
+         end do
+
+*  -- evaluate floy and cony without averaging over two ix cells --
+
+         do  iy = j1, j5
+            if (nxpt == 1 .or. iy <= iysptrx1(1)) then
+              iysepu = iysptrx1(1)
+              if (ndomain > 1) iysepu = iysptrxg(mype+1)  # and ixpt1,2u??
+              ixpt1u = ixpt1(1)
+              ixpt2u = ixpt2(1)
+            else  # nxpt=2 and iy > iysptrx1(1), use second separatrix
+              iysepu = iysptrx1(2)
+              ixpt1u = ixpt1(2)
+              ixpt2u = ixpt2(2)
+            endif
+            do ix = i4, i8
+               ix2 = ixp1(ix,iy)
+               ix4 = ixp1(ix,iy+1)
+               cony(ix,iy,ifld) = .5 * syv(ix,iy) *
+     .                       (ave(visy(ix,iy,ifld)*gy(ix,iy),
+     .                           visy(ix,iy+1,ifld)*gy(ix,iy+1)) +
+     .                        ave(visy(ix2,iy,ifld)*gy(ix2,iy),
+     .                            visy(ix4,iy+1,ifld) * gy(ix4,iy+1)))
+               if (iy==iysepu .and. (ix==ixpt1u .or. ix==ixpt2u)) then
+                 cony(ix,iy,ifld) = syv(ix,iy) *
+     .                       ( ave(visy(ix,iy,ifld)*gy(ix,iy),
+     .                             visy(ix,iy+1,ifld)*gy(ix,iy+1)) )
+                 floy(ix,iy,ifld) = (cmfy/2) * syv(ix,iy) *(
+     .                    ave(nm(ix,iy,ifld),nm(ix,iy+1,ifld)) )*
+     .                                         vy(ix,iy,ifld)
+                 if (ifld==1) then  # add user-specified convection
+                   floy(ix,iy,ifld) = floy(ix,iy,ifld)+(cmfy/2)*syv(ix,iy) *(
+     .                    ave(nm(ix,iy,ifld),nm(ix,iy+1,ifld)) )*
+     .                                                 vyup_use(ix,iy)
+                 endif
+               elseif(isugfm1side == 1 .and. zi(ifld) == 0.) then
+                 floy(ix,iy,ifld) = (cmfy/4) * syv(ix,iy) *(
+     .                    ave(nm(ix,iy,ifld),nm(ix,iy+1,ifld)) +
+     .                    ave(nm(ix2,iy,ifld),nm(ix4,iy+1,ifld))) *
+     .                       ( vy(ix,iy,ifld) + vy(ix,iy,ifld) )
+               else
+                 floy(ix,iy,ifld) = (cmfy/4) * syv(ix,iy) *(
+     .                    ave(nm(ix,iy,ifld),nm(ix,iy+1,ifld)) +
+     .                    ave(nm(ix2,iy,ifld),nm(ix4,iy+1,ifld))) *
+     .                       ( vy(ix,iy,ifld) + vy(ix2,iy,ifld) )
+                 if (ifld==1) then  # add user-specified convection
+                    floy(ix,iy,ifld) = floy(ix,iy,ifld)+(cmfy/4)*syv(ix,iy) *(
+     .                    ave(nm(ix,iy,ifld),nm(ix,iy+1,ifld)) +
+     .                    ave(nm(ix2,iy,ifld),nm(ix4,iy+1,ifld))) *
+     .                       ( vyup_use(ix,iy) + vyup_use(ix2,iy) )
+                 endif
+               endif
+	     if(ishavisy == 1) then
+               cony(ix,iy,ifld) = .5 * syv(ix,iy) *
+     .                       (ave(visy(ix,iy,ifld)*gy(ix,iy),
+     .                           visy(ix,iy+1,ifld)*gy(ix,iy+1)) +
+     .                        ave(visy(ix2,iy,ifld)*gy(ix2,iy),
+     .                            visy(ix4,iy+1,ifld) * gy(ix4,iy+1)))
+             else
+               cony(ix,iy,ifld) = .25 * cfaccony*syv(ix,iy) *
+     .                       ( visy(ix,iy,ifld)*gy(ix,iy) +
+     .                         visy(ix,iy+1,ifld)*gy(ix,iy+1) +
+     .                         visy(ix2,iy,ifld)*gy(ix2,iy) +
+     .                         visy(ix4,iy+1,ifld)*gy(ix4,iy+1) )
+             endif
+
+            end do
+        end do
+        end if
+        end do
+
+
+      END SUBROUTINE calc_plasma_momentum_coeffs
+
+
       SUBROUTINE calc_plasma_momentum(xc, yc)
       IMPLICIT NONE
       Use(UEpar)
@@ -48,106 +194,9 @@ c!include "../sptodp.h"
 *     ------------------------------------------------------------------
 *     compute the residual.
 *     ------------------------------------------------------------------
-
-*  -- evaluate flox and conx --
-
-         do iy = j4, j8
-            flox(0,iy) = 0.0e0
-            conx(0,iy) = 0.0e0
-            do ix = i2, i6
-               ix1 = ixm1(ix,iy)
-               if (isimpon.ge.5 .and. ifld.eq.1) then
-                   #up(,,1) is total mass vel, whereas uu(,,i) for each ion
-                  uuv =0.5*( (up(ix1,iy,ifld)*rrv(ix1,iy)+
-     .                        up(ix,iy,ifld)*rrv(ix,iy)) +
-     .                     (v2(ix1,iy,ifld)+v2(ix,iy,ifld))*rbfbt(ix,iy)-
-     .                     (vytan(ix1,iy,ifld)+vytan(ix,iy,ifld)) )
-               else
-                  uuv = 0.5 * (uu(ix1,iy,ifld)+uu(ix,iy,ifld))
-               endif
-               flox(ix,iy) = cmfx * nm(ix,iy,ifld) * uuv *
-     .                          vol(ix,iy) * gx(ix,iy)
-ccc Distance between veloc. cell centers:
-               if (isgxvon .eq. 0) then     # dx(ix)=1/gx(ix)
-                 conx(ix,iy) = visx(ix,iy,ifld) * vol(ix,iy) * gx(ix,iy)
-     .                            * gx(ix,iy)
-               elseif (isgxvon .eq. 1) then # dx(ix)=.5/gxf(ix-1) + .5/gxf(ix)
-                 conx(ix,iy) = visx(ix,iy,ifld) * vol(ix,iy) * gx(ix,iy)
-     .               * 2*gxf(ix,iy)*gxf(ix1,iy)/(gxf(ix,iy)+gxf(ix1,iy))
-               endif
-            end do
-         end do
-
-*  -- evaluate floy and cony without averaging over two ix cells --
-
-         do  iy = j1, j5
-            if (nxpt == 1 .or. iy <= iysptrx1(1)) then
-              iysepu = iysptrx1(1)
-              if (ndomain > 1) iysepu = iysptrxg(mype+1)  # and ixpt1,2u??
-              ixpt1u = ixpt1(1)
-              ixpt2u = ixpt2(1)
-            else  # nxpt=2 and iy > iysptrx1(1), use second separatrix
-              iysepu = iysptrx1(2)
-              ixpt1u = ixpt1(2)
-              ixpt2u = ixpt2(2)
-            endif
-            do ix = i4, i8
-               ix2 = ixp1(ix,iy)
-               ix4 = ixp1(ix,iy+1)
-               cony(ix,iy) = .5 * syv(ix,iy) *
-     .                       (ave(visy(ix,iy,ifld)*gy(ix,iy),
-     .                           visy(ix,iy+1,ifld)*gy(ix,iy+1)) +
-     .                        ave(visy(ix2,iy,ifld)*gy(ix2,iy),
-     .                            visy(ix4,iy+1,ifld) * gy(ix4,iy+1)))
-               if (iy==iysepu .and. (ix==ixpt1u .or. ix==ixpt2u)) then
-                 cony(ix,iy) = syv(ix,iy) *
-     .                       ( ave(visy(ix,iy,ifld)*gy(ix,iy),
-     .                             visy(ix,iy+1,ifld)*gy(ix,iy+1)) )
-                 floy(ix,iy) = (cmfy/2) * syv(ix,iy) *(
-     .                    ave(nm(ix,iy,ifld),nm(ix,iy+1,ifld)) )*
-     .                                         vy(ix,iy,ifld)
-                 if (ifld==1) then  # add user-specified convection
-                   floy(ix,iy) = floy(ix,iy)+(cmfy/2)*syv(ix,iy) *(
-     .                    ave(nm(ix,iy,ifld),nm(ix,iy+1,ifld)) )*
-     .                                                 vyup_use(ix,iy)
-                 endif
-               elseif(isugfm1side == 1 .and. zi(ifld) == 0.) then
-                 floy(ix,iy) = (cmfy/4) * syv(ix,iy) *(
-     .                    ave(nm(ix,iy,ifld),nm(ix,iy+1,ifld)) +
-     .                    ave(nm(ix2,iy,ifld),nm(ix4,iy+1,ifld))) *
-     .                       ( vy(ix,iy,ifld) + vy(ix,iy,ifld) )
-               else
-                 floy(ix,iy) = (cmfy/4) * syv(ix,iy) *(
-     .                    ave(nm(ix,iy,ifld),nm(ix,iy+1,ifld)) +
-     .                    ave(nm(ix2,iy,ifld),nm(ix4,iy+1,ifld))) *
-     .                       ( vy(ix,iy,ifld) + vy(ix2,iy,ifld) )
-                 if (ifld==1) then  # add user-specified convection
-                    floy(ix,iy) = floy(ix,iy)+(cmfy/4)*syv(ix,iy) *(
-     .                    ave(nm(ix,iy,ifld),nm(ix,iy+1,ifld)) +
-     .                    ave(nm(ix2,iy,ifld),nm(ix4,iy+1,ifld))) *
-     .                       ( vyup_use(ix,iy) + vyup_use(ix2,iy) )
-                 endif
-               endif
-	     if(ishavisy == 1) then
-               cony(ix,iy) = .5 * syv(ix,iy) *
-     .                       (ave(visy(ix,iy,ifld)*gy(ix,iy),
-     .                           visy(ix,iy+1,ifld)*gy(ix,iy+1)) +
-     .                        ave(visy(ix2,iy,ifld)*gy(ix2,iy),
-     .                            visy(ix4,iy+1,ifld) * gy(ix4,iy+1)))
-             else
-               cony(ix,iy) = .25 * cfaccony*syv(ix,iy) *
-     .                       ( visy(ix,iy,ifld)*gy(ix,iy) +
-     .                         visy(ix,iy+1,ifld)*gy(ix,iy+1) +
-     .                         visy(ix2,iy,ifld)*gy(ix2,iy) +
-     .                         visy(ix4,iy+1,ifld)*gy(ix4,iy+1) )
-             endif
-
-            end do
-        end do
-
 *  -- compute the momentum transport --
 
-         call fd2tra (nx,ny,flox,floy,conx,cony,
+         call fd2tra (nx,ny,flox(:,:,ifld),floy(:,:,ifld),conx(:,:,ifld),cony(:,:,ifld),
      .                up(0:nx+1,0:ny+1,ifld),fmix(0:nx+1,0:ny+1,ifld),
      .                fmiy(0:nx+1,0:ny+1,ifld),1, methu)
 

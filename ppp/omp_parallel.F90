@@ -2133,11 +2133,59 @@ END SUBROUTINE OMPSplitIndex
 
   END SUBROUTINE OMPcalc_plasma_transport
 
-  SUBROUTINE OMPcalc_plasma_momentum(neq, yl, yldot)
+  SUBROUTINE OMPcalc_plasma_momentum_coeffs(neq, yl, yldot)
     USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt, nusp
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
     USE OmpCopybbb
     USE Locflux, ONLY: conx, floy, flox, cony
+    IMPLICIT NONE
+    INTEGER, INTENT(IN):: neq
+    REAL, INTENT(IN):: yl(*)
+    REAL, INTENT(OUT):: yldot(*)
+    INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc, iusp, ixpt
+    REAL:: yldotcopy(1:neq), ylcopy(1:neq+2)
+! Define local variables
+    real:: conx_tmp(0:nx+1,0:ny+1,1:nusp), floy_tmp(0:nx+1,0:ny+1,1:nusp), &
+    &      flox_tmp(0:nx+1,0:ny+1,1:nusp), cony_tmp(0:nx+1,0:ny+1,1:nusp)
+
+    ! Initialize arrays to zero
+    conx_tmp=0.; floy_tmp=0.; flox_tmp=0.; cony_tmp=0.
+
+    ylcopy(1:neq+1)=yl(1:neq+1); yldotcopy=0
+
+    call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)
+
+    !$OMP    PARALLEL DO &
+    !$OMP &      default(shared) &
+    !$OMP &      schedule(dynamic,OMPPandf1LoopNchunk) &
+    !$OMP &      private(ichunk,xc,yc) &
+    !$OMP &      firstprivate(ylcopy, yldotcopy) &
+    !$OMP &      REDUCTION(+:conx_tmp, floy_tmp, flox_tmp, cony_tmp)
+    DO ichunk = 1, Nchunks
+        xc = chunks(ichunk,1)
+        yc = chunks(ichunk,2)
+        call OMPinitialize_ranges(xc, yc)
+        call calc_plasma_momentum_coeffs
+        ! Update locally calculated variables
+        conx_tmp(xc,yc,:)=conx_tmp(xc,yc,:)+conx(xc,yc,:)
+        floy_tmp(xc,yc,:)=floy_tmp(xc,yc,:)+floy(xc,yc,:)
+        flox_tmp(xc,yc,:)=flox_tmp(xc,yc,:)+flox(xc,yc,:)
+        cony_tmp(xc,yc,:)=cony_tmp(xc,yc,:)+cony(xc,yc,:)
+    END DO
+    !$OMP  END PARALLEL DO
+
+    ! Update global variables
+    conx=conx_tmp; floy=floy_tmp;flox=flox_tmp;cony=cony_tmp
+    call OmpCopyPointerconx; call OmpCopyPointerfloy
+    call OmpCopyPointerflox; call OmpCopyPointercony
+
+  END SUBROUTINE OMPcalc_plasma_momentum_coeffs
+
+
+  SUBROUTINE OMPcalc_plasma_momentum(neq, yl, yldot)
+    USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt, nusp
+    USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
+    USE OmpCopybbb
     USE Compla, ONLY: fmivxpt, fmihxpt, vyvxpt, nixpt, vyhxpt, visyxpt, upxpt
     USE Comflo, ONLY: fmixy, fmix, fmiy
     USE Rhsides, ONLY: smoc
@@ -2148,19 +2196,18 @@ END SUBROUTINE OMPSplitIndex
     INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc, iusp, ixpt
     REAL:: yldotcopy(1:neq), ylcopy(1:neq+2)
 ! Define local variables
-    real:: conx_tmp(0:nx+1,0:ny+1), floy_tmp(0:nx+1,0:ny+1), &
-    &      fmivxpt_tmp(1:nusp,1:nxpt), fmihxpt_tmp(1:nusp,1:nxpt), &
-    &      flox_tmp(0:nx+1,0:ny+1), fmixy_tmp(0:nx+1,0:ny+1,1:nusp), &
+    real:: fmivxpt_tmp(1:nusp,1:nxpt), fmihxpt_tmp(1:nusp,1:nxpt), &
+    &      fmixy_tmp(0:nx+1,0:ny+1,1:nusp), &
     &      vyvxpt_tmp(1:nusp,1:nxpt), nixpt_tmp(1:nusp,1:nxpt), &
     &      vyhxpt_tmp(1:nusp,1:nxpt), visyxpt_tmp(1:nusp,1:nxpt), &
     &      upxpt_tmp(1:nusp,1:nxpt), smoc_tmp(0:nx+1,0:ny+1,1:nusp), &
-    &      cony_tmp(0:nx+1,0:ny+1), fmix_tmp(0:nx+1,0:ny+1,1:nusp), &
+    &      fmix_tmp(0:nx+1,0:ny+1,1:nusp), &
     &      fmiy_tmp(0:nx+1,0:ny+1,1:nusp)
 
     ! Initialize arrays to zero
-    conx_tmp=0.; floy_tmp=0.; fmivxpt_tmp=0.; fmihxpt_tmp=0.
-    flox_tmp=0.; fmixy_tmp=0.; vyvxpt_tmp=0.; nixpt_tmp=0.; vyhxpt_tmp=0.
-    visyxpt_tmp=0.; upxpt_tmp=0.; smoc_tmp=0.; cony_tmp=0.
+    fmivxpt_tmp=0.; fmihxpt_tmp=0.
+    fmixy_tmp=0.; vyvxpt_tmp=0.; nixpt_tmp=0.; vyhxpt_tmp=0.
+    visyxpt_tmp=0.; upxpt_tmp=0.; smoc_tmp=0.
     fmix_tmp=0.;fmiy_tmp=0.
 
     ylcopy(1:neq+1)=yl(1:neq+1); yldotcopy=0
@@ -2172,13 +2219,13 @@ END SUBROUTINE OMPSplitIndex
     !$OMP &      schedule(dynamic,OMPPandf1LoopNchunk) &
     !$OMP &      private(ichunk,xc,yc) &
     !$OMP &      firstprivate(ylcopy, yldotcopy) &
-    !$OMP &      REDUCTION(+:conx_tmp, floy_tmp, fmivxpt_tmp, fmihxpt_tmp, flox_tmp, fmixy_tmp, &
+    !$OMP &      REDUCTION(+:fmivxpt_tmp, fmihxpt_tmp, fmixy_tmp, &
     !$OMP &         vyvxpt_tmp, nixpt_tmp, vyhxpt_tmp, visyxpt_tmp, upxpt_tmp, smoc_tmp, &
-    !$OMP &         cony_tmp, fmix_tmp, fmiy_tmp)
+    !$OMP &         fmix_tmp, fmiy_tmp)
     DO ichunk = 1, Nchunks
         xc = chunks(ichunk,1)
         yc = chunks(ichunk,2)
-        call initialize_ranges(xc, yc, 0, 0, 0)
+        call OMPinitialize_ranges(xc, yc)
         call calc_plasma_momentum(xc, yc)
 
         do iusp = 1, nusp
@@ -2194,32 +2241,30 @@ END SUBROUTINE OMPSplitIndex
         end do 
 
         ! Update locally calculated variables
-        conx_tmp(xc,yc)=conx_tmp(xc,yc)+conx(xc,yc)
-        floy_tmp(xc,yc)=floy_tmp(xc,yc)+floy(xc,yc)
-        flox_tmp(xc,yc)=flox_tmp(xc,yc)+flox(xc,yc)
         fmixy_tmp(xc,yc,:)=fmixy_tmp(xc,yc,:)+fmixy(xc,yc,:)
         fmix_tmp(xc,yc,:)=fmix_tmp(xc,yc,:)+fmix(xc,yc,:)
         fmiy_tmp(xc,yc,:)=fmiy_tmp(xc,yc,:)+fmiy(xc,yc,:)
         smoc_tmp(xc,yc,:)=smoc_tmp(xc,yc,:)+smoc(xc,yc,:)
-        cony_tmp(xc,yc)=cony_tmp(xc,yc)+cony(xc,yc)
     END DO
     !$OMP  END PARALLEL DO
 
     ! Update global variables
-    conx=conx_tmp; floy=floy_tmp; fmivxpt=fmivxpt_tmp
-    fmihxpt=fmihxpt_tmp; flox=flox_tmp; fmixy=fmixy_tmp; vyvxpt=vyvxpt_tmp
+    fmivxpt=fmivxpt_tmp
+    fmihxpt=fmihxpt_tmp; fmixy=fmixy_tmp; vyvxpt=vyvxpt_tmp
     nixpt=nixpt_tmp; vyhxpt=vyhxpt_tmp; visyxpt=visyxpt_tmp; upxpt=upxpt_tmp
-    smoc=smoc_tmp; cony=cony_tmp; fmix=fmix_tmp; fmiy=fmiy_tmp
-    call OmpCopyPointerconx; call OmpCopyPointerfloy
+    smoc=smoc_tmp; fmix=fmix_tmp; fmiy=fmiy_tmp
     call OmpCopyPointerfmivxpt; call OmpCopyPointerfmihxpt
-    call OmpCopyPointerflox; call OmpCopyPointerfmixy
+    call OmpCopyPointerfmixy
     call OmpCopyPointervyvxpt; call OmpCopyPointernixpt
     call OmpCopyPointervyhxpt; call OmpCopyPointervisyxpt
     call OmpCopyPointerupxpt; call OmpCopyPointersmoc
     call OmpCopyPointerfmix; call OmpCopyPointerfmiy
-    call OmpCopyPointercony
 
   END SUBROUTINE OMPcalc_plasma_momentum
+
+
+
+
 
   SUBROUTINE OMPcalc_plasma_energy(neq, yl, yldot)
     USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt, nusp
@@ -2878,9 +2923,13 @@ END SUBROUTINE OMPSplitIndex
         call OMPengbalg(neq, yl, yldot)
         call OMPcalc_plasma_transport(neq, yl, yldot)
         call calc_fniycbo ! Nothing much to parallelize here, just do serial
-            call OMPcalc_plasma_momentum(neq, yl, yldot) ! TODO: Needs to be fixed for indices!
+
+        ! TODO: Same splits on transport coefficients likely needed for 
+        ! all routines calling pandf2
+        call OMPcalc_plasma_momentum_coeffs(neq, yl, yldot) ! TODO: Needs to be fixed for indices!
+!        call OMPcalc_plasma_momentum(neq, yl, yldot) ! TODO: Needs to be fixed for indices!
                 call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
-                !call calc_plasma_momentum(xc,yc) ! TODO: Needs to be fixed for indices!
+                call calc_plasma_momentum(xc,yc) ! TODO: Needs to be fixed for indices!
                 if (cfvisxneov+cfvisxneoq > 0.) call upvisneo ! Routine not yet parallelized
         call OMPcalc_plasma_energy(neq, yl, yldot)
         call calc_feeiycbo ! Nothing much to parallelize here, just do serial

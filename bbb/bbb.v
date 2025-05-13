@@ -2108,10 +2108,10 @@ w3(0:nx+1,0:ny+1)       _real +threadprivate
 
 ***** Locflux:
 #Local arrays for the calculation of the fluxes and other quantities.
-flox(0:nx+1,0:ny+1)     _real +threadprivate
-floy(0:nx+1,0:ny+1)     _real +threadprivate
-conx(0:nx+1,0:ny+1)     _real +threadprivate
-cony(0:nx+1,0:ny+1)     _real +threadprivate
+flox(0:nx+1,0:ny+1,nusp)     _real +threadprivate
+floy(0:nx+1,0:ny+1,nusp)     _real +threadprivate
+conx(0:nx+1,0:ny+1,nusp)     _real +threadprivate
+cony(0:nx+1,0:ny+1,nusp)     _real +threadprivate
 floxe(0:nx+1,0:ny+1)    _real +threadprivate
 floye(0:nx+1,0:ny+1)    _real +threadprivate
 floxi(0:nx+1,0:ny+1)    _real +threadprivate
