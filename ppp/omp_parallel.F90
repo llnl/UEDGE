@@ -2579,16 +2579,15 @@ END SUBROUTINE OMPSplitIndex
 
   END SUBROUTINE OMPcalc_gas_energy_residuals
 
-  SUBROUTINE OMPcalc_plasma_energy_residuals(neq, yl, yldot)
-    USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt, nusp
+  SUBROUTINE OMPinitialize_plasma_energy_residuals(neq, yl, yldot)
+    USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt, nzspmx
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
     USE OmpCopybbb
-    USE Rhsides, ONLY: pwribkg, erliz, psicx, reseg, seik, sead, seit, seak, emolia, resei, wjdote, wvh, &
-    &    vsoree, seidh, pwrebkg, resee, vsoreec, seid, edisse, seadh
-    USE Imprad, ONLY: pwrze, pwrzec, nzloc, pradzc, nratio, na, ntau, pradcff, prad, pradz, pradc
-    USE Comflo, ONLY: feexy, feixy, feix, feex
+    USE Rhsides, ONLY: seak, emolia, seadh, vsoree, edisse, psicx, vsoreec, seik, seit, sead, seidh, &
+    &    pwrebkg, seid, erliz, pwribkg
+    USE Comflo, ONLY: feexy, feex, feixy, feix
+    USE Imprad, ONLY: pradcff, pradzc, pradz, prad, nratio, nzloc, pwrze, pwrzec, pradc, ntau, na
     USE Conduc, ONLY: eeli, pradhyd
-    USE Wkspace, ONLY: w0
     USE MCN_sources, ONLY: seg_ue
     USE MCN_dim, ONLY: nfl
     IMPLICIT NONE
@@ -2598,35 +2597,31 @@ END SUBROUTINE OMPSplitIndex
     INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc
     REAL:: yldotcopy(1:neq), ylcopy(1:neq+2)
 ! Define local variables
-    real:: pwribkg_tmp(0:nx+1,0:ny+1), erliz_tmp(0:nx+1,0:ny+1), &
-    &      pwrze_tmp(0:nx+1,0:ny+1), psicx_tmp(0:nx+1,0:ny+1), &
-    &      reseg_tmp(0:nx+1,0:ny+1,1:ngsp), seik_tmp(0:nx+1,0:ny+1), &
-    &      sead_tmp(0:nx+1,0:ny+1), feexy_tmp(0:nx+1,0:ny+1), &
-    &      seit_tmp(0:nx+1,0:ny+1), seak_tmp(0:nx+1,0:ny+1), &
-    &      emolia_tmp(0:nx+1,0:ny+1,1:nisp), pwrzec_tmp(0:nx+1,0:ny+1), &
-    &      resei_tmp(0:nx+1,0:ny+1), wjdote_tmp(0:nx+1,0:ny+1), nzloc_tmp(0:10), &
-    &      eeli_tmp(0:nx+1,0:ny+1), wvh_tmp(0:nx+1,0:ny+1,1:nusp), &
-    &      w0_tmp(0:nx+1,0:ny+1), vsoree_tmp(0:nx+1,0:ny+1), &
-    &      pradzc_tmp(0:nx+1,0:ny+1,0:10,1:11), seidh_tmp(0:nx+1,0:ny+1), &
-    &      nratio_tmp(0:nx+1,0:ny+1), feixy_tmp(0:nx+1,0:ny+1), &
-    &      na_tmp(0:nx+1,0:ny+1), ntau_tmp(0:nx+1,0:ny+1), &
-    &      pradcff_tmp(0:nx+1,0:ny+1), feix_tmp(0:nx+1,0:ny+1), &
-    &      pwrebkg_tmp(0:nx+1,0:ny+1), resee_tmp(0:nx+1,0:ny+1), &
-    &      seg_ue_tmp(0:nx+1,0:ny+1,1:nfl), feex_tmp(0:nx+1,0:ny+1), &
-    &      vsoreec_tmp(0:nx+1,0:ny+1), prad_tmp(0:nx+1,0:ny+1), &
-    &      seid_tmp(0:nx+1,0:ny+1), pradz_tmp(0:nx+1,0:ny+1,0:10,1:11), &
-    &      edisse_tmp(0:nx+1,0:ny+1), pradc_tmp(0:nx+1,0:ny+1), &
-    &      seadh_tmp(0:nx+1,0:ny+1), pradhyd_tmp(0:nx+1,0:ny+1)
+    real:: seak_tmp(0:nx+1,0:ny+1), feexy_tmp(0:nx+1,0:ny+1), &
+    &      feex_tmp(0:nx+1,0:ny+1), pradcff_tmp(0:nx+1,0:ny+1), &
+    &      eeli_tmp(0:nx+1,0:ny+1), emolia_tmp(0:nx+1,0:ny+1,1:nisp), &
+    &      seadh_tmp(0:nx+1,0:ny+1), pradzc_tmp(0:nx+1,0:ny+1,0:nzspmx,1:nzspmx+1), &
+    &      vsoree_tmp(0:nx+1,0:ny+1), pradz_tmp(0:nx+1,0:ny+1,0:nzspmx,1:nzspmx+1), &
+    &      edisse_tmp(0:nx+1,0:ny+1), prad_tmp(0:nx+1,0:ny+1), &
+    &      psicx_tmp(0:nx+1,0:ny+1), vsoreec_tmp(0:nx+1,0:ny+1), &
+    &      nratio_tmp(0:nx+1,0:ny+1), seik_tmp(0:nx+1,0:ny+1), nzloc_tmp(0:nzspmx), &
+    &      seit_tmp(0:nx+1,0:ny+1), sead_tmp(0:nx+1,0:ny+1), &
+    &      pradhyd_tmp(0:nx+1,0:ny+1), feixy_tmp(0:nx+1,0:ny+1), &
+    &      seidh_tmp(0:nx+1,0:ny+1), pwrze_tmp(0:nx+1,0:ny+1), &
+    &      seg_ue_tmp(0:nx+1,0:ny+1,1:nfl), pwrebkg_tmp(0:nx+1,0:ny+1), &
+    &      pwrzec_tmp(0:nx+1,0:ny+1), seid_tmp(0:nx+1,0:ny+1), &
+    &      pradc_tmp(0:nx+1,0:ny+1), erliz_tmp(0:nx+1,0:ny+1), &
+    &      ntau_tmp(0:nx+1,0:ny+1), na_tmp(0:nx+1,0:ny+1), feix_tmp(0:nx+1,0:ny+1), &
+    &      pwribkg_tmp(0:nx+1,0:ny+1)
 
     ! Initialize arrays to zero
-    pwribkg_tmp=0.; erliz_tmp=0.; pwrze_tmp=0.; psicx_tmp=0.; reseg_tmp=0.
-    seik_tmp=0.; sead_tmp=0.; feexy_tmp=0.; seit_tmp=0.; seak_tmp=0.
-    emolia_tmp=0.; pwrzec_tmp=0.; resei_tmp=0.; wjdote_tmp=0.; nzloc_tmp=0.
-    eeli_tmp=0.; wvh_tmp=0.; w0_tmp=0.; vsoree_tmp=0.; pradzc_tmp=0.
-    seidh_tmp=0.; nratio_tmp=0.; feixy_tmp=0.; na_tmp=0.; ntau_tmp=0.
-    pradcff_tmp=0.; feix_tmp=0.; pwrebkg_tmp=0.; resee_tmp=0.; seg_ue_tmp=0.
-    feex_tmp=0.; vsoreec_tmp=0.; prad_tmp=0.; seid_tmp=0.; pradz_tmp=0.
-    edisse_tmp=0.; pradc_tmp=0.; seadh_tmp=0.; pradhyd_tmp=0.
+    seak_tmp=0.; feexy_tmp=0.; feex_tmp=0.; pradcff_tmp=0.; eeli_tmp=0.
+    emolia_tmp=0.; seadh_tmp=0.; pradzc_tmp=0.; vsoree_tmp=0.; pradz_tmp=0.
+    edisse_tmp=0.; prad_tmp=0.; psicx_tmp=0.; vsoreec_tmp=0.; nratio_tmp=0.
+    seik_tmp=0.; nzloc_tmp=0.; seit_tmp=0.; sead_tmp=0.; pradhyd_tmp=0.
+    feixy_tmp=0.; seidh_tmp=0.; pwrze_tmp=0.; seg_ue_tmp=0.; pwrebkg_tmp=0.
+    pwrzec_tmp=0.; seid_tmp=0.; pradc_tmp=0.; erliz_tmp=0.; ntau_tmp=0.
+    na_tmp=0.; feix_tmp=0.; pwribkg_tmp=0.
 
     ylcopy(1:neq+1)=yl(1:neq+1); yldotcopy=0
 
@@ -2637,93 +2632,140 @@ END SUBROUTINE OMPSplitIndex
     !$OMP &      schedule(dynamic,OMPPandf1LoopNchunk) &
     !$OMP &      private(ichunk,xc,yc) &
     !$OMP &      firstprivate(ylcopy, yldotcopy) &
-    !$OMP &      REDUCTION(+:pwribkg_tmp, erliz_tmp, pwrze_tmp, psicx_tmp, reseg_tmp, seik_tmp, sead_tmp, &
-    !$OMP &         feexy_tmp, seit_tmp, seak_tmp, emolia_tmp, pwrzec_tmp, resei_tmp, wjdote_tmp, &
-    !$OMP &         nzloc_tmp, eeli_tmp, wvh_tmp, w0_tmp, vsoree_tmp, pradzc_tmp, seidh_tmp, &
-    !$OMP &         nratio_tmp, feixy_tmp, na_tmp, ntau_tmp, pradcff_tmp, feix_tmp, pwrebkg_tmp, &
-    !$OMP &         resee_tmp, seg_ue_tmp, feex_tmp, vsoreec_tmp, prad_tmp, seid_tmp, pradz_tmp, &
-    !$OMP &         edisse_tmp, pradc_tmp, seadh_tmp, pradhyd_tmp)
+    !$OMP &      REDUCTION(+:seak_tmp, feexy_tmp, feex_tmp, pradcff_tmp, eeli_tmp, emolia_tmp, seadh_tmp, &
+    !$OMP &         pradzc_tmp, vsoree_tmp, pradz_tmp, edisse_tmp, prad_tmp, psicx_tmp, &
+    !$OMP &         vsoreec_tmp, nratio_tmp, seik_tmp, nzloc_tmp, seit_tmp, sead_tmp, &
+    !$OMP &         pradhyd_tmp, feixy_tmp, seidh_tmp, pwrze_tmp, seg_ue_tmp, pwrebkg_tmp, &
+    !$OMP &         pwrzec_tmp, seid_tmp, pradc_tmp, erliz_tmp, ntau_tmp, na_tmp, feix_tmp, &
+    !$OMP &         pwribkg_tmp)
     DO ichunk = 1, Nchunks
         xc = chunks(ichunk,1)
         yc = chunks(ichunk,2)
         call OMPinitialize_ranges(xc, yc)
-        call calc_plasma_energy_residuals1(xc, yc)
+        call initialize_plasma_energy_residuals(xc,yc)
 
-        ! Update locally calculated variables
-        pwribkg_tmp(xc,yc)=pwribkg_tmp(xc,yc)+pwribkg(xc,yc)
-        erliz_tmp(xc,yc)=erliz_tmp(xc,yc)+erliz(xc,yc)
-        pwrze_tmp(xc,yc)=pwrze_tmp(xc,yc)+pwrze(xc,yc)
-        psicx_tmp(xc,yc)=psicx_tmp(xc,yc)+psicx(xc,yc)
-        reseg_tmp(xc,yc,:)=reseg_tmp(xc,yc,:)+reseg(xc,yc,:)
-        seik_tmp(xc,yc)=seik_tmp(xc,yc)+seik(xc,yc)
-        sead_tmp(xc,yc)=sead_tmp(xc,yc)+sead(xc,yc)
-        feexy_tmp(xc,yc)=feexy_tmp(xc,yc)+feexy(xc,yc)
-        seit_tmp(xc,yc)=seit_tmp(xc,yc)+seit(xc,yc)
-        seak_tmp(xc,yc)=seak_tmp(xc,yc)+seak(xc,yc)
-        emolia_tmp(xc,yc,:)=emolia_tmp(xc,yc,:)+emolia(xc,yc,:)
-        pwrzec_tmp(xc,yc)=pwrzec_tmp(xc,yc)+pwrzec(xc,yc)
-        resei_tmp(xc,yc)=resei_tmp(xc,yc)+resei(xc,yc)
-        wjdote_tmp(xc,yc)=wjdote_tmp(xc,yc)+wjdote(xc,yc)
         nzloc_tmp=nzloc_tmp+nzloc
-        eeli_tmp(xc,yc)=eeli_tmp(xc,yc)+eeli(xc,yc)
-        wvh_tmp(xc,yc,:)=wvh_tmp(xc,yc,:)+wvh(xc,yc,:)
-        w0_tmp(xc,yc)=w0_tmp(xc,yc)+w0(xc,yc)
-        vsoree_tmp(xc,yc)=vsoree_tmp(xc,yc)+vsoree(xc,yc)
-        pradzc_tmp(xc,yc,:,:)=pradzc_tmp(xc,yc,:,:)+pradzc(xc,yc,:,:)
-        seidh_tmp(xc,yc)=seidh_tmp(xc,yc)+seidh(xc,yc)
-        nratio_tmp(xc,yc)=nratio_tmp(xc,yc)+nratio(xc,yc)
-        feixy_tmp(xc,yc)=feixy_tmp(xc,yc)+feixy(xc,yc)
-        na_tmp(xc,yc)=na_tmp(xc,yc)+na(xc,yc)
-        ntau_tmp(xc,yc)=ntau_tmp(xc,yc)+ntau(xc,yc)
-        pradcff_tmp(xc,yc)=pradcff_tmp(xc,yc)+pradcff(xc,yc)
-        feix_tmp(xc,yc)=feix_tmp(xc,yc)+feix(xc,yc)
-        pwrebkg_tmp(xc,yc)=pwrebkg_tmp(xc,yc)+pwrebkg(xc,yc)
-        resee_tmp(xc,yc)=resee_tmp(xc,yc)+resee(xc,yc)
-        seg_ue_tmp(xc,yc,:)=seg_ue_tmp(xc,yc,:)+seg_ue(xc,yc,:)
+        ! Update locally calculated variables
+        seak_tmp(xc,yc)=seak_tmp(xc,yc)+seak(xc,yc)
+        feexy_tmp(xc,yc)=feexy_tmp(xc,yc)+feexy(xc,yc)
         feex_tmp(xc,yc)=feex_tmp(xc,yc)+feex(xc,yc)
-        vsoreec_tmp(xc,yc)=vsoreec_tmp(xc,yc)+vsoreec(xc,yc)
-        prad_tmp(xc,yc)=prad_tmp(xc,yc)+prad(xc,yc)
-        seid_tmp(xc,yc)=seid_tmp(xc,yc)+seid(xc,yc)
+        pradcff_tmp(xc,yc)=pradcff_tmp(xc,yc)+pradcff(xc,yc)
+        eeli_tmp(xc,yc)=eeli_tmp(xc,yc)+eeli(xc,yc)
+        emolia_tmp(xc,yc,:)=emolia_tmp(xc,yc,:)+emolia(xc,yc,:)
+        seadh_tmp(xc,yc)=seadh_tmp(xc,yc)+seadh(xc,yc)
+        pradzc_tmp(xc,yc,:,:)=pradzc_tmp(xc,yc,:,:)+pradzc(xc,yc,:,:)
+        vsoree_tmp(xc,yc)=vsoree_tmp(xc,yc)+vsoree(xc,yc)
         pradz_tmp(xc,yc,:,:)=pradz_tmp(xc,yc,:,:)+pradz(xc,yc,:,:)
         edisse_tmp(xc,yc)=edisse_tmp(xc,yc)+edisse(xc,yc)
-        pradc_tmp(xc,yc)=pradc_tmp(xc,yc)+pradc(xc,yc)
-        seadh_tmp(xc,yc)=seadh_tmp(xc,yc)+seadh(xc,yc)
+        prad_tmp(xc,yc)=prad_tmp(xc,yc)+prad(xc,yc)
+        psicx_tmp(xc,yc)=psicx_tmp(xc,yc)+psicx(xc,yc)
+        vsoreec_tmp(xc,yc)=vsoreec_tmp(xc,yc)+vsoreec(xc,yc)
+        nratio_tmp(xc,yc)=nratio_tmp(xc,yc)+nratio(xc,yc)
+        seik_tmp(xc,yc)=seik_tmp(xc,yc)+seik(xc,yc)
+        seit_tmp(xc,yc)=seit_tmp(xc,yc)+seit(xc,yc)
+        sead_tmp(xc,yc)=sead_tmp(xc,yc)+sead(xc,yc)
         pradhyd_tmp(xc,yc)=pradhyd_tmp(xc,yc)+pradhyd(xc,yc)
+        feixy_tmp(xc,yc)=feixy_tmp(xc,yc)+feixy(xc,yc)
+        seidh_tmp(xc,yc)=seidh_tmp(xc,yc)+seidh(xc,yc)
+        pwrze_tmp(xc,yc)=pwrze_tmp(xc,yc)+pwrze(xc,yc)
+        seg_ue_tmp(xc,yc,:)=seg_ue_tmp(xc,yc,:)+seg_ue(xc,yc,:)
+        pwrebkg_tmp(xc,yc)=pwrebkg_tmp(xc,yc)+pwrebkg(xc,yc)
+        pwrzec_tmp(xc,yc)=pwrzec_tmp(xc,yc)+pwrzec(xc,yc)
+        seid_tmp(xc,yc)=seid_tmp(xc,yc)+seid(xc,yc)
+        pradc_tmp(xc,yc)=pradc_tmp(xc,yc)+pradc(xc,yc)
+        erliz_tmp(xc,yc)=erliz_tmp(xc,yc)+erliz(xc,yc)
+        ntau_tmp(xc,yc)=ntau_tmp(xc,yc)+ntau(xc,yc)
+        na_tmp(xc,yc)=na_tmp(xc,yc)+na(xc,yc)
+        feix_tmp(xc,yc)=feix_tmp(xc,yc)+feix(xc,yc)
+        pwribkg_tmp(xc,yc)=pwribkg_tmp(xc,yc)+pwribkg(xc,yc)
     END DO
     !$OMP  END PARALLEL DO
 
     ! Update global variables
-    pwribkg=pwribkg_tmp; erliz=erliz_tmp; pwrze=pwrze_tmp; psicx=psicx_tmp
-    reseg=reseg_tmp; seik=seik_tmp; sead=sead_tmp; feexy=feexy_tmp
-    seit=seit_tmp; seak=seak_tmp; emolia=emolia_tmp; pwrzec=pwrzec_tmp
-    resei=resei_tmp; wjdote=wjdote_tmp; nzloc=nzloc_tmp; eeli=eeli_tmp
-    wvh=wvh_tmp; w0=w0_tmp; vsoree=vsoree_tmp; pradzc=pradzc_tmp
-    seidh=seidh_tmp; nratio=nratio_tmp; feixy=feixy_tmp; na=na_tmp
-    ntau=ntau_tmp; pradcff=pradcff_tmp; feix=feix_tmp; pwrebkg=pwrebkg_tmp
-    resee=resee_tmp; seg_ue=seg_ue_tmp; feex=feex_tmp; vsoreec=vsoreec_tmp
-    prad=prad_tmp; seid=seid_tmp; pradz=pradz_tmp; edisse=edisse_tmp
-    pradc=pradc_tmp; seadh=seadh_tmp; pradhyd=pradhyd_tmp
-    call OmpCopyPointerpwribkg; call OmpCopyPointererliz
-    call OmpCopyPointerpwrze; call OmpCopyPointerpsicx
-    call OmpCopyPointerreseg; call OmpCopyPointerseik
-    call OmpCopyPointersead; call OmpCopyPointerfeexy
-    call OmpCopyPointerseit; call OmpCopyPointerseak
-    call OmpCopyPointeremolia; call OmpCopyPointerpwrzec
-    call OmpCopyPointerresei; call OmpCopyPointerwjdote
-    call OmpCopyPointernzloc; call OmpCopyPointereeli
-    call OmpCopyPointerwvh; call OmpCopyPointerw0; call OmpCopyPointervsoree
-    call OmpCopyPointerpradzc; call OmpCopyPointerseidh
-    call OmpCopyPointernratio; call OmpCopyPointerfeixy
-    call OmpCopyPointerna; call OmpCopyPointerntau
-    call OmpCopyPointerpradcff; call OmpCopyPointerfeix
-    call OmpCopyPointerpwrebkg; call OmpCopyPointerresee
-    call OmpCopyPointerseg_ue; call OmpCopyPointerfeex
-    call OmpCopyPointervsoreec; call OmpCopyPointerprad
-    call OmpCopyPointerseid; call OmpCopyPointerpradz
-    call OmpCopyPointeredisse; call OmpCopyPointerpradc
-    call OmpCopyPointerseadh; call OmpCopyPointerpradhyd
+    seak=seak_tmp; feexy=feexy_tmp; feex=feex_tmp; pradcff=pradcff_tmp
+    eeli=eeli_tmp; emolia=emolia_tmp; seadh=seadh_tmp; pradzc=pradzc_tmp
+    vsoree=vsoree_tmp; pradz=pradz_tmp; edisse=edisse_tmp; prad=prad_tmp
+    psicx=psicx_tmp; vsoreec=vsoreec_tmp; nratio=nratio_tmp; seik=seik_tmp
+    nzloc=nzloc_tmp; seit=seit_tmp; sead=sead_tmp; pradhyd=pradhyd_tmp
+    feixy=feixy_tmp; seidh=seidh_tmp; pwrze=pwrze_tmp; seg_ue=seg_ue_tmp
+    pwrebkg=pwrebkg_tmp; pwrzec=pwrzec_tmp; seid=seid_tmp; pradc=pradc_tmp
+    erliz=erliz_tmp; ntau=ntau_tmp; na=na_tmp; feix=feix_tmp
+    pwribkg=pwribkg_tmp
+    call OmpCopyPointerseak; call OmpCopyPointerfeexy
+    call OmpCopyPointerfeex; call OmpCopyPointerpradcff
+    call OmpCopyPointereeli; call OmpCopyPointeremolia
+    call OmpCopyPointerseadh; call OmpCopyPointerpradzc
+    call OmpCopyPointervsoree; call OmpCopyPointerpradz
+    call OmpCopyPointeredisse; call OmpCopyPointerprad
+    call OmpCopyPointerpsicx; call OmpCopyPointervsoreec
+    call OmpCopyPointernratio; call OmpCopyPointerseik
+    call OmpCopyPointernzloc; call OmpCopyPointerseit
+    call OmpCopyPointersead; call OmpCopyPointerpradhyd
+    call OmpCopyPointerfeixy; call OmpCopyPointerseidh
+    call OmpCopyPointerpwrze; call OmpCopyPointerseg_ue
+    call OmpCopyPointerpwrebkg; call OmpCopyPointerpwrzec
+    call OmpCopyPointerseid; call OmpCopyPointerpradc
+    call OmpCopyPointererliz; call OmpCopyPointerntau; call OmpCopyPointerna
+    call OmpCopyPointerfeix; call OmpCopyPointerpwribkg
+
+  END SUBROUTINE OMPinitialize_plasma_energy_residuals
+
+  SUBROUTINE OMPcalc_plasma_energy_residuals(neq, yl, yldot)
+    USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt, nusp
+    USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
+    USE OmpCopybbb
+    USE Wkspace, ONLY: w0
+    USE Rhsides, ONLY: resei, wjdote, reseg, resee, wvh
+    IMPLICIT NONE
+    INTEGER, INTENT(IN):: neq
+    REAL, INTENT(IN):: yl(*)
+    REAL, INTENT(OUT):: yldot(*)
+    INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc
+    REAL:: yldotcopy(1:neq), ylcopy(1:neq+2)
+! Define local variables
+    real:: w0_tmp(0:nx+1,0:ny+1), resei_tmp(0:nx+1,0:ny+1), &
+    &      wjdote_tmp(0:nx+1,0:ny+1), reseg_tmp(0:nx+1,0:ny+1,1:ngsp), &
+    &      resee_tmp(0:nx+1,0:ny+1), wvh_tmp(0:nx+1,0:ny+1,1:nusp)
+
+    ! Initialize arrays to zero
+    w0_tmp=0.; resei_tmp=0.; wjdote_tmp=0.; reseg_tmp=0.; resee_tmp=0.
+    wvh_tmp=0.
+
+    ylcopy(1:neq+1)=yl(1:neq+1); yldotcopy=0
+
+    call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)
+
+    !$OMP    PARALLEL DO &
+    !$OMP &      default(shared) &
+    !$OMP &      schedule(dynamic,OMPPandf1LoopNchunk) &
+    !$OMP &      private(ichunk,xc,yc) &
+    !$OMP &      firstprivate(ylcopy, yldotcopy) &
+    !$OMP &      REDUCTION(+:w0_tmp, resei_tmp, wjdote_tmp, reseg_tmp, resee_tmp, wvh_tmp)
+    DO ichunk = 1, Nchunks
+        xc = chunks(ichunk,1)
+        yc = chunks(ichunk,2)
+        call initialize_ranges(xc, yc, 0, 0, 0)
+        call calc_plasma_energy_residuals(xc,yc)
+
+        ! Update locally calculated variables
+        w0_tmp(xc,yc)=w0_tmp(xc,yc)+w0(xc,yc)
+        resei_tmp(xc,yc)=resei_tmp(xc,yc)+resei(xc,yc)
+        wjdote_tmp(xc,yc)=wjdote_tmp(xc,yc)+wjdote(xc,yc)
+        reseg_tmp(xc,yc,:)=reseg_tmp(xc,yc,:)+reseg(xc,yc,:)
+        resee_tmp(xc,yc)=resee_tmp(xc,yc)+resee(xc,yc)
+        wvh_tmp(xc,yc,:)=wvh_tmp(xc,yc,:)+wvh(xc,yc,:)
+    END DO
+    !$OMP  END PARALLEL DO
+
+    ! Update global variables
+    w0=w0_tmp; resei=resei_tmp; wjdote=wjdote_tmp; reseg=reseg_tmp
+    resee=resee_tmp; wvh=wvh_tmp
+    call OmpCopyPointerw0; call OmpCopyPointerresei
+    call OmpCopyPointerwjdote; call OmpCopyPointerreseg
+    call OmpCopyPointerresee; call OmpCopyPointerwvh
 
   END SUBROUTINE OMPcalc_plasma_energy_residuals
+
 
   SUBROUTINE OMPcalc_potential_residuals(neq, yl, yldot)
     USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt
@@ -2946,6 +2988,7 @@ END SUBROUTINE OMPSplitIndex
         call OMPcalc_gas_energy_residuals(neq, yl, yldot)
         call calc_atom_seic ! Nothing much to parallelize here, just do serial
 
+        call OMPinitialize_plasma_energy_residuals(neq, yl, yldot)
 !        call OMPcalc_plasma_energy_residuals(neq, yl, yldot)
                 call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
                 !  Requires gas energy residuals
