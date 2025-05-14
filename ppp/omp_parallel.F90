@@ -2740,7 +2740,7 @@ END SUBROUTINE OMPSplitIndex
         xc = chunks(ichunk,1)
         yc = chunks(ichunk,2)
         call initialize_ranges(xc, yc, 0, 0, 0)
-        call calc_plasma_energy_residuals1(xc,yc)
+        call calc_plasma_energy_residuals(xc,yc)
 
         ! Update locally calculated variables
         resei_tmp(xc,yc)=resei_tmp(xc,yc)+resei(xc,yc)
@@ -2980,18 +2980,12 @@ END SUBROUTINE OMPSplitIndex
         call OMPcalc_plasma_momentum_residuals(neq, yl, yldot)
         call OMPcalc_gas_energy_residuals(neq, yl, yldot)
         call calc_atom_seic ! Nothing much to parallelize here, just do serial
-
         call OMPcalc_plasma_energy_residuals(neq, yl, yldot)
-                call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
-                !  Requires gas energy residuals
-                call calc_plasma_energy_residuals2(xc, yc)
-
         if (isphion.eq.1) call OMPcalc_potential_residuals(neq, yl, yldot)
-!        call OMPcalc_rhs(neq, yl, yldot)
+
+
                 call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
-!                if (isphion.eq.1) call calc_potential_residuals
                 call calc_rhs(yldot)
-!                call calc_rhs2(yldot)
 
                 !  POTEN calculates the electrostatic potential, and 
                 !  BOUNCON calculates the equations for the boundaries.

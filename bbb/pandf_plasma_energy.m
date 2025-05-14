@@ -950,13 +950,6 @@ c******************************************************************
 
       SUBROUTINE calc_plasma_energy_residuals(xc, yc)
       IMPLICIT NONE
-      integer xc, yc
-      call calc_plasma_energy_residuals1(xc, yc)
-      call calc_plasma_energy_residuals2(xc, yc)
-      END SUBROUTINE calc_plasma_energy_residuals
-
-      SUBROUTINE calc_plasma_energy_residuals1(xc, yc)
-      IMPLICIT NONE
       Use(Selec)
       Use(Rhsides)
       Use(Compla)
@@ -1227,55 +1220,7 @@ c******************************************************************
       enddo
 
 
-      END SUBROUTINE calc_plasma_energy_residuals1
-
-
-      SUBROUTINE calc_plasma_energy_residuals2(xc, yc)
-      IMPLICIT NONE
-      Use(Selec)
-      Use(Rhsides)
-      Use(Compla)
-      Use(Volsrc)
-      Use(Coefeq)
-      Use(MCN_sources)
-      Use(Conduc)
-      Use(Comgeo)
-      Use(Poten)
-      Use(Share)
-      Use(Dim)
-      Use(Noggeo)
-      Use(Comflo)
-      Use(Comtra)
-      Use(UEpar)
-      Use(Phyvar)
-      Use(Xpoint_indices)
-      Use(Jacobian_restore)
-      Use(Indices_domain_dcl)
-      Use(Ext_neutrals)
-      Use(Wkspace)
-      Use(Imprad)
-      Use(Timing)
-      Use(Gradients)
-      integer xc, yc
-      integer iy, ix, iy1, ix1, ix2, ix3, ix4, ix5, ix6, jx, jfld, jz, 
-     .  igsp, iy_min, iy_max, j2pwr, j5pwr, i2pwr, i5pwr, ifld, nsm1, zn,
-     .  znuc, zmax
-      real grdnv, fcd, t0, t1, vttn, vttp, isfe, l0, feexflr, feixflr, 
-     .  ne_sgvi, dene, rdum, radmc, radz(0:1), erl1, erl2, 
-     .  up1cc, upgcc, vycc, v2cc, tsimp, tick, emissbs, radneq,  
-     .  argth, fac_rad, radimpmc, wj, cfwj, telim, thetacc, 
-     .  dupdx, dupdy, upxavep1, upxave0, upxavem1, upf0, upfm1,
-     .  denz(0:1), sv_crumpet
-      external sv_crumpet, radmc
-*  ---------------------------------------------------------------------
-*  compute the energy residuals.
-*  ---------------------------------------------------------------------
-
-
-
-      END SUBROUTINE calc_plasma_energy_residuals2
-
-
+      END SUBROUTINE calc_plasma_energy_residuals
 
 
       SUBROUTINE calc_plasma_heatconductivities
