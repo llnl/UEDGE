@@ -327,9 +327,6 @@ c-----------------------------------------------------------------------
 
 
       SUBROUTINE calc_gas_energy_residuals
-      IMPLICIT NONE
-      integer igsp, iy, iy1, ix, ix1
-      real uuxgcc, vygcc, v2gcc, upgcc, vycc, v2cc
       Use(Dim)
       Use(Selec)
       Use(Conduc)
@@ -341,6 +338,12 @@ c-----------------------------------------------------------------------
       Use(Comgeo)
       Use(UEpar)
       Use(MCN_sources)
+      Use(Ext_neutrals)
+      Use(Noggeo)
+      IMPLICIT NONE
+      integer igsp, iy, iy1, ix, ix1, ifld, ix2, ix3, jfld
+      real uuxgcc, vygcc, v2gcc, upgcc, vycc, v2cc, dupdx, dupdy, thetacc,
+     .      up1cc, upf0, upfm1, upxave0, upxavem1, upxavep1
 *  ---------------------------------------------------------------------
 *  compute the energy residuals.
 *  ---------------------------------------------------------------------
@@ -466,6 +469,99 @@ c               Only apply drift heating for inertial atoms?
           enddo
         enddo
       enddo
+
+      if(get_neutral_moments .and. cmneutdiv_feg .ne. 0.0) then   
+      do iy = j2, j5
+         do ix = i2, i5
+c ... ## IJ 2016/10/19 add MC neutral flux
+              jfld=1
+              reseg(ix,iy,1) = reseg(ix,iy,1) +
+     .                             cmneutdiv*cmneutdiv_feg*seg_ue(ix,iy,jfld)
+        end do
+      end do
+      endif
+
+      if (isupgon(1).eq.1) then
+      do iy = j2, j5
+         do ix = i2, i5
+            ix1 = ixm1(ix,iy)
+c             Set up helper arrays for velocities
+              up1cc = 0.5*(up(ix,iy,1)+up(ix1,iy,1))
+              upgcc = 0.5*(up(ix,iy,iigsp)+up(ix1,iy,iigsp))
+              vycc = (cfnidhgy**0.5)*0.5*(vy(ix,iy,iigsp)+vy(ix1,iy,iigsp))
+              v2cc = (cfnidhg2**0.5)*0.5*(v2(ix,iy,iigsp)+v2(ix1,iy,iigsp))
+c             ATOMS
+c             -------------------------------------------------------------
+               reseg(ix,iy,1) = reseg(ix,iy,1)
+     .                  - seit(ix,iy)
+     .                  + seak(ix,iy)
+     .                  + sead(ix,iy)
+     .                  + seadh(ix,iy)
+
+                if (ishymol .eq. 0) then
+c                   Atom kinetic energy source from mol. drift heating
+                    reseg(ix,iy,1) = reseg(ix,iy,1) 
+     .                  + cfnidh*cfnidhdis*0.5*mg(1)
+     .                  * (upgcc**2 + vycc**2 + v2cc**2)
+     .                  * psordis(ix,iy,2)
+                endif
+          end do
+        end do
+        endif
+
+*  -- Now we introduce the viscous heating; one-side derviatives are used
+*  -- on either side of the x-point where isxpty = 0
+
+      do iy = j2, j5
+         do ix = i2, i5
+            do ifld = 1, nusp  # if nusp --> nfsp, problems from y-term
+               ix1 = ixm1(ix,iy)
+               ix2 = ixm1(ix,iy+1)
+               ix3 = ixm1(ix,iy-1)
+	           thetacc = 0.5*(angfx(ix1,iy) + angfx(ix,iy))
+	           dupdx = gx(ix,iy)*(upi(ix,iy,ifld)-upi(ix1,iy,ifld))
+               wvh(ix,iy,ifld) = cfvcsx(ifld)*cfvisx*cos(thetacc)*
+     .                                    visx(ix,iy,ifld)*dupdx**2
+               if ( isxpty(ix,iy)==0 ) then  #1-sided deriv down in y
+                 dupdy = 0.5*( upi(ix,iy,  ifld)+upi(ix1,iy  ,ifld) -
+     .                         upi(ix,iy-1,ifld)-upi(ix3,iy-1,ifld) )*
+     .                                                    gyf(ix,iy-1)
+               elseif (isxpty(ix,iy)== -1) then #1-sided up in y
+                 dupdy = 0.5*( upi(ix,iy+1,ifld)+upi(ix2,iy+1,ifld) -
+     .                         upi(ix,iy  ,ifld)-upi(ix1,iy  ,ifld) )*
+     .                                                    gyf(ix,iy)
+               elseif (isxpty(ix,iy)==1.and.isvhyha==1) then
+                                 #use harm y-ave for up face-values
+                                 #take abs() to avoid near-zero denomin;
+                                 #small err in wvh because up then small
+                 upxavep1 = 0.5*(upi(ix,iy+1,ifld)+upi(ix2,iy+1,ifld))
+                 upxave0 =  0.5*(upi(ix,iy  ,ifld)+upi(ix1,iy  ,ifld))
+                 upxavem1 = 0.5*(upi(ix,iy-1,ifld)+upi(ix3,iy-1,ifld))
+                 upf0  = 2.*upxavep1*upxave0*(upxavep1+upxave0) /
+     .                           ( (upxavep1+upxave0)**2 + upvhflr**2 )
+                 upfm1 = 2.*upxave0*upxavem1*(upxave0+upxavem1) /
+     .                           ( (upxave0+upxavem1)**2 + upvhflr**2 )
+                 dupdy = (upf0 - upfm1)*gy(ix,iy)
+               else	#V7.08.04 option - linear ave in y-direction
+		 dupdy = 0.25*( (upi(ix,iy+1,ifld)+upi(ix2,iy+1,ifld) - 
+     .                           upi(ix,iy  ,ifld)-upi(ix1,iy  ,ifld))*
+     .                                                     gyf(ix,iy) +
+     .                          (upi(ix,iy  ,ifld)+upi(ix1,iy  ,ifld) -
+     .                           upi(ix,iy-1,ifld)-upi(ix3,iy-1,ifld))*
+     .                                                     gyf(ix,iy-1) )
+               endif
+               wvh(ix,iy,ifld) = wvh(ix,iy,ifld) + cfvcsy(ifld)*cfvisy*
+     .                                   visy(ix,iy,ifld)*dupdy**2
+	           wvh(ix,iy,ifld) = wvh(ix,iy,ifld) -
+     .                             sin(thetacc)*cfvcsy(ifld)*cfvisy*
+     .                                   visy(ix,iy,ifld)*dupdx*dupdy
+            if (zi(ifld)==0.0 .and. ifld.eq.iigsp) then 
+              reseg(ix,iy,1) = reseg(ix,iy,1) + wvh(ix,iy,ifld)*vol(ix,iy)
+            endif
+            end do   # loop over up species ifld
+          end do
+        end do
+        
       END SUBROUTINE calc_gas_energy_residuals
 
 
@@ -473,9 +569,6 @@ c               Only apply drift heating for inertial atoms?
 
 
       SUBROUTINE calc_gas_energy
-      IMPLICIT NONE
-      integer igsp, iy, iy1, ix, ix1
-      real uuxgcc, vygcc, v2gcc, upgcc, vycc, v2cc
       Use(Dim)
       Use(Selec)
       Use(Conduc)
@@ -487,6 +580,9 @@ c               Only apply drift heating for inertial atoms?
       Use(Comgeo)
       Use(UEpar)
       Use(MCN_sources)
+      IMPLICIT NONE
+      integer igsp, iy, iy1, ix, ix1
+      real uuxgcc, vygcc, v2gcc, upgcc, vycc, v2cc
 *  ---------------------------------------------------------------------
 *  compute the energy residuals.
 *  ---------------------------------------------------------------------

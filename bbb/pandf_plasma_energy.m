@@ -1030,7 +1030,6 @@ c ... ## IJ 2016/10/19 add MC neutral flux
               jfld=1
               resei(ix,iy) = resei(ix,iy) +
      .                    cftiexclg*cmneutdiv*cmneutdiv_feg*seg_ue(ix,iy,jfld)
-c              reseg(ix,iy,1) = reseg(ix,iy,1) +
 c     .                             cmneutdiv*cmneutdiv_feg*seg_ue(ix,iy,jfld)
             endif
         end do
@@ -1057,20 +1056,7 @@ c             Ion rate from CX
      .              + seid(ix,iy)
      .              + seidh(ix,iy)
 
-c             ATOMS
-c             -------------------------------------------------------------
-c               reseg(ix,iy,1) = reseg(ix,iy,1)
-c     .                  - seit(ix,iy)
-c     .                  + seak(ix,iy)
-c     .                  + sead(ix,iy)
-c     .                  + seadh(ix,iy)
-
                 if (ishymol .eq. 0) then
-c                   Atom kinetic energy source from mol. drift heating
-c                    reseg(ix,iy,1) = reseg(ix,iy,1) 
-c     .                  + cfnidh*cfnidhdis*0.5*mg(1)
-c     .                  * (upgcc**2 + vycc**2 + v2cc**2)
-c     .                  * psordis(ix,iy,2)
 
 c                   Ion energy source from mol. drift heating
                     resei(ix,iy) = resei(ix,iy)
@@ -1222,7 +1208,6 @@ c******************************************************************
      .                                   visy(ix,iy,ifld)*dupdx*dupdy
             if (zi(ifld)==0.0 .and. ifld.eq.iigsp) then 
               resei(ix,iy) = resei(ix,iy) + cftiexclg*wvh(ix,iy,ifld)*vol(ix,iy)
-c              reseg(ix,iy,1) = reseg(ix,iy,1) + wvh(ix,iy,ifld)*vol(ix,iy)
             else
               resei(ix,iy) = resei(ix,iy) + wvh(ix,iy,ifld)*vol(ix,iy)
             endif
@@ -1286,250 +1271,6 @@ c******************************************************************
 *  compute the energy residuals.
 *  ---------------------------------------------------------------------
 
-*  -- source terms --
-
-      do iy = j2, j5
-         do ix = i2, i5
-!            resee(ix,iy) = 
-!     .             seec(ix,iy) + seev(ix,iy) * te(ix,iy)
-!     .           + pwrsore(ix,iy)
-!     .           + cmneut * cmneutsor_ee * uesor_te(ix,iy)
-!     .           - nuvl(ix,iy,1)*vol(ix,iy)*bcee*ne(ix,iy)*te(ix,iy) 
-!            resei(ix,iy) = 
-!     .             seic(ix,iy) + seiv(ix,iy) * ti(ix,iy)
-!     .           + pwrsori(ix,iy)
-!     .           + cmneut * cmneutsor_ei * uesor_ti(ix,iy)
-!     .           - nuvl(ix,iy,1)*vol(ix,iy)*bcei*ne(ix,iy)*ti(ix,iy) 
-        end do 
-      end do  
-
-
-      do iy = j2, j5
-         do ix = i2, i5
-            ix1 = ixm1(ix,iy)
-!            resee(ix,iy) = resee(ix,iy)
-!     .                  - ( feex(ix,iy) - feex(ix1,iy)
-!     .          + fluxfacy*(feey(ix,iy) - feey(ix,iy-1)) )
-c ... ## IJ 2017 cfneutsor_ei flags above control neutral contrib.
-!            resei(ix,iy) = resei(ix,iy)					
-!     .                  - ( feix(ix,iy) - feix(ix1,iy)
-!     .          + fluxfacy*(feiy(ix,iy) - feiy(ix,iy-1)) )
-
-c ... ## IJ 2016/10/19 add MC neutral flux
-           if(get_neutral_moments .and. cmneutdiv_feg .ne. 0.0) then   
-              jfld=1
-!              resei(ix,iy) = resei(ix,iy) +
-!     .                    cftiexclg*cmneutdiv*cmneutdiv_feg*seg_ue(ix,iy,jfld)
-              reseg(ix,iy,1) = reseg(ix,iy,1) +
-     .                             cmneutdiv*cmneutdiv_feg*seg_ue(ix,iy,jfld)
-            endif
-        end do
-      end do
-
-      do iy = j2, j5
-         do ix = i2, i5
-            ix1 = ixm1(ix,iy)
-            w0(ix,iy) = vol(ix,iy) * eqp(ix,iy) * (te(ix,iy)-ti(ix,iy))
-!            resee(ix,iy) = resee(ix,iy) - w0(ix,iy) + vsoree(ix,iy)
-            if (isupgon(1).eq.1) then
-c             Set up helper arrays for velocities
-              up1cc = 0.5*(up(ix,iy,1)+up(ix1,iy,1))
-              upgcc = 0.5*(up(ix,iy,iigsp)+up(ix1,iy,iigsp))
-              vycc = (cfnidhgy**0.5)*0.5*(vy(ix,iy,iigsp)+vy(ix1,iy,iigsp))
-              v2cc = (cfnidhg2**0.5)*0.5*(v2(ix,iy,iigsp)+v2(ix1,iy,iigsp))
-
-c             IONS
-c             -------------------------------------------------------------
-c             Ion rate from CX
-!              resei(ix,iy) = resei(ix,iy) + w0(ix,iy)
-!     .              + seik(ix,iy) 
-!     .              + (1.0-cftiexclg) * seit(ix,iy)
-!     .              + seid(ix,iy)
-!     .              + seidh(ix,iy)
-
-c             ATOMS
-c             -------------------------------------------------------------
-               reseg(ix,iy,1) = reseg(ix,iy,1)
-     .                  - seit(ix,iy)
-     .                  + seak(ix,iy)
-     .                  + sead(ix,iy)
-     .                  + seadh(ix,iy)
-
-                if (ishymol .eq. 0) then
-c                   Atom kinetic energy source from mol. drift heating
-                    reseg(ix,iy,1) = reseg(ix,iy,1) 
-     .                  + cfnidh*cfnidhdis*0.5*mg(1)
-     .                  * (upgcc**2 + vycc**2 + v2cc**2)
-     .                  * psordis(ix,iy,2)
-
-c                   Ion energy source from mol. drift heating
-!                    resei(ix,iy) = resei(ix,iy)
-!     .                  - cftiexclg * cfneut * cfneutsor_ei * cnsor 
-!     .                  * cfnidhdis * 0.5*mg(1)
-!     .                  * (upgcc**2 + vycc**2 + v2cc**2) 
-!     .                  * ( 
-!     .                      (1-ishymol*ismolcrm)*psordis(ix,iy,2) 
-!     .                  +   ishymol*ismolcrm * psordis(ix,iy,1)
-!     .                  )
-                endif
-            else
-!               resei(ix,iy) = resei(ix,iy) + w0(ix,iy)
-!     .             + cfneut * cfneutsor_ei * ctsor*1.25e-1*mi(1)*
-!     .                    (upi(ix,iy,1)+upi(ix1,iy,1))**2*
-!     .                    fac2sp*psor(ix,iy,1)
-!     .             + cfneut * cfneutsor_ei * ceisor*(
-!     .                  + cmesori*(emolia(ix,iy,1)+emolia(ix,iy,2)) 
-!     .              )
-!     .             - cfneut * cfneutsor_ei * ccoldsor*ng(ix,iy,1)*nucx(ix,iy,1)*
-!     .                    (  1.5*ti(ix,iy)
-!     .                     - 0.125*mi(1)*(upi(ix,iy,1)+upi(ix1,iy,1))**2
-!     .                     - eion*ev  ) * vol(ix,iy)
-            endif
-          end do
-        end do
-
-
-*  -- Energy transfer to impurity neutrals at tg(,,igsp)
-      if (ngsp >= 2) then   # for now, specialized to igsp=2 only
-        do ifld = nhsp+1, nisp
-          do iy = j2, j5    # iys,iyf limits dont seem to work(?)
-            do ix = i2, i5
-!              resei(ix,iy) =resei(ix,iy) -cftiimpg*1.5*ni(ix,iy,ifld)*
-!     .                      (nucxi(ix,iy,ifld)+nueli(ix,iy,ifld))*
-!     .                      (ti(ix,iy) - tg(ix,iy,2))*vol(ix,iy)
-            enddo
-          enddo
-        enddo
-      endif
-
-*  -- impurity radiation --
-
-      if (isimpon .ge. 2) then
-         if (istimingon .eq. 1) tsimp = tick()
-c******************************************************************
-c...  Update resee over whole "box" because initially set to zero 
-c******************************************************************
-         do iy = j2, j5
-            do ix = i2, i5               
-!               resee(ix,iy) = resee(ix,iy) -
-!     .                            cnimp*pwrze(ix,iy)*vol(ix,iy) +
-!     .                                pwrebkg(ix,iy)*vol(ix,iy)
-            end do
-        end do
-
-         if (istimingon .eq. 1) call timimpfj (tsimp, xc)
-      endif  #loop for isimpon==2
-  
-*  -- joule heating --
-
-      if (jhswitch > 0) then  # relies on div(J)=0, so omit iy=1 & ny
-         if (isnewpot .eq. 1) then
-            iy_min = 2
-            iy_max = ny-1
-         else
-            iy_min = 1
-            iy_max = ny
-         endif
-         if (jhswitch == 1) then   # div(J)=0 gives -grad(phi).J=-div(phi.J)
-           do iy = max(iy_min, j2), min(iy_max, j5)
-             do ix = i2, i5   
-               ix1 = ixm1(ix,iy)
-               ix2 = ixp1(ix,iy)
-               wjdote(ix,iy) = 
-     .                          - 0.5*(fqp(ix,iy)+fq2(ix,iy))*
-     .                                (phi(ix2,iy)+phi(ix,iy))
-     .                          + 0.5*(fqp(ix1,iy)+fq2(ix1,iy))*
-     .                                (phi(ix,iy)+phi(ix1,iy))
-     .                          - 0.5*fqygp(ix,iy)*
-     .                                (phi(ix,iy+1)+phi(ix,iy))
-     .                          + 0.5*fqygp(ix,iy-1)*
-     .                                (phi(ix,iy)+phi(ix,iy-1))
-!               resee(ix,iy) = resee(ix,iy) + wjdote(ix,iy) / ( 1. +
-!     .                             cfwjdotelim*(te(ix,iy)/tebg)**iteb )
-             enddo
-           enddo
-         else  # for jhswitch > 1
-           do iy = max(iy_min, j2), min(iy_max, j5)
-             do ix = i2, i5    # use ex*fqx since phi(0,) may be large 
-               ix1 = ixm1(ix,iy)
-               ix2 = ixp1(ix,iy)
-               wjdote(ix,iy) = 
-     .                       0.5*( ex(ix1,iy) *fqx(ix1,iy) +
-     .                             ex(ix, iy) *fqx(ix, iy) )/gx(ix,iy)
-     .                     + 0.5*( ey(ix, iy) *fqy(ix, iy) +
-     .                             ey(ix,iy-1)*fqy(ix,iy-1) )/gy(ix,iy) 
-!               resee(ix,iy) = resee(ix,iy) + wjdote(ix,iy)
-             enddo
-           enddo
-         endif
-      endif
-
-*  -- Now we introduce the viscous heating; one-side derviatives are used
-*  -- on either side of the x-point where isxpty = 0
-
-      do iy = j2, j5
-         do ix = i2, i5
-            do ifld = 1, nusp  # if nusp --> nfsp, problems from y-term
-               ix1 = ixm1(ix,iy)
-               ix2 = ixm1(ix,iy+1)
-               ix3 = ixm1(ix,iy-1)
-	           thetacc = 0.5*(angfx(ix1,iy) + angfx(ix,iy))
-	           dupdx = gx(ix,iy)*(upi(ix,iy,ifld)-upi(ix1,iy,ifld))
-               wvh(ix,iy,ifld) = cfvcsx(ifld)*cfvisx*cos(thetacc)*
-     .                                    visx(ix,iy,ifld)*dupdx**2
-               if ( isxpty(ix,iy)==0 ) then  #1-sided deriv down in y
-                 dupdy = 0.5*( upi(ix,iy,  ifld)+upi(ix1,iy  ,ifld) -
-     .                         upi(ix,iy-1,ifld)-upi(ix3,iy-1,ifld) )*
-     .                                                    gyf(ix,iy-1)
-               elseif (isxpty(ix,iy)== -1) then #1-sided up in y
-                 dupdy = 0.5*( upi(ix,iy+1,ifld)+upi(ix2,iy+1,ifld) -
-     .                         upi(ix,iy  ,ifld)-upi(ix1,iy  ,ifld) )*
-     .                                                    gyf(ix,iy)
-               elseif (isxpty(ix,iy)==1.and.isvhyha==1) then
-                                 #use harm y-ave for up face-values
-                                 #take abs() to avoid near-zero denomin;
-                                 #small err in wvh because up then small
-                 upxavep1 = 0.5*(upi(ix,iy+1,ifld)+upi(ix2,iy+1,ifld))
-                 upxave0 =  0.5*(upi(ix,iy  ,ifld)+upi(ix1,iy  ,ifld))
-                 upxavem1 = 0.5*(upi(ix,iy-1,ifld)+upi(ix3,iy-1,ifld))
-                 upf0  = 2.*upxavep1*upxave0*(upxavep1+upxave0) /
-     .                           ( (upxavep1+upxave0)**2 + upvhflr**2 )
-                 upfm1 = 2.*upxave0*upxavem1*(upxave0+upxavem1) /
-     .                           ( (upxave0+upxavem1)**2 + upvhflr**2 )
-                 dupdy = (upf0 - upfm1)*gy(ix,iy)
-               else	#V7.08.04 option - linear ave in y-direction
-		 dupdy = 0.25*( (upi(ix,iy+1,ifld)+upi(ix2,iy+1,ifld) - 
-     .                           upi(ix,iy  ,ifld)-upi(ix1,iy  ,ifld))*
-     .                                                     gyf(ix,iy) +
-     .                          (upi(ix,iy  ,ifld)+upi(ix1,iy  ,ifld) -
-     .                           upi(ix,iy-1,ifld)-upi(ix3,iy-1,ifld))*
-     .                                                     gyf(ix,iy-1) )
-               endif
-               wvh(ix,iy,ifld) = wvh(ix,iy,ifld) + cfvcsy(ifld)*cfvisy*
-     .                                   visy(ix,iy,ifld)*dupdy**2
-	           wvh(ix,iy,ifld) = wvh(ix,iy,ifld) -
-     .                             sin(thetacc)*cfvcsy(ifld)*cfvisy*
-     .                                   visy(ix,iy,ifld)*dupdx*dupdy
-            if (zi(ifld)==0.0 .and. ifld.eq.iigsp) then 
-!              resei(ix,iy) = resei(ix,iy) + cftiexclg*wvh(ix,iy,ifld)*vol(ix,iy)
-              reseg(ix,iy,1) = reseg(ix,iy,1) + wvh(ix,iy,ifld)*vol(ix,iy)
-            else
-!              resei(ix,iy) = resei(ix,iy) + wvh(ix,iy,ifld)*vol(ix,iy)
-            endif
-            end do   # loop over up species ifld
-          end do
-        end do
-        
-
-
-c*******************************************************************
-c ... Define a background ion energy source to prevent very low Ti
-c******************************************************************
-      do iy = j2, j5
-        do ix = i2, i5
-          resei(ix,iy) = resei(ix,iy) + pwribkg(ix,iy)*vol(ix,iy)
-        enddo
-      enddo
 
 
       END SUBROUTINE calc_plasma_energy_residuals2
