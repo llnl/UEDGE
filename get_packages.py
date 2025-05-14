@@ -23,12 +23,13 @@ def write_subpandf1():
     lines = write_ompsubroutine('calc_plasma_transport', "", True)
     lines = write_ompsubroutine('calc_plasma_momentum', "(xc,yc)", True)
     lines = write_ompsubroutine('calc_plasma_energy', "(xc,yc)", True)
-    for line in lines:
-        print(line)
+    lines = write_ompsubroutine('calc_gas_energy', "", True)
     lines = write_ompsubroutine('calc_plasma_particle_residuals', "", True)
     lines = write_ompsubroutine('calc_gas_continuity_residuals', "", True)
     lines = write_ompsubroutine('calc_plasma_momentum_residuals', "", True)
     lines = write_ompsubroutine('calc_gas_energy_residuals', "", True)
+    for line in lines:
+        print(line)
     lines = write_ompsubroutine('calc_plasma_energy_residuals1', "(xc,yc)", True)
     lines = write_ompsubroutine('calc_plasma_energy_residuals2', "(xc,yc)", True)
     lines = write_ompsubroutine('calc_potential_residuals', "", True)

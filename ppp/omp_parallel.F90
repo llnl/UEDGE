@@ -2467,6 +2467,55 @@ END SUBROUTINE OMPSplitIndex
   END SUBROUTINE OMPcalc_plasma_energy
 
 
+  SUBROUTINE OMPcalc_gas_energy(neq, yl, yldot)
+    USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt
+    USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
+    USE OmpCopybbb
+    USE Rhsides, ONLY: seic, eiamoldiss
+    USE Conduc, ONLY: eqpg
+    IMPLICIT NONE
+    INTEGER, INTENT(IN):: neq
+    REAL, INTENT(IN):: yl(*)
+    REAL, INTENT(OUT):: yldot(*)
+    INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc
+    REAL:: yldotcopy(1:neq), ylcopy(1:neq+2)
+! Define local variables
+    real:: seic_tmp(0:nx+1,0:ny+1), eqpg_tmp(0:nx+1,0:ny+1,ngsp), &
+    &      eiamoldiss_tmp(0:nx+1,0:ny+1,1:nisp)
+
+    ! Initialize arrays to zero
+    seic_tmp=0.; eqpg_tmp=0.; eiamoldiss_tmp=0.
+
+    ylcopy(1:neq+1)=yl(1:neq+1); yldotcopy=0
+
+    call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)
+
+    !$OMP    PARALLEL DO &
+    !$OMP &      default(shared) &
+    !$OMP &      schedule(dynamic,OMPPandf1LoopNchunk) &
+    !$OMP &      private(ichunk,xc,yc) &
+    !$OMP &      firstprivate(ylcopy, yldotcopy) &
+    !$OMP &      REDUCTION(+:seic_tmp, eqpg_tmp, eiamoldiss_tmp)
+    DO ichunk = 1, Nchunks
+        xc = chunks(ichunk,1)
+        yc = chunks(ichunk,2)
+        call initialize_ranges(xc, yc, 0, 0, 0)
+        call calc_gas_energy
+
+        ! Update locally calculated variables
+        seic_tmp(xc,yc)=seic_tmp(xc,yc)+seic(xc,yc)
+        eqpg_tmp(xc,yc,:)=eqpg_tmp(xc,yc,:)+eqpg(xc,yc,:)
+        eiamoldiss_tmp(xc,yc,:)=eiamoldiss_tmp(xc,yc,:)+eiamoldiss(xc,yc,:)
+    END DO
+    !$OMP  END PARALLEL DO
+
+    ! Update global variables
+    seic=seic_tmp; eqpg=eqpg_tmp; eiamoldiss=eiamoldiss_tmp
+    call OmpCopyPointerseic; call OmpCopyPointereqpg
+    call OmpCopyPointereiamoldiss
+
+  END SUBROUTINE OMPcalc_gas_energy
+
   SUBROUTINE OMPcalc_plasma_particle_residuals(neq, yl, yldot)
     USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
@@ -2616,8 +2665,7 @@ END SUBROUTINE OMPSplitIndex
     USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
     USE OmpCopybbb
-    USE Rhsides, ONLY: seic, reseg, eiamoldiss
-    USE Conduc, ONLY: eqpg
+    USE Rhsides, ONLY: reseg
     IMPLICIT NONE
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
@@ -2625,11 +2673,10 @@ END SUBROUTINE OMPSplitIndex
     INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc
     REAL:: yldotcopy(1:neq), ylcopy(1:neq+2)
 ! Define local variables
-    real:: seic_tmp(0:nx+1,0:ny+1), reseg_tmp(0:nx+1,0:ny+1,1:ngsp), &
-    &      eiamoldiss_tmp(0:nx+1,0:ny+1,1:nisp), eqpg_tmp(0:nx+1,0:ny+1,ngsp)
+    real:: reseg_tmp(0:nx+1,0:ny+1,1:ngsp)
 
     ! Initialize arrays to zero
-    seic_tmp=0.; reseg_tmp=0.; eiamoldiss_tmp=0.; eqpg_tmp=0.
+    reseg_tmp=0.
 
     ylcopy(1:neq+1)=yl(1:neq+1); yldotcopy=0
 
@@ -2640,28 +2687,23 @@ END SUBROUTINE OMPSplitIndex
     !$OMP &      schedule(dynamic,OMPPandf1LoopNchunk) &
     !$OMP &      private(ichunk,xc,yc) &
     !$OMP &      firstprivate(ylcopy, yldotcopy) &
-    !$OMP &      REDUCTION(+:seic_tmp, reseg_tmp, eiamoldiss_tmp, eqpg_tmp)
+    !$OMP &      REDUCTION(+:reseg_tmp)
     DO ichunk = 1, Nchunks
         xc = chunks(ichunk,1)
         yc = chunks(ichunk,2)
-        call OMPinitialize_ranges(xc, yc)
+        call initialize_ranges(xc, yc, 0, 0, 0)
         call calc_gas_energy_residuals
 
         ! Update locally calculated variables
-        seic_tmp(xc,yc)=seic_tmp(xc,yc)+seic(xc,yc)
         reseg_tmp(xc,yc,:)=reseg_tmp(xc,yc,:)+reseg(xc,yc,:)
-        eiamoldiss_tmp(xc,yc,:)=eiamoldiss_tmp(xc,yc,:)+eiamoldiss(xc,yc,:)
-        eqpg_tmp(xc,yc,:)=eqpg_tmp(xc,yc,:)+eqpg(xc,yc,:)
     END DO
     !$OMP  END PARALLEL DO
 
     ! Update global variables
-    seic=seic_tmp; reseg=reseg_tmp; eiamoldiss=eiamoldiss_tmp; eqpg=eqpg_tmp
-    call OmpCopyPointerseic; call OmpCopyPointerreseg
-    call OmpCopyPointereiamoldiss; call OmpCopyPointereqpg
+    reseg=reseg_tmp
+    call OmpCopyPointerreseg
 
   END SUBROUTINE OMPcalc_gas_energy_residuals
-
 
   SUBROUTINE OMPcalc_plasma_energy_residuals(neq, yl, yldot)
     USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt, nusp
@@ -2931,6 +2973,7 @@ END SUBROUTINE OMPSplitIndex
                 call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
                 if (cfvisxneov+cfvisxneoq > 0.) call upvisneo ! Routine not yet parallelized
         call OMPcalc_plasma_energy(neq, yl, yldot)
+        call OMPcalc_gas_energy(neq, yl, yldot)
         call calc_feeiycbo ! Nothing much to parallelize here, just do serial
         call OMPcalc_plasma_particle_residuals(neq, yl, yldot)
         call OMPcalc_gas_continuity_residuals(neq, yl, yldot)

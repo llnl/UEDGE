@@ -352,15 +352,6 @@ c-----------------------------------------------------------------------
           iy1 = max(0,iy-1)
           do ix = i2, i5
             ix1 = ixm1(ix,iy)
-
-*           Compute thermal equipartition rate with ion-atom fluid
-*           ------------------------------------------------------------
-            if (nisp >= 2) then   # uses ni(,,2), so must have atoms
-                eqpg(ix,iy,igsp) = cftgeqp*(
-     .              ng(ix,iy,igsp)*ni(ix,iy,1)*keligig(igsp)
-     .              + cftiexclg*ng(ix,iy,igsp)*ni(ix,iy,2)*keligig(igsp))
-            endif
-
 *           ------------------------------------------------------------
 *                                GAS-ION/ATOM TERMS
 *           ------------------------------------------------------------
@@ -387,8 +378,6 @@ c               Atom seic added in separate subroutine  calc_atom_seic
 *               --------------------------------------------------------
                 reseg(ix,iy,igsp)= reseg(ix,iy,igsp) 
      .              + vol(ix,iy)*eqpg(ix,iy,igsp)*(ti(ix,iy)-tg(ix,iy,igsp))
-                seic(ix,iy) = seic(ix,iy)
-     .              - vol(ix,iy)*eqpg(ix,iy,igsp)*(ti(ix,iy)-tg(ix,iy,igsp))
 
 *               Thermal equipartition coupling of atoms and gas
 *               --------------------------------------------------------
@@ -404,19 +393,8 @@ c               Atom seic added in separate subroutine  calc_atom_seic
 *               Internal ion/atom energy source due to dissociation
 *               ----------------------------------------------------
 *               IONS
-                eiamoldiss(ix,iy,1)=ishymol*ismolcrm*(3/4)*tg(ix,iy,2)*(-psordis(ix,iy,1)/(-2*psordisg(ix,iy,2)))
-
-*               ATOMS
-                eiamoldiss(ix,iy,2) = ishymol*ismolcrm * (
-     .              (3/4)*tg(ix,iy,2)*(-psordis(ix,iy,2)/(-2*psordisg(ix,iy,2)))
-     .          )
-
-*               INCLUDE IN RESIDUALS
                 reseg(ix,iy,1) = reseg(ix,iy,1)
      .              + (1-cftiexclg)*eiamoldiss(ix,iy,2)
-
-                seic(ix,iy) = seic(ix,iy)
-     .              + eiamoldiss(ix,iy,1) + cftiexclg*eiamoldiss(ix,iy,2)
 
 *               Internal molecular energy sink due to dissociation
 *               ----------------------------------------------------
@@ -447,10 +425,6 @@ c               Only apply drift heating for inertial atoms?
                     reseg(ix,iy,1) = reseg(ix,iy,1) 
      .                  - cfnidh*cfnidhdis*0.5*mg(1)* (upgcc**2 + vycc**2 + v2cc**2)
      .                  * psordis(ix,iy,2)
-                    seic(ix,iy) = seic(ix,iy)
-     .                  - cftiexclg * cfneut * cfneutsor_ei * cnsor * cfnidhdis
-     .                  * 0.5*mg(1)*(upgcc**2 + vycc**2 + v2cc**2) 
-     .                  * ( (1-ishymol*ismolcrm)*psordis(ix,iy,2) + ishymol*ismolcrm*psordis(ix,iy,1) )
 
                     uuxgcc = (cfnidhmol**0.5)*0.5*(uuxg(ix,iy,2)+uuxg(ix1,iy,2))
                     vygcc = (cfnidhmol**0.5)*0.5*(vyg(ix,iy,2)+vyg(ix1,iy,2))
@@ -458,9 +432,6 @@ c               Only apply drift heating for inertial atoms?
 
                     reseg(ix,iy,1) = reseg(ix,iy,1) 
      .                  - cfnidhdis*0.5*mg(1)*(uuxgcc**2 + vygcc**2 + v2gcc**2 )*psordis(ix,iy,2)
-                    seic(ix,iy) = seic(ix,iy) 
-     .                  - cftiexclg*cfnidhdis*0.5*mg(1)*(uuxgcc**2 + vygcc**2 + v2gcc**2 )
-     .                  * ( (1-ishymol*ismolcrm)*psordis(ix,iy,2) + ishymol*ismolcrm*psordis(ix,iy,1) )
 
                     uuxgcc = cfnidhmol*0.25*(uuxg(ix,iy,2)+uuxg(ix1,iy,2))
      .                      *(uuxg(ix,iy,1)+uuxg(ix1,iy,1))
@@ -470,9 +441,6 @@ c               Only apply drift heating for inertial atoms?
 
                     reseg(ix,iy,1) = reseg(ix,iy,1) 
      .                  + cfnidhdis*mg(1)*(uuxgcc + vygcc + v2gcc)*psordis(ix,iy,2)
-                    seic(ix,iy) = seic(ix,iy) 
-     .                  + cftiexclg*cfnidhdis*mg(1)*(uuxgcc + vygcc + v2gcc)
-     .                  * ( (1-ishymol*ismolcrm)*psordis(ix,iy,2) + ishymol*ismolcrm*psordis(ix,iy,1) )
 
                 else
                     upgcc = 0.5*(up(ix,iy,iigsp)+up(ix1,iy,iigsp))
@@ -487,6 +455,129 @@ c               Only apply drift heating for inertial atoms?
      .                  - cfnidhdis*0.5*mg(1)
      .                  * ((uuxgcc-upgcc)**2 + (vygcc-vycc)**2 + (v2gcc-v2cc)**2 )
      .                  * psordis(ix,iy,2)
+                endif
+
+
+
+              endif
+            endif
+	    #..zml place holder for neutral-neutral collision,
+	    #..    not included above?
+          enddo
+        enddo
+      enddo
+      END SUBROUTINE calc_gas_energy_residuals
+
+
+
+
+
+      SUBROUTINE calc_gas_energy
+      IMPLICIT NONE
+      integer igsp, iy, iy1, ix, ix1
+      real uuxgcc, vygcc, v2gcc, upgcc, vycc, v2cc
+      Use(Dim)
+      Use(Selec)
+      Use(Conduc)
+      Use(Coefeq)
+      Use(Compla)
+      Use(Comtra)
+      Use(Rhsides)
+      Use(Comflo)
+      Use(Comgeo)
+      Use(UEpar)
+      Use(MCN_sources)
+*  ---------------------------------------------------------------------
+*  compute the energy residuals.
+*  ---------------------------------------------------------------------
+
+*  -- total energy residual and equipartition --
+
+      do igsp = 1, ngsp
+        do iy = j2, j5
+          iy1 = max(0,iy-1)
+          do ix = i2, i5
+            ix1 = ixm1(ix,iy)
+
+*           Compute thermal equipartition rate with ion-atom fluid
+*           ------------------------------------------------------------
+            if (nisp >= 2) then   # uses ni(,,2), so must have atoms
+                eqpg(ix,iy,igsp) = cftgeqp*(
+     .              ng(ix,iy,igsp)*ni(ix,iy,1)*keligig(igsp)
+     .              + cftiexclg*ng(ix,iy,igsp)*ni(ix,iy,2)*keligig(igsp))
+            endif
+*           ------------------------------------------------------------
+*                                GAS-GAS TERMS
+*           ------------------------------------------------------------
+            if (igsp.ne.1) then  #..for D0, we should include D+ and D0 in Ti
+*               Thermal equipartition coupling of ions and gas
+*               --------------------------------------------------------
+                seic(ix,iy) = seic(ix,iy)
+     .              - vol(ix,iy)*eqpg(ix,iy,igsp)*(ti(ix,iy)-tg(ix,iy,igsp))
+              if (ishymol.eq.1 .and. igsp.eq.2) then  #..D2 dissociation
+
+*               Internal ion/atom energy source due to dissociation
+*               ----------------------------------------------------
+*               IONS
+                eiamoldiss(ix,iy,1)=ishymol*ismolcrm*(3/4)*tg(ix,iy,2)*(-psordis(ix,iy,1)/(-2*psordisg(ix,iy,2)))
+
+*               ATOMS
+                eiamoldiss(ix,iy,2) = ishymol*ismolcrm * (
+     .              (3/4)*tg(ix,iy,2)*(-psordis(ix,iy,2)/(-2*psordisg(ix,iy,2)))
+     .          )
+                seic(ix,iy) = seic(ix,iy)
+     .              + eiamoldiss(ix,iy,1) + cftiexclg*eiamoldiss(ix,iy,2)
+
+
+*               Drift heating energy source for molecules
+*               ----------------------------------------------------
+c               The below is adapted from the original implementation,
+c               where the first term assumes v_m = 0 when molecular 
+c               dissociation is implicitly assumed. The remaining terms
+c               are corrections for (v_m - v_a)**2. However, the original
+c               implementation seems to mix the poloidal and parallel 
+c               velocities arbitrarily, not actually completing the 
+c               square.
+
+c               The switches are mixed: cfnidhdis for v_a but cfnidhmol
+c               for the molecular terms: use cfnidhmol for all?
+
+c               Only apply drift heating for inertial atoms?
+*               ----------------------------------------------------
+                if (1.eq.1) then
+
+                    upgcc = 0.5*(up(ix,iy,iigsp)+up(ix1,iy,iigsp))
+                    vycc = (cfnidhgy**0.5)*0.5*(vy(ix,iy,iigsp)+vy(ix1,iy,iigsp))
+                    v2cc = (cfnidhg2**0.5)*0.5*(v2(ix,iy,iigsp)+v2(ix1,iy,iigsp))
+                    seic(ix,iy) = seic(ix,iy)
+     .                  - cftiexclg * cfneut * cfneutsor_ei * cnsor * cfnidhdis
+     .                  * 0.5*mg(1)*(upgcc**2 + vycc**2 + v2cc**2) 
+     .                  * ( (1-ishymol*ismolcrm)*psordis(ix,iy,2) + ishymol*ismolcrm*psordis(ix,iy,1) )
+
+                    uuxgcc = (cfnidhmol**0.5)*0.5*(uuxg(ix,iy,2)+uuxg(ix1,iy,2))
+                    vygcc = (cfnidhmol**0.5)*0.5*(vyg(ix,iy,2)+vyg(ix1,iy,2))
+                    v2gcc = 0. #.. molecule v in the tol direction, it seems to be assumed as 0 in neudifpg?
+                    seic(ix,iy) = seic(ix,iy) 
+     .                  - cftiexclg*cfnidhdis*0.5*mg(1)*(uuxgcc**2 + vygcc**2 + v2gcc**2 )
+     .                  * ( (1-ishymol*ismolcrm)*psordis(ix,iy,2) + ishymol*ismolcrm*psordis(ix,iy,1) )
+
+                    uuxgcc = cfnidhmol*0.25*(uuxg(ix,iy,2)+uuxg(ix1,iy,2))
+     .                      *(uuxg(ix,iy,1)+uuxg(ix1,iy,1))
+                    vygcc = cfnidhmol*0.25*(vyg(ix,iy,2)+vyg(ix1,iy,2))
+     .                      *(vyg(ix,iy,1)+vyg(ix1,iy,1))
+                    v2gcc = 0.
+                    seic(ix,iy) = seic(ix,iy) 
+     .                  + cftiexclg*cfnidhdis*mg(1)*(uuxgcc + vygcc + v2gcc)
+     .                  * ( (1-ishymol*ismolcrm)*psordis(ix,iy,2) + ishymol*ismolcrm*psordis(ix,iy,1) )
+
+                else
+                    upgcc = 0.5*(up(ix,iy,iigsp)+up(ix1,iy,iigsp))
+                    vycc = (cfnidhgy**0.5)*0.5*(vy(ix,iy,iigsp)+vy(ix1,iy,iigsp))
+                    v2cc = (cfnidhg2**0.5)*0.5*(v2(ix,iy,iigsp)+v2(ix1,iy,iigsp))
+
+                    uuxgcc = (cfnidhmol**0.5)*0.5*(uuxg(ix,iy,2)+uuxg(ix1,iy,2))
+                    vygcc = (cfnidhmol**0.5)*0.5*(vyg(ix,iy,2)+vyg(ix1,iy,2))
+                    v2gcc = 0. #.. molecule v in the tol direction, it seems to be assumed as 0 in neudifpg?
 
                     seic(ix,iy) = seic(ix,iy) 
      .                  - cftiexclg*cfnidhdis*0.5*mg(1)
@@ -505,7 +596,7 @@ c               Only apply drift heating for inertial atoms?
       enddo
 
 
-      END SUBROUTINE calc_gas_energy_residuals
+      END SUBROUTINE calc_gas_energy
 
 
 
