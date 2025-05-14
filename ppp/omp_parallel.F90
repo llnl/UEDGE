@@ -2723,46 +2723,43 @@ END SUBROUTINE OMPSplitIndex
     INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc
     REAL:: yldotcopy(1:neq), ylcopy(1:neq+2)
 ! Define local variables
-    real:: w0_tmp(0:nx+1,0:ny+1), resei_tmp(0:nx+1,0:ny+1), &
-    &      wjdote_tmp(0:nx+1,0:ny+1), reseg_tmp(0:nx+1,0:ny+1,1:ngsp), &
-    &      resee_tmp(0:nx+1,0:ny+1), wvh_tmp(0:nx+1,0:ny+1,1:nusp)
+    real:: resei_tmp(0:nx+1,0:ny+1), &
+    &      reseg_tmp(0:nx+1,0:ny+1), &
+    &      resee_tmp(0:nx+1,0:ny+1)
 
     ! Initialize arrays to zero
-    w0_tmp=0.; resei_tmp=0.; wjdote_tmp=0.; reseg_tmp=0.; resee_tmp=0.
-    wvh_tmp=0.
+    resei_tmp=0.; reseg_tmp=0.; resee_tmp=0.
 
     ylcopy(1:neq+1)=yl(1:neq+1); yldotcopy=0
 
     call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)
+    call OmpCopyPointerseic
 
     !$OMP    PARALLEL DO &
     !$OMP &      default(shared) &
     !$OMP &      schedule(dynamic,OMPPandf1LoopNchunk) &
     !$OMP &      private(ichunk,xc,yc) &
     !$OMP &      firstprivate(ylcopy, yldotcopy) &
-    !$OMP &      REDUCTION(+:w0_tmp, resei_tmp, wjdote_tmp, reseg_tmp, resee_tmp, wvh_tmp)
+    !$OMP &      REDUCTION(+:resei_tmp, reseg_tmp, resee_tmp)
     DO ichunk = 1, Nchunks
         xc = chunks(ichunk,1)
         yc = chunks(ichunk,2)
         call initialize_ranges(xc, yc, 0, 0, 0)
-        call calc_plasma_energy_residuals(xc,yc)
+        call calc_plasma_energy_residuals1(xc,yc)
 
         ! Update locally calculated variables
-        w0_tmp(xc,yc)=w0_tmp(xc,yc)+w0(xc,yc)
         resei_tmp(xc,yc)=resei_tmp(xc,yc)+resei(xc,yc)
-        wjdote_tmp(xc,yc)=wjdote_tmp(xc,yc)+wjdote(xc,yc)
-        reseg_tmp(xc,yc,:)=reseg_tmp(xc,yc,:)+reseg(xc,yc,:)
+        reseg_tmp(xc,yc)=reseg_tmp(xc,yc)+reseg(xc,yc,1)
         resee_tmp(xc,yc)=resee_tmp(xc,yc)+resee(xc,yc)
-        wvh_tmp(xc,yc,:)=wvh_tmp(xc,yc,:)+wvh(xc,yc,:)
     END DO
     !$OMP  END PARALLEL DO
 
     ! Update global variables
-    w0=w0_tmp; resei=resei_tmp; wjdote=wjdote_tmp; reseg=reseg_tmp
-    resee=resee_tmp; wvh=wvh_tmp
-    call OmpCopyPointerw0; call OmpCopyPointerresei
-    call OmpCopyPointerwjdote; call OmpCopyPointerreseg
-    call OmpCopyPointerresee; call OmpCopyPointerwvh
+    resei=resei_tmp; reseg(:,:,1)=reseg_tmp
+    resee=resee_tmp; 
+    call OmpCopyPointerresei
+    call OmpCopyPointerreseg
+    call OmpCopyPointerresee
 
   END SUBROUTINE OMPcalc_plasma_energy_residuals
 
@@ -2989,10 +2986,10 @@ END SUBROUTINE OMPSplitIndex
         call calc_atom_seic ! Nothing much to parallelize here, just do serial
 
         call OMPinitialize_plasma_energy_residuals(neq, yl, yldot)
-!        call OMPcalc_plasma_energy_residuals(neq, yl, yldot)
+        call OMPcalc_plasma_energy_residuals(neq, yl, yldot)
                 call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
                 !  Requires gas energy residuals
-                call calc_plasma_energy_residuals(xc, yc)
+                call calc_plasma_energy_residuals2(xc, yc)
 
         if (isphion.eq.1) call OMPcalc_potential_residuals(neq, yl, yldot)
 !        call OMPcalc_rhs(neq, yl, yldot)
