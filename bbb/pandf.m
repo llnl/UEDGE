@@ -633,7 +633,7 @@ c...  Compute total viscosity for nonuniform B-field; put in visvol_v,q
 
 
 
-      call calc_plasma_energy
+      call calc_plasma_energy(xc, yc)
       call calc_feeiycbo ! Nothing much to parallelize here, just do serial
 
       call calc_plasma_particle_residuals
@@ -642,7 +642,6 @@ c...  Compute total viscosity for nonuniform B-field; put in visvol_v,q
       call calc_gas_energy_residuals
       call calc_atom_seic
 c...  Requires gas energy residuals
-      call initialize_plasma_energy_residuals(xc, yc)
       call calc_plasma_energy_residuals(xc, yc)
 
       if (isphion.eq.1) call calc_potential_residuals 

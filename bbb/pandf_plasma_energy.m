@@ -4,7 +4,7 @@ c!include "../mppl.h"
 c!include "../sptodp.h"
 
 
-      SUBROUTINE calc_plasma_energy
+      SUBROUTINE calc_plasma_energy(xc, yc)
       IMPLICIT NONE
       Use(Selec)
       Use(Locflux)
@@ -28,11 +28,25 @@ c!include "../sptodp.h"
       Use(Bcond)
       Use(Rccoef)
       Use(Bfield)
-      integer  iy, ix, ix2, jx, ix1, ix3, ix4, ix5, iy1, ifld, iixt,
-     .  iym1, iyp1, iyp2
-      real t0, t1, vt0, vt1, wallfac, lxtec, qr, lxtic, ltmax, lmfpe, 
-     .  flxlimf, fniy_recy, temp1, dtdym1, dtdy0, dtdyp1, 
-     .  d2tdy20, d2tdy2p1, d3tdy3
+      Use(Volsrc)
+      Use(Noggeo)
+      Use(Jacobian_restore)
+      Use(Ext_neutrals)
+      Use(Imprad)
+      Use(Timing)
+      integer xc, yc
+      integer iy, ix, iy1, ix1, ix2, ix3, ix4, ix5, ix6, jx, jfld, jz, 
+     .  igsp, iy_min, iy_max, j2pwr, j5pwr, i2pwr, i5pwr, ifld, nsm1, zn,
+     .  znuc, zmax, iixt, iym1, iyp1, iyp2
+      real grdnv, fcd, t0, t1, vttn, vttp, isfe, l0, feexflr, feixflr, 
+     .  ne_sgvi, dene, rdum, radmc, radz(0:1), erl1, erl2, 
+     .  up1cc, upgcc, vycc, v2cc, tsimp, tick, emissbs, radneq,  
+     .  argth, fac_rad, radimpmc, wj, cfwj, telim, thetacc, 
+     .  dupdx, dupdy, upxavep1, upxave0, upxavem1, upf0, upfm1,
+     .  denz(0:1), sv_crumpet, vt1, wallfac, lxtec, qr, lxtic,
+     .  ltmax, lmfpe, flxlimf, fniy_recy, temp1, dtdym1, dtdy0,
+     .  d2tdy20, d2tdy2p1, d3tdy3, dtdyp1, vt0
+      external sv_crumpet, radmc
 
 *****************************************************************
 *****************************************************************
@@ -403,82 +417,6 @@ c  -- Add rad flux of 4th order diff operator; damp grid-scale oscillations
           enddo
         enddo
       endif
-
-
-      END SUBROUTINE calc_plasma_energy
-
-
-
-      SUBROUTINE calc_feeiycbo
-      IMPLICIT NONE
-      Use(Comflo)
-      Use(Compla)
-      Use(Coefeq)
-      Use(Comgeo)
-      Use(UEpar)
-      Use(Dim)
-      Use(Bcond)
-      integer  ifld
-
-*  ---------------------------------------------------------------------
-*  compute the electron and the ion energy flow.
-*  --------------------------------------------------------
-      feeycbo =  cfloye*( ne(:,0)*te(:,0)*sy(:,0) ) *
-     .      ( (1-cfeeybbo)*cfybf*veycb(:,0) - cfeeydbo*(1-cfydd)*veycp(:,0) )
-
-
-      do ifld = 1, nfsp
-         if ((isupgon(1) .eq. 1) .and. (ifld .eq. iigsp)) then
-         else
-               feiycbo = feiycbo(:) + cfloyi*fniycbo(:,ifld)*ti(:,0)
-         end if
-      end do
-
-
-      END SUBROUTINE calc_feeiycbo
-
-      SUBROUTINE initialize_plasma_energy_residuals(xc, yc)
-      IMPLICIT NONE
-      Use(Selec)
-      Use(Rhsides)
-      Use(Compla)
-      Use(Volsrc)
-      Use(Coefeq)
-      Use(MCN_sources)
-      Use(Conduc)
-      Use(Comgeo)
-      Use(Poten)
-      Use(Share)
-      Use(Dim)
-      Use(Noggeo)
-      Use(Comflo)
-      Use(Comtra)
-      Use(UEpar)
-      Use(Phyvar)
-      Use(Xpoint_indices)
-      Use(Jacobian_restore)
-      Use(Indices_domain_dcl)
-      Use(Ext_neutrals)
-      Use(Wkspace)
-      Use(Imprad)
-      Use(Timing)
-      Use(Gradients)
-      integer xc, yc
-      integer iy, ix, iy1, ix1, ix2, ix3, ix4, ix5, ix6, jx, jfld, jz, 
-     .  igsp, iy_min, iy_max, j2pwr, j5pwr, i2pwr, i5pwr, ifld, nsm1, zn,
-     .  znuc, zmax
-      real grdnv, fcd, t0, t1, vttn, vttp, isfe, l0, feexflr, feixflr, 
-     .  ne_sgvi, dene, rdum, radmc, radz(0:1), erl1, erl2, 
-     .  up1cc, upgcc, vycc, v2cc, tsimp, tick, emissbs, radneq,  
-     .  argth, fac_rad, radimpmc, wj, cfwj, telim, thetacc, 
-     .  dupdx, dupdy, upxavep1, upxave0, upxavem1, upf0, upfm1,
-     .  denz(0:1), sv_crumpet
-      external sv_crumpet, radmc
-*  ---------------------------------------------------------------------
-*  compute the energy residuals.
-*  ---------------------------------------------------------------------
-
-*  -- divergence of electron and ion energy flows --
 
 c...  Add y-component of nonorthogonal diffusive flux; convective component 
 c...  already added to uu(ix,iy)
@@ -977,7 +915,38 @@ c******************************************************************
           pwribkg(ix,iy) = (tibg*ev/ti(ix,iy))**iteb*pwribkg_c
         enddo
       enddo
-      END SUBROUTINE initialize_plasma_energy_residuals
+
+      END SUBROUTINE calc_plasma_energy
+
+
+
+      SUBROUTINE calc_feeiycbo
+      IMPLICIT NONE
+      Use(Comflo)
+      Use(Compla)
+      Use(Coefeq)
+      Use(Comgeo)
+      Use(UEpar)
+      Use(Dim)
+      Use(Bcond)
+      integer  ifld
+
+*  ---------------------------------------------------------------------
+*  compute the electron and the ion energy flow.
+*  --------------------------------------------------------
+      feeycbo =  cfloye*( ne(:,0)*te(:,0)*sy(:,0) ) *
+     .      ( (1-cfeeybbo)*cfybf*veycb(:,0) - cfeeydbo*(1-cfydd)*veycp(:,0) )
+
+
+      do ifld = 1, nfsp
+         if ((isupgon(1) .eq. 1) .and. (ifld .eq. iigsp)) then
+         else
+               feiycbo = feiycbo(:) + cfloyi*fniycbo(:,ifld)*ti(:,0)
+         end if
+      end do
+
+
+      END SUBROUTINE calc_feeiycbo
 
       SUBROUTINE calc_plasma_energy_residuals(xc, yc)
       IMPLICIT NONE
