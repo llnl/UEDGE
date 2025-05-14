@@ -343,7 +343,7 @@ c-----------------------------------------------------------------------
       IMPLICIT NONE
       integer igsp, iy, iy1, ix, ix1, ifld, ix2, ix3, jfld
       real uuxgcc, vygcc, v2gcc, upgcc, vycc, v2cc, dupdx, dupdy, thetacc,
-     .      up1cc, upf0, upfm1, upxave0, upxavem1, upxavep1
+     .      upf0, upfm1, upxave0, upxavem1, upxavep1
 *  ---------------------------------------------------------------------
 *  compute the energy residuals.
 *  ---------------------------------------------------------------------
@@ -484,12 +484,6 @@ c ... ## IJ 2016/10/19 add MC neutral flux
       if (isupgon(1).eq.1) then
       do iy = j2, j5
          do ix = i2, i5
-            ix1 = ixm1(ix,iy)
-c             Set up helper arrays for velocities
-              up1cc = 0.5*(up(ix,iy,1)+up(ix1,iy,1))
-              upgcc = 0.5*(up(ix,iy,iigsp)+up(ix1,iy,iigsp))
-              vycc = (cfnidhgy**0.5)*0.5*(vy(ix,iy,iigsp)+vy(ix1,iy,iigsp))
-              v2cc = (cfnidhg2**0.5)*0.5*(v2(ix,iy,iigsp)+v2(ix1,iy,iigsp))
 c             ATOMS
 c             -------------------------------------------------------------
                reseg(ix,iy,1) = reseg(ix,iy,1)
@@ -499,6 +493,11 @@ c             -------------------------------------------------------------
      .                  + seadh(ix,iy)
 
                 if (ishymol .eq. 0) then
+                    ix1 = ixm1(ix,iy)
+c                   Set up helper arrays for velocities
+                    upgcc = 0.5*(up(ix,iy,iigsp)+up(ix1,iy,iigsp))
+                    vycc = (cfnidhgy**0.5)*0.5*(vy(ix,iy,iigsp)+vy(ix1,iy,iigsp))
+                    v2cc = (cfnidhg2**0.5)*0.5*(v2(ix,iy,iigsp)+v2(ix1,iy,iigsp))
 c                   Atom kinetic energy source from mol. drift heating
                     reseg(ix,iy,1) = reseg(ix,iy,1) 
      .                  + cfnidh*cfnidhdis*0.5*mg(1)
