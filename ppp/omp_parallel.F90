@@ -2819,19 +2819,39 @@ END SUBROUTINE OMPSplitIndex
     USE Math_problem_size, ONLY: numvar
     IMPLICIT NONE
  
-    integer yinc_bkp,xrinc_bkp,xlinc_bkp,iv,tid
     integer,intent(in)::neq
     real,intent(in)::yl(*)
     real,intent(out)::yldot(*)
     real::yldotcopy(1:neq)
-    real yldotsave(1:neq),ylcopy(1:neq+2), yldottot(1:neq)
-    INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc
-    character*80 ::FileName
-    real time1,time2
-    real tmp_prad(0:nx+1, 0:ny+1)
-    ylcopy(1:neq+1)=yl(1:neq+1)
-    yldotcopy = 0
-    yldottot = 0
+    real ylcopy(1:neq+2), yldottot(1:neq)
+    INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc, ii
+
+        yldotcopy = 0
+        yldottot = 0
+
+        call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)
+
+        !$OMP    PARALLEL DO &
+        !$OMP &      default(shared) &
+        !$OMP &      schedule(dynamic,OMPPandf1LoopNchunk) &
+        !$OMP &      private(ichunk,xc,yc) &
+        !$OMP &      firstprivate(ylcopy, yldotcopy) &
+        !$OMP &      REDUCTION(+:yldottot)
+        DO ichunk = 1, Nchunks
+            xc = chunks(ichunk,1)
+            yc = chunks(ichunk,2)
+
+            call OMPinitialize_ranges(xc, yc)
+            call calc_rhs(yldotcopy)
+            
+            do ii = 1, numvar
+                yldottot((ichunk-1)*numvar + ii) = yldottot((ichunk-1)*numvar + ii) &
+                &       + yldotcopy((ichunk-1)*numvar + ii)
+            end do
+
+        END DO
+        !$OMP END PARALLEL DO
+        yldot(1:neq) = yldottot(1:neq)
 
 
     RETURN
@@ -2935,35 +2955,7 @@ END SUBROUTINE OMPSplitIndex
         call calc_atom_seic ! Nothing much to parallelize here, just do serial
         call OMPcalc_plasma_energy_residuals(neq, yl, yldot)
         if (isphion.eq.1) call OMPcalc_potential_residuals(neq, yl, yldot)
-
-
-        ylcopy(1:neq+1)=yl(1:neq+1)
-        yldotcopy = 0
-        yldottot = 0
-
-        call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)
-
-        !$OMP    PARALLEL DO &
-        !$OMP &      default(shared) &
-        !$OMP &      schedule(dynamic,OMPPandf1LoopNchunk) &
-        !$OMP &      private(ichunk,xc,yc) &
-        !$OMP &      firstprivate(ylcopy, yldotcopy) &
-        !$OMP &      REDUCTION(+:yldottot)
-        DO ichunk = 1, Nchunks
-            xc = chunks(ichunk,1)
-            yc = chunks(ichunk,2)
-
-            call OMPinitialize_ranges(xc, yc)
-            call calc_rhs(yldotcopy)
-            
-            do ii = 1, numvar
-                yldottot((ichunk-1)*numvar + ii) = yldottot((ichunk-1)*numvar + ii) &
-                &       + yldotcopy((ichunk-1)*numvar + ii)
-            end do
-
-        END DO
-        !$OMP END PARALLEL DO
-        yldot(1:neq) = yldottot(1:neq)
+        call OMPcalc_rhs(neq, yl, yldot)
 
 
 
