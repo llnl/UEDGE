@@ -2816,13 +2816,7 @@ END SUBROUTINE OMPSplitIndex
             iychunk,ixchunk,NchunksPandf1
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
     USE Dim, ONLY:nx,ny,nisp
-    USE Imprad, ONLY: prad
-    USE Selec, ONLY:yinc,xrinc,xlinc
-    USE Indexes, ONLY: idxn
     USE Math_problem_size, ONLY: numvar
-    USE Ynorm, ONLY: isflxvar, isrscalf
-    USE Time_dep_nwt, ONLY: dtreal
-    USE UEpar, ONLY: svrpkg
     IMPLICIT NONE
  
     integer yinc_bkp,xrinc_bkp,xlinc_bkp,iv,tid
@@ -2840,43 +2834,6 @@ END SUBROUTINE OMPSplitIndex
     yldottot = 0
 
 
-        call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)
-
-        call OmpCopyPointerup
-          !$omp parallel do default(shared) schedule(dynamic,OMPPandf1LoopNchunk) &
-          !$omp& private(iv,ichunk) firstprivate(ylcopy,yldotcopy) copyin(yinc,xlinc,xrinc) &
-          !$omp& REDUCTION(+:yldottot)
-            loopthread: do ichunk=1,Nchunks !ichunk from 1 to Nthread, tid from 0 to Nthread-1
-            ! we keep all these parameters as it is easier to debug LocalJacBuilder and deal wichunk private/shared attributes
-
-                xc = chunks(ichunk,1)
-                yc = chunks(ichunk,2)
-                iv = idxn(xc,yc,1)
-                call OMPinitialize_ranges(xc, yc)
-                call calc_rhs(yldotcopy) 
-                call bouncon (neq, yldot)
-                if(isflxvar.ne.1 .and. isrscalf.eq.1) call rscalf(ylcopy,yldotcopy)
-                if(dtreal < 1.e15) then
-                    if ( &
-                    &   (svrpkg=='nksol' .and. ylcopy(neq+1)<0) &
-                    &   .or. svrpkg == 'petsc' &
-                    & ) then
-                        call add_timestep(neq, ylcopy, yldotcopy)
-                    endif   !if-test on svrpkg and ylcopy(neq+1)
-                endif    !if-test on dtreal
-
-
-
-
-
-                yldottot(iv:iv+numvar-1) = yldottot(iv:iv+numvar-1) &
-                &   + yldotcopy(iv:iv+numvar-1)
-
-            enddo loopthread
-          !$omp  END PARALLEL DO
-
-        yldot(:neq) = yldottot
-  
     RETURN
   END SUBROUTINE OMPcalc_rhs
 
@@ -2894,7 +2851,6 @@ END SUBROUTINE OMPSplitIndex
             iychunk,ixchunk,NchunksPandf1
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
     USE Dim, ONLY: nx, ny
-    USE Imprad, ONLY: prad
     USE Selec, ONLY:yinc,xrinc,xlinc, i1, i6, j1, j6
     USE Grid, ONLY:ijactot
     USE Cdv, ONLY: comnfe
@@ -2906,9 +2862,9 @@ END SUBROUTINE OMPSplitIndex
     USE PandfTiming, ONLY: TimePandf, TotTimePandf, TimingPandfOn, TimeNeudif, &
     &   TotTimeNeudif
     USE OMPTiming, ONLY: ParaTime, SerialTime
-    USE Coefeq, ONLY: cfvisxneov, cfvisxneoq
+    USE Coefeq, ONLY: cfvisxneov, cfvisxneoq    
+    USE Math_problem_size, ONLY: numvar
 
-    USE Comflo, ONLY: feeycbo, feiycbo
     IMPLICIT NONE
  
     integer yinc_bkp,xrinc_bkp,xlinc_bkp,iv,tid
@@ -2920,14 +2876,11 @@ END SUBROUTINE OMPSplitIndex
     real yldotsave(1:neq),ylcopy(1:neq+2), yldottot(1:neq)
     character*80 ::FileName
     real time1,time2
-    integer::ichunk, xc, yc
+    INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc, ii
     real tmp_prad(0:nx+1, 0:ny+1)
     real tick,tock, tsfe, tsjf, ttotfe, ttotjf, tserial, tpara
     external tick, tock
-    ylcopy(1:neq+1)=yl(1:neq+1)
-    yldotcopy = 0
-    yldottot = 0
-    tmp_prad = 0
+
     xc=-1; yc=-1
 
 !        tpara = tick()
@@ -2984,8 +2937,38 @@ END SUBROUTINE OMPSplitIndex
         if (isphion.eq.1) call OMPcalc_potential_residuals(neq, yl, yldot)
 
 
+        ylcopy(1:neq+1)=yl(1:neq+1)
+        yldotcopy = 0
+        yldottot = 0
+
+        call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)
+
+        !$OMP    PARALLEL DO &
+        !$OMP &      default(shared) &
+        !$OMP &      schedule(dynamic,OMPPandf1LoopNchunk) &
+        !$OMP &      private(ichunk,xc,yc) &
+        !$OMP &      firstprivate(ylcopy, yldotcopy) &
+        !$OMP &      REDUCTION(+:yldottot)
+        DO ichunk = 1, Nchunks
+            xc = chunks(ichunk,1)
+            yc = chunks(ichunk,2)
+
+            call OMPinitialize_ranges(xc, yc)
+            call calc_rhs(yldotcopy)
+            
+            do ii = 1, numvar
+                yldottot((ichunk-1)*numvar + ii) = yldottot((ichunk-1)*numvar + ii) &
+                &       + yldotcopy((ichunk-1)*numvar + ii)
+            end do
+
+        END DO
+        !$OMP END PARALLEL DO
+        yldot(1:neq) = yldottot(1:neq)
+
+
+
                 call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
-                call calc_rhs(yldot)
+!                call calc_rhs(yldot)
 
                 !  POTEN calculates the electrostatic potential, and 
                 !  BOUNCON calculates the equations for the boundaries.

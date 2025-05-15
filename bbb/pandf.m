@@ -303,25 +303,26 @@ c ... subroutine bouncon.
                   yldot(iv3) = resphi(ix,iy)/(vol(ix,iy)*temp0)
                endif
             endif
+cc    If isphicore0=1, eset core potential everywhere to midplane pot
+cc    just outside separatrix (phi(ixmp,iysptrx+1) 
+            if (isphicore0 == 1) then
+                do jx = 1, nxpt
+                    if (
+     .                  (ix.ge.ixpt1(jx)+1) .and.
+     .                  (ix.le.ixpt2(jx))   .and.
+     .                  (iy.le.iysptrx)
+     .              ) then
+                      iv3 = idxphi(ix,iy)
+                      yldot(iv3) = -nurlxp*(phi(ix,iy)-phi(ixmp,iysptrx+1))/temp0
+                    endif
+                end do
+            endif
           end do
         end do
 ccc         yldot(idxphi(1,iy)) = -nurlxp*(phi(1,iy) - phi(0,iy))/temp0
 ccc         yldot(idxphi(nx,iy)) = -nurlxp*(phi(nx,iy) -
 ccc     .                                           phi(nx+1,iy))/temp0
-cc    If isphicore0=1, eset core potential everywhere to midplane pot
-cc    just outside separatrix (phi(ixmp,iysptrx+1) 
-      if (isphicore0 == 1) then
-        do jx = 1, nxpt
-          do iy = 0, iysptrx  #iy=0 & 1 set by BCs
-            do ix = ixpt1(1)+1, ixpt2(1)
-              iv3 = idxphi(ix,iy)
-              yldot(iv3) = -nurlxp*(phi(ix,iy)-phi(ixmp,iysptrx+1))/temp0
-            enddo
-          enddo
-        enddo
-      endif
-      end if ! Ends check on isphion
-
+      end if
 
 
 
