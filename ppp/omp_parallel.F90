@@ -3173,7 +3173,8 @@ END SUBROUTINE OMPSplitIndex
             &   (svrpkg=='nksol' .and. yl(neq+1)<0) &
             &   .or. svrpkg == 'petsc' &
             & ) then
-                call OMPadd_timestep(neq, yl, yldot)
+                call add_timestep(neq, yl, yldot)
+!                call OMPadd_timestep(neq, yl, yldot)
             endif   !if-test on svrpkg and ylcopy(neq+1)
         endif    !if-test on dtreal
 
