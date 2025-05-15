@@ -838,7 +838,8 @@ c ... Compute and add evaporative gas flux from liquid plates
          if (fvaplb(igsp,jx) + fvaprb(igsp,jx) > 1.e-20) then
            do iy = 0, ny+1
              if (tvaplb(iy,jx)<=0. .or. tvaprb(iy,jx)<=0.) then
-               call remark('**ERR: tvaplb  or tvaprb = 0; must set positive')
+               call remark(
+     .          '**ERR: tvaplb  or tvaprb = 0; must set positive')
              endif
              fngxslb(iy,igsp,jx) =  fngxslb(iy,igsp,jx) + fvaplb(igsp,jx)*
      .             sxnp(ixlb(jx),iy)*avaplb(igsp,jx)*exp(-bvaplb(igsp,jx)/

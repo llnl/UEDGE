@@ -2806,6 +2806,91 @@ END SUBROUTINE OMPSplitIndex
 
 
 
+  SUBROUTINE OMPbouncon(neq,yl,yldot)
+    USE omp_lib
+    USE OmpCopybbb
+    USE ParallelSettings, ONLY: Nthreads,CheckPandf1
+    USE OMPPandf1Settings, ONLY: OMPTimeParallelPandf1,OMPTimeSerialPandf1, &
+            OMPPandf1Stamp,OMPPandf1Verbose,OMPPandf1Debug
+    USE OMPPandf1, ONLY: Nivchunk,ivchunk,yincchunk,xincchunk, &
+            iychunk,ixchunk,NchunksPandf1
+    USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
+    USE Dim, ONLY:nx,ny,nxpt
+    USE Math_problem_size, ONLY: numvar
+    USE Xpoint_indices, ONLY: ixrb, ixlb
+    USE UEpar, ONLY: igas
+    USE Indices_domain_dcl, ONLY: iymnbcl,iymxbcl, ixmnbcl, ixmxbcl
+    USE Share, ONLY: isudsym, geometry, islimon, ix_lim, nxc
+    USE Bcond, ONLY: isfixlb
+    
+    IMPLICIT NONE
+ 
+    integer,intent(in)::neq
+    real,intent(in)::yl(*)
+    real,intent(out)::yldot(*)
+    real::yldotcopy(1:neq)
+    real ylcopy(1:neq+2), yldottot(1:neq)
+    INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc, ii, jx
+
+        yldotcopy = 0
+        yldottot = 0
+
+        call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)
+
+        !$OMP    PARALLEL DO &
+        !$OMP &      default(shared) &
+        !$OMP &      schedule(dynamic,OMPPandf1LoopNchunk) &
+        !$OMP &      private(ichunk,xc,yc) &
+        !$OMP &      firstprivate(ylcopy, yldotcopy) &
+        !$OMP &      REDUCTION(+:yldottot)
+        DO ichunk = 1, Nchunks
+            xc = chunks(ichunk,1)
+            yc = chunks(ichunk,2)
+
+ 
+        call OMPinitialize_ranges(xc, yc)
+
+
+        if ((yc.eq.0) .and. (iymnbcl .ne. 0)) &
+        &       call iwall_boundary(neq, yldotcopy)
+        if ((yc.eq.nx+1) .and. (iymxbcl .ne. 0)) &
+        &       call owall_boundary(neq, yldotcopy)
+        do jx = 1, nxpt
+            if ((xc.eq.ixlb(jx)) .and. (ixmnbcl .ne. 0)) &
+            &       call left_boundary(neq, yldotcopy)
+            if ((xc.eq.ixrb(jx)) .and.  (ixmxbcl .ne. 0)) &
+            &       call right_boundary(neq, yldotcopy)
+        end do
+
+        if( &   
+        &       (isudsym==1.or.(geometry .eq. "dnXtarget")) &
+        &       .and. (isfixlb(1).eq.0)) then
+            if (xc.le.nxc+1 .and. xc.ge.nxc-1) call dnull_patch(neq, yldotcopy)
+        endif
+
+        if (islimon .ne. 0) then
+            if (xc.le.ix_lim+1 .and. xc.ge.ix_lim-1) call limiter_patch(neq, yldotcopy)
+        endif
+
+        if (igas .eq. 1) call igas_patch(neq, yldotcopy)
+
+        do ii = 1, numvar
+            yldottot((ichunk-1)*numvar + ii) = yldottot((ichunk-1)*numvar + ii) &
+            &       + yldotcopy((ichunk-1)*numvar + ii)
+        end do
+            
+
+        END DO
+        !$OMP END PARALLEL DO
+        yldot(1:neq) = yldottot(1:neq)
+
+
+    RETURN
+  END SUBROUTINE OMPbouncon
+
+
+
+
   SUBROUTINE OMPcalc_rhs(neq,yl,yldot)
     USE omp_lib
     USE OmpCopybbb
@@ -2856,6 +2941,111 @@ END SUBROUTINE OMPSplitIndex
 
     RETURN
   END SUBROUTINE OMPcalc_rhs
+
+
+  SUBROUTINE OMPrscalf(neq,yl,yldot)
+    USE omp_lib
+    USE OmpCopybbb
+    USE ParallelSettings, ONLY: Nthreads,CheckPandf1
+    USE OMPPandf1Settings, ONLY: OMPTimeParallelPandf1,OMPTimeSerialPandf1, &
+            OMPPandf1Stamp,OMPPandf1Verbose,OMPPandf1Debug
+    USE OMPPandf1, ONLY: Nivchunk,ivchunk,yincchunk,xincchunk, &
+            iychunk,ixchunk,NchunksPandf1
+    USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
+    USE Dim, ONLY:nx,ny,nisp
+    USE Math_problem_size, ONLY: numvar
+    IMPLICIT NONE
+ 
+    integer,intent(in)::neq
+    real,intent(in)::yl(*)
+    real,intent(out)::yldot(*)
+    real::yldotcopy(1:neq)
+    real ylcopy(1:neq+2), yldottot(1:neq)
+    INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc, ii
+
+        yldotcopy = 0
+        yldottot = 0
+
+        call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)
+
+        !$OMP    PARALLEL DO &
+        !$OMP &      default(shared) &
+        !$OMP &      schedule(dynamic,OMPPandf1LoopNchunk) &
+        !$OMP &      private(ichunk,xc,yc) &
+        !$OMP &      firstprivate(ylcopy, yldotcopy) &
+        !$OMP &      REDUCTION(+:yldottot)
+        DO ichunk = 1, Nchunks
+            xc = chunks(ichunk,1)
+            yc = chunks(ichunk,2)
+
+            call OMPinitialize_ranges(xc, yc)
+!            if ((xc.gt.0).and.(xc.lt.nx+1).and.(yc.gt.0).and.(yc.lt.ny+1)) &
+!            &       call rscalf(ylcopy,yldotcopy)
+            call rscalf(ylcopy,yldotcopy)
+            
+            do ii = 1, numvar
+                yldottot((ichunk-1)*numvar + ii) = yldottot((ichunk-1)*numvar + ii) &
+                &       + yldotcopy((ichunk-1)*numvar + ii)
+            end do
+
+        END DO
+        !$OMP END PARALLEL DO
+        yldot(1:neq) = yldot(1:neq) + yldottot(1:neq)
+
+
+    RETURN
+  END SUBROUTINE OMPrscalf
+
+  SUBROUTINE OMPadd_timestep(neq,yl,yldot)
+    USE omp_lib
+    USE OmpCopybbb
+    USE ParallelSettings, ONLY: Nthreads,CheckPandf1
+    USE OMPPandf1Settings, ONLY: OMPTimeParallelPandf1,OMPTimeSerialPandf1, &
+            OMPPandf1Stamp,OMPPandf1Verbose,OMPPandf1Debug
+    USE OMPPandf1, ONLY: Nivchunk,ivchunk,yincchunk,xincchunk, &
+            iychunk,ixchunk,NchunksPandf1
+    USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
+    USE Dim, ONLY:nx,ny,nisp
+    USE Math_problem_size, ONLY: numvar
+    IMPLICIT NONE
+ 
+    integer,intent(in)::neq
+    real,intent(in)::yl(*)
+    real,intent(out)::yldot(*)
+    real::yldotcopy(1:neq)
+    real ylcopy(1:neq+2), yldottot(1:neq)
+    INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc, ii
+
+        yldotcopy = 0
+        yldottot = 0
+
+        call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)
+
+        !$OMP    PARALLEL DO &
+        !$OMP &      default(shared) &
+        !$OMP &      schedule(dynamic,OMPPandf1LoopNchunk) &
+        !$OMP &      private(ichunk,xc,yc) &
+        !$OMP &      firstprivate(ylcopy, yldotcopy) &
+        !$OMP &      REDUCTION(+:yldottot)
+        DO ichunk = 1, Nchunks
+            xc = chunks(ichunk,1)
+            yc = chunks(ichunk,2)
+
+            call OMPinitialize_ranges(xc, yc)
+            call add_timestep(neq, yl, yldot)
+            
+            do ii = 1, numvar
+                yldottot((ichunk-1)*numvar + ii) = yldottot((ichunk-1)*numvar + ii) &
+                &       + yldotcopy((ichunk-1)*numvar + ii)
+            end do
+
+        END DO
+        !$OMP END PARALLEL DO
+        yldot(1:neq) = yldot(1:neq) + yldottot(1:neq)
+
+
+    RETURN
+  END SUBROUTINE OMPadd_timestep
 
 
 
@@ -2959,49 +3149,34 @@ END SUBROUTINE OMPSplitIndex
 
 
 
+!        call OMPbouncon(neq, yl, yldot)
                 call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
-!                call calc_rhs(yldot)
-
-                !  POTEN calculates the electrostatic potential, and 
-                !  BOUNCON calculates the equations for the boundaries.
-                !  For the vodpk solver, the B.C. are ODEs in time 
-                !  (rate equations).  Both bouncon and poten must be 
-                !  called before the perturbed variables are reset 
-                !  below to get Jacobian correct
-
-
                 call bouncon (neq, yldot)
 
-                if (TimingPandfOn.gt.0) & 
-                &      TotTimePandf=TotTimePandf+tock(TimePandf)
+        if (TimingPandfOn.gt.0) & 
+        &      TotTimePandf=TotTimePandf+tock(TimePandf)
 
 
-                ! ================ BEGIN OLD PANDF1 ===================
+        ! ================ BEGIN OLD PANDF1 ===================
 
-                ! If isflxvar=0, we use ni,v,Te,Ti,ng as variables, and
-                ! the ODEs need to be modified as original equations 
-                ! are for d(nv)/dt, etc If isflxvar=2, variables are 
-                ! ni,v,nTe,nTi,ng. Boundary equations and potential 
-                ! equations are not reordered.
+        ! If isflxvar=0, we use ni,v,Te,Ti,ng as variables, and
+        ! the ODEs need to be modified as original equations 
+        ! are for d(nv)/dt, etc If isflxvar=2, variables are 
+        ! ni,v,nTe,nTi,ng. Boundary equations and potential 
+        ! equations are not reordered.
+!        if(isflxvar.ne.1 .and. isrscalf.eq.1) call OMPrscalf(neq, yl,yldot)
 
                 if(isflxvar.ne.1 .and. isrscalf.eq.1) call rscalf(yl,yldot)
 
-                ! Now add psuedo or real timestep for nksol method, but not both
-                if (nufak.gt.1.e5 .and. dtreal.lt.1.e-5) then
-                    call xerrab('***Both 1/nufak and dtreal < 1.e5 - illegal***')
-                endif
+        if(dtreal < 1.e15) then
+            if ( &
+            &   (svrpkg=='nksol' .and. yl(neq+1)<0) &
+            &   .or. svrpkg == 'petsc' &
+            & ) then
+                call OMPadd_timestep(neq, yl, yldot)
+            endif   !if-test on svrpkg and ylcopy(neq+1)
+        endif    !if-test on dtreal
 
-
-                ! Add a real timestep, dtreal, to the nksol equations 
-                ! NOTE!! condition yl(neq+1).lt.0 means a call from nksol, not jac_calc
-                if(dtreal < 1.e15) then
-                    if ( &
-                    &   (svrpkg=='nksol' .and. yl(neq+1)<0) &
-                    &   .or. svrpkg == 'petsc' &
-                    & ) then
-                        call add_timestep(neq, yl, yldot)
-                    endif   !if-test on svrpkg and ylcopy(neq+1)
-                endif    !if-test on dtreal
 
 
         Time1=omp_get_wtime()-Time1
