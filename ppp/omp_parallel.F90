@@ -2963,7 +2963,8 @@ END SUBROUTINE OMPSplitIndex
     real ylcopy(1:neq+2), yldottot(1:neq)
     INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc, ii
 
-        yldotcopy = 0
+        yldotcopy(1:neq) = yldot(1:neq)
+        ylcopy(1:neq) = yl(1:neq)
         yldottot = 0
 
         call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)
@@ -2979,18 +2980,19 @@ END SUBROUTINE OMPSplitIndex
             yc = chunks(ichunk,2)
 
             call OMPinitialize_ranges(xc, yc)
-!            if ((xc.gt.0).and.(xc.lt.nx+1).and.(yc.gt.0).and.(yc.lt.ny+1)) &
-!            &       call rscalf(ylcopy,yldotcopy)
-            call rscalf(ylcopy,yldotcopy)
+            if ((xc.gt.0).and.(xc.lt.nx+1).and.(yc.gt.0).and.(yc.lt.ny+1)) then
+                call rscalf(ylcopy,yldotcopy)
             
+            end if
+
             do ii = 1, numvar
                 yldottot((ichunk-1)*numvar + ii) = yldottot((ichunk-1)*numvar + ii) &
-                &       + yldotcopy((ichunk-1)*numvar + ii)
+                &       + (yldotcopy((ichunk-1)*numvar + ii))
             end do
 
         END DO
         !$OMP END PARALLEL DO
-        yldot(1:neq) = yldot(1:neq) + yldottot(1:neq)
+        yldot(1:neq) = yldottot(1:neq)
 
 
     RETURN
@@ -3091,6 +3093,8 @@ END SUBROUTINE OMPSplitIndex
     real tick,tock, tsfe, tsjf, ttotfe, ttotjf, tserial, tpara
     external tick, tock
 
+    real yldot1(1:neq), yldot2(1:neq)
+
     xc=-1; yc=-1
 
 !        tpara = tick()
@@ -3164,10 +3168,9 @@ END SUBROUTINE OMPSplitIndex
         ! are for d(nv)/dt, etc If isflxvar=2, variables are 
         ! ni,v,nTe,nTi,ng. Boundary equations and potential 
         ! equations are not reordered.
-!        if(isflxvar.ne.1 .and. isrscalf.eq.1) call OMPrscalf(neq, yl,yldot)
+        if(isflxvar.ne.1 .and. isrscalf.eq.1) call OMPrscalf(neq, yl,yldot)
 
-                if(isflxvar.ne.1 .and. isrscalf.eq.1) call rscalf(yl,yldot)
-
+        call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
         if(dtreal < 1.e15) then
             if ( &
             &   (svrpkg=='nksol' .and. yl(neq+1)<0) &

@@ -633,6 +633,9 @@ c ....            Fix limiter case with algebraic eqns, not ODEs
      .                                                              /nbv
                 endif
                endif
+                if ((ix.eq.3) .and. (iy.eq.3)) then
+!                    write(*,*) yldot(iv2), yl(iv2)
+                endif
   257       continue
             if (isflxvar .eq. 0) then
                if(isteonxy(ix,iy) == 1) then
