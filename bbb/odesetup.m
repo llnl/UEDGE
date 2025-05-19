@@ -6621,6 +6621,7 @@ c ---------------------------------------------------------------------c
       Use(Coefeq)              # oldseec, override, cftiexclg
       Use(Flags)               # iprint
       Use(ParallelEval)
+      Use(UEpar)
       Use(MCN_sources)
       Use(Imprad)
 c_mpi      Use(MpiVars)  #module defined in com/mpivarsmod.F.in
@@ -6729,8 +6730,10 @@ c... Roadblockers for  call to pandf through openmp structures (added by J.Guter
      .      ((isimpon.ne.6) .and. (isimpon.ne.2) .and. 
      .          (isimpon.ne.7))
      .  ) .and. (ParallelJac.gt.0 .or. ParallelPandf1.gt.0)) then
-          call xerrab('Only isimpon=0, 2, 6, or 7 is validated with openmp.
-     .      Contact the UEDGE team to use other  options with openmp.')
+          write(*,*) "Only isimpon=0, 2, 6, or 7 is validated with"
+          write(*,*) "openmp. Contact the UEDGE team to use other"
+          write(*,*) "options with openmp."
+        call xerrab("Invalid isimpon")
       endif
 
       if (
@@ -6739,6 +6742,34 @@ c... Roadblockers for  call to pandf through openmp structures (added by J.Guter
      .  ) then
             call xerrab('Only ismcnon=0 is validated with openmp.
      .      Contact the UEDGE team to use other options with openmp.')
+      endif
+
+      if (
+     .      (ishosor.gt.0) .and. 
+     .      (ParallelJac.gt.0 .or. ParallelPandf1.gt.0)
+     .  ) then
+        write(*,*) "Only ishosor=0 is validated with openmp. Contact"
+        write(*,*) "the UEDGE team to use other options with openmp."
+            call xerrab("Invalid ishosor")
+      endif
+
+      if (
+     .      (ispsorave.gt.0) .and. 
+     .      (ParallelJac.gt.0 .or. ParallelPandf1.gt.0)
+     .  ) then
+        write(*,*) "Only ispsorave=0 is validated with openmp. Contact"
+        write(*,*) "the UEDGE team to use other options with openmp."
+            call xerrab("Invalid ispsorave")
+      endif
+   
+      if (
+     .      ((cfvisxneoq.ne.0) .or. (cfvisxneov.ne.0) ).and. 
+     .      (ParallelJac.gt.0 .or. ParallelPandf1.gt.0)
+     .  ) then
+        write(*,*) "Only cfvisxneoq=cfvisxneov=0 is validated with "
+        write(*,*) "openmp. Contact the UEDGE team to use other "
+        write(*,*) "options with openmp."
+            call xerrab("Invalid cfvisxneoq/cfvisxneov")
       endif
 
 

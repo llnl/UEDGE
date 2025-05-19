@@ -2731,7 +2731,6 @@ END SUBROUTINE OMPSplitIndex
     ylcopy(1:neq+1)=yl(1:neq+1); yldotcopy=0
 
     call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)
-    call OmpCopyPointerseic
 
     !$OMP    PARALLEL DO &
     !$OMP &      default(shared) &
@@ -2860,13 +2859,6 @@ END SUBROUTINE OMPSplitIndex
         END DO
         !$OMP END PARALLEL DO
         yldot(1:neq) = yldottot(1:neq)
-
-        ! TODO: figure out which parts of iwall_boundary causes 
-        ! parallel issues
-        call initialize_ranges(-1, 0, 0, 0, 0)
-        if (iymnbcl .ne. 0) &
-        &       call iwall_boundary(neq, yldot)
-
 
     RETURN
   END SUBROUTINE OMPbouncon
@@ -3126,24 +3118,25 @@ END SUBROUTINE OMPSplitIndex
         call OMPcalc_srcmod(neq, yl, yldot)
         call OMPcalc_plasma_viscosities(neq, yl, yldot)
         call OMPcalc_plasma_heatconductivities(neq, yl, yldot)
-        ! TODO: Add checks on ishosor and ispsorave: parallel only works for == 0
         call OMPcalc_plasma_equipartition(neq, yl, yldot)
         call OMPcalc_gas_heatconductivities(neq, yl, yldot)
         call OMPengbalg(neq, yl, yldot)
         call OMPcalc_plasma_transport(neq, yl, yldot)
         call calc_fniycbo ! Nothing much to parallelize here, just do serial
+        call OmpCopyPointerfniycbo
         call OMPcalc_plasma_momentum_coeffs(neq, yl, yldot)
         call OMPcalc_plasma_momentum(neq, yl, yldot) 
-                call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
-                if (cfvisxneov+cfvisxneoq > 0.) call upvisneo ! Routine not yet parallelized
         call OMPcalc_plasma_energy(neq, yl, yldot)
         call OMPcalc_gas_energy(neq, yl, yldot)
         call calc_feeiycbo ! Nothing much to parallelize here, just do serial
+        call OmpCopyPointerfeeycbo
+        call OmpCopyPointerfeiycbo
         call OMPcalc_plasma_particle_residuals(neq, yl, yldot)
         call OMPcalc_gas_continuity_residuals(neq, yl, yldot)
         call OMPcalc_plasma_momentum_residuals(neq, yl, yldot)
         call OMPcalc_gas_energy_residuals(neq, yl, yldot)
         call calc_atom_seic ! Nothing much to parallelize here, just do serial
+        call OmpCopyPointerseic
         call OMPcalc_plasma_energy_residuals(neq, yl, yldot)
         if (isphion.eq.1) call OMPcalc_potential_residuals(neq, yl, yldot)
         call OMPcalc_rhs(neq, yl, yldot)
