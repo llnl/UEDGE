@@ -3009,6 +3009,7 @@ END SUBROUTINE OMPSplitIndex
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
     USE Dim, ONLY:nx,ny,nisp
     USE Math_problem_size, ONLY: numvar
+    USE UEpar, ONLY: isbcwdt
     IMPLICIT NONE
  
     integer,intent(in)::neq
@@ -3018,7 +3019,8 @@ END SUBROUTINE OMPSplitIndex
     real ylcopy(1:neq+2), yldottot(1:neq)
     INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc, ii
 
-        yldotcopy = 0
+        yldotcopy = yldot(1:neq)
+        ylcopy = yl(1:neq)
         yldottot = 0
 
         call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)
@@ -3034,7 +3036,13 @@ END SUBROUTINE OMPSplitIndex
             yc = chunks(ichunk,2)
 
             call OMPinitialize_ranges(xc, yc)
-            call add_timestep(neq, yl, yldot)
+            if (isbcwdt .eq. 1) then
+                call add_timestep(neq, ylcopy, yldotcopy)
+            else
+                if ((xc.gt.0).and.(xc.lt.nx+1).and.(yc.gt.0).and.(yc.lt.ny+1)) then
+                    call add_timestep(neq, ylcopy, yldotcopy)
+                end if
+            end if 
             
             do ii = 1, numvar
                 yldottot((ichunk-1)*numvar + ii) = yldottot((ichunk-1)*numvar + ii) &
@@ -3043,7 +3051,7 @@ END SUBROUTINE OMPSplitIndex
 
         END DO
         !$OMP END PARALLEL DO
-        yldot(1:neq) = yldot(1:neq) + yldottot(1:neq)
+        yldot(1:neq) = yldottot(1:neq)
 
 
     RETURN
@@ -3076,6 +3084,7 @@ END SUBROUTINE OMPSplitIndex
     USE OMPTiming, ONLY: ParaTime, SerialTime
     USE Coefeq, ONLY: cfvisxneov, cfvisxneoq    
     USE Math_problem_size, ONLY: numvar
+    USE ParallelEval, ONLY: ParallelPandfCall
 
     IMPLICIT NONE
  
@@ -3170,14 +3179,15 @@ END SUBROUTINE OMPSplitIndex
         ! equations are not reordered.
         if(isflxvar.ne.1 .and. isrscalf.eq.1) call OMPrscalf(neq, yl,yldot)
 
-        call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
         if(dtreal < 1.e15) then
             if ( &
             &   (svrpkg=='nksol' .and. yl(neq+1)<0) &
             &   .or. svrpkg == 'petsc' &
             & ) then
-                call add_timestep(neq, yl, yldot)
-!                call OMPadd_timestep(neq, yl, yldot)
+                yldot1 = yldot(1:neq)
+                ParallelPandfCall = 1
+                call OMPadd_timestep(neq, yl, yldot)
+                ParallelPandfCall = 0
             endif   !if-test on svrpkg and ylcopy(neq+1)
         endif    !if-test on dtreal
 

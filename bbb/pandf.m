@@ -365,24 +365,33 @@ c
       Use(Indices_domain_dcl) # ixmnbcl,ixmxbcl,iymnbcl,iymxbcl
       Use(Compla)  # zi
       Use(Math_problem_size)   # neqmx(for arrays not used here)
+      Use(ParallelEval)
+      Use(Selec)
       integer ix,iy,igsp,iv,iv1,ifld,j2l,j5l,i2l,i5l,neq
       real time, yl(neqmx),yldot(neq)
 
 c...  Add a real timestep, dtreal, to the nksol equations 
 c...  NOTE!! condition yl(neq+1).lt.0 means a call from nksol, not jac_calc
 
-         if (isbcwdt .eq. 0) then  # omit b.c. eqns
+         if (ParallelPandfCall .eq. 0) then
+             if (isbcwdt .eq. 0) then  # omit b.c. eqns
 cccMER   NOTE: what about internal guard cells (for dnbot,dnull,limiter) ???
-            j2l = 1
-            j5l = ny
-            i2l = 1
-            i5l = nx
-         else                      # include b.c. eqns
-            j2l = (1-iymnbcl)
-            j5l = ny+1-(1-iymxbcl)
-            i2l = (1-ixmnbcl)
-            i5l = nx+1-(1-ixmxbcl)
-         endif           
+                j2l = 1
+                j5l = ny
+                i2l = 1
+                i5l = nx
+             else                      # include b.c. eqns
+                j2l = (1-iymnbcl)
+                j5l = ny+1-(1-iymxbcl)
+                i2l = (1-ixmnbcl)
+                i5l = nx+1-(1-ixmxbcl)
+             endif           
+         else
+            j2l = j2
+            j5l = j5
+            i2l = i2
+            i5l = i5
+         endif
          do iy = j2l, j5l    # if j2l=j2, etc., omit the boundary equations
             do ix = i2l, i5l
               do ifld = 1, nisp

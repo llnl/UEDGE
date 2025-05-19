@@ -4103,6 +4103,7 @@ writeToLog(message:string)    subroutine
 ***** ParallelEval: # added by J.Guterl
 ParallelJac     integer /0/        # [0]: serial jacobian calc [1] parallel jacobian calc
 ParallelPandf1     integer /0/        # [0]: serial pandf1 calc [1] parallel pandf1 calc
+ParallelPandfCall integer /0/       
 
 **** PandfTiming: # added by J.Guterl
 TimingPandfOn integer /0/
