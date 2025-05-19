@@ -597,6 +597,8 @@ END SUBROUTINE OMPSplitIndex
             iys1 = yc
             iyf6 = yc
 
+      xcnearrb = .TRUE.
+      xcnearlb = .TRUE.
       END SUBROUTINE OMPinitialize_ranges
 
 
@@ -2816,13 +2818,14 @@ END SUBROUTINE OMPSplitIndex
     USE OMPPandf1, ONLY: Nivchunk,ivchunk,yincchunk,xincchunk, &
             iychunk,ixchunk,NchunksPandf1
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
-    USE Dim, ONLY:nx,ny,nxpt
+    USE Dim, ONLY:nx,ny,nxpt, nusp
     USE Math_problem_size, ONLY: numvar
-    USE Xpoint_indices, ONLY: ixrb, ixlb
+    USE Xpoint_indices, ONLY: ixrb, ixlb, ixpt2
     USE UEpar, ONLY: igas
     USE Indices_domain_dcl, ONLY: iymnbcl,iymxbcl, ixmnbcl, ixmxbcl
     USE Share, ONLY: isudsym, geometry, islimon, ix_lim, nxc
     USE Bcond, ONLY: isfixlb
+    USE Indexes, ONLY: idxu
     
     IMPLICIT NONE
  
@@ -2831,12 +2834,11 @@ END SUBROUTINE OMPSplitIndex
     real,intent(out)::yldot(*)
     real::yldotcopy(1:neq)
     real ylcopy(1:neq+2), yldottot(1:neq)
-    INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc, ii, jx
+    INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc, ii, idx, ifld, jx
 
-        yldotcopy = 0
+        yldotcopy = yldot(1:neq)
         yldottot = 0
 
-        call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)
 
         !$OMP    PARALLEL DO &
         !$OMP &      default(shared) &
@@ -2844,46 +2846,26 @@ END SUBROUTINE OMPSplitIndex
         !$OMP &      private(ichunk,xc,yc) &
         !$OMP &      firstprivate(ylcopy, yldotcopy) &
         !$OMP &      REDUCTION(+:yldottot)
-        DO ichunk = 1, Nchunks
-            xc = chunks(ichunk,1)
-            yc = chunks(ichunk,2)
+        DO ichunk = 1, NchunksPandf1
+            ! TODO: Figure out more generalized chunking routines for BCs
+            xc = ixchunk(ichunk)
+            yc = iychunk(ichunk)
+            call initialize_ranges(xc, yc,0,0,1)
+            call bouncon(neq, yldotcopy)
 
- 
-        call OMPinitialize_ranges(xc, yc)
-
-
-        if ((yc.eq.0) .and. (iymnbcl .ne. 0)) &
-        &       call iwall_boundary(neq, yldotcopy)
-        if ((yc.eq.nx+1) .and. (iymxbcl .ne. 0)) &
-        &       call owall_boundary(neq, yldotcopy)
-        do jx = 1, nxpt
-            if ((xc.eq.ixlb(jx)) .and. (ixmnbcl .ne. 0)) &
-            &       call left_boundary(neq, yldotcopy)
-            if ((xc.eq.ixrb(jx)) .and.  (ixmxbcl .ne. 0)) &
-            &       call right_boundary(neq, yldotcopy)
-        end do
-
-        if( &   
-        &       (isudsym==1.or.(geometry .eq. "dnXtarget")) &
-        &       .and. (isfixlb(1).eq.0)) then
-            if (xc.le.nxc+1 .and. xc.ge.nxc-1) call dnull_patch(neq, yldotcopy)
-        endif
-
-        if (islimon .ne. 0) then
-            if (xc.le.ix_lim+1 .and. xc.ge.ix_lim-1) call limiter_patch(neq, yldotcopy)
-        endif
-
-        if (igas .eq. 1) call igas_patch(neq, yldotcopy)
-
-        do ii = 1, numvar
-            yldottot((ichunk-1)*numvar + ii) = yldottot((ichunk-1)*numvar + ii) &
-            &       + yldotcopy((ichunk-1)*numvar + ii)
-        end do
-            
+            do ii=1,Nivchunk(ichunk)
+                yldottot(ivchunk(ichunk,ii)) = yldottot(ivchunk(ichunk,ii)) + yldotcopy(ivchunk(ichunk,ii))
+            end do
 
         END DO
         !$OMP END PARALLEL DO
         yldot(1:neq) = yldottot(1:neq)
+
+        ! TODO: figure out which parts of iwall_boundary causes 
+        ! parallel issues
+        call initialize_ranges(-1, 0, 0, 0, 0)
+        if (iymnbcl .ne. 0) &
+        &       call iwall_boundary(neq, yldot)
 
 
     RETURN
@@ -3087,6 +3069,11 @@ END SUBROUTINE OMPSplitIndex
     USE Math_problem_size, ONLY: numvar
     USE ParallelEval, ONLY: ParallelPandfCall
 
+    USE UEpar, ONLY: igas
+    USE Xpoint_indices, ONLY: ixrb, ixlb
+    USE Indices_domain_dcl, ONLY: iymnbcl,iymxbcl, ixmnbcl, ixmxbcl
+    USE Share, ONLY: isudsym, geometry, islimon, ix_lim, nxc
+    USE Bcond, ONLY: isfixlb
     IMPLICIT NONE
  
     integer yinc_bkp,xrinc_bkp,xlinc_bkp,iv,tid
@@ -3160,16 +3147,10 @@ END SUBROUTINE OMPSplitIndex
         call OMPcalc_plasma_energy_residuals(neq, yl, yldot)
         if (isphion.eq.1) call OMPcalc_potential_residuals(neq, yl, yldot)
         call OMPcalc_rhs(neq, yl, yldot)
-
-
-
-!        call OMPbouncon(neq, yl, yldot)
-                call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
-                call bouncon (neq, yldot)
+        call OMPbouncon(neq, yl, yldot)
 
         if (TimingPandfOn.gt.0) & 
         &      TotTimePandf=TotTimePandf+tock(TimePandf)
-
 
         ! ================ BEGIN OLD PANDF1 ===================
 
