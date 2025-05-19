@@ -560,6 +560,7 @@ END SUBROUTINE OMPSplitIndex
 
   SUBROUTINE OMPinitialize_ranges(xc, yc)
     Use Selec 
+    Use Bcond, ONLY: xcnearrb, xcnearlb
     IMPLICIT NONE
     integer, intent(in):: xc, yc
 
