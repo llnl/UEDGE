@@ -2911,7 +2911,7 @@ END SUBROUTINE OMPSplitIndex
     real ylcopy(1:neq+2), yldottot(1:neq)
     INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc, ii
 
-        yldotcopy = 0
+        yldotcopy = yldot(1:neq)
         yldottot = 0
 
         call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)
