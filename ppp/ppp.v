@@ -97,12 +97,14 @@ NchunksPandf1       integer     /1/
 Nychunks_old        integer     /-1/
 Nxchunks_old        integer     /-1/
 neq_old             integer     /0/
+Nchunksmax           integer     /1/
 yincchunk(NchunksPandf1)    _integer
 xincchunk(NchunksPandf1)    _integer
 ixchunk(NchunksPandf1)      _integer
 iychunk(NchunksPandf1)      _integer
+ixychunk(NchunksPandf1, 4)  _integer
 Nivchunk(NchunksPandf1)     _integer
-ivchunk(NchunksPandf1,neq)  _integer
+ivchunk(NchunksPandf1,Nchunksmax)  _integer
 iymaxchunk(NchunksPandf1)   _integer
 ixmaxchunk(NchunksPandf1)   _integer
 iyminchunk(NchunksPandf1)   _integer
@@ -121,3 +123,7 @@ SerialTime      real    /0./
 
 ***** JacDebug:
 EvalDumpJac(FileName:string) subroutine # Dumps jacobian to file for further processing
+
+
+***** Subs:
+Make2DChunks(i,j)                           subroutine
