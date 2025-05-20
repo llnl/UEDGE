@@ -3425,21 +3425,26 @@ END SUBROUTINE OMPSplitIndex
     Use Dim, ONLY: nx, ny
     Use Indexes, ONLY: igyl
     Use Lsode, ONLY: neq
-    Use OMPPandf1, ONLY: Nxchunks, Nychunks, NchunksPandf1
+    Use OMPPandf1, ONLY: Nxchunks, Nychunks, NchunksPandf1, Nivchunk, &
+    &   ivchunk, Nchunksmax, ixychunk
 
     IMPLICIT NONE
     integer, intent(in):: Nxc, Nyc
     integer:: ix, iy, nxi, nyi, ii, idx(2), idxl
     real:: dx, dy
-    integer, allocatable:: lims(:,:), xlims(:,:), ylims(:,:), Nivchunks(:,:), Niv(:)
+    integer, allocatable:: xlims(:,:), ylims(:,:), Nivchunks(:,:), Niv(:)
     Nxchunks = Nxc; Nychunks = Nyc
-    if (Nxchunks .gt. nx) Nxchunks = nx ! Limit nx to ensure 
+    Nxchunks = MAX(MIN(nx, Nxc),1)
+    Nychunks = MAX(MIN(ny, Nyc),1)
+!    if (Nxchunks .gt. nx) Nxchunks = nx ! Limit nx to ensure 
     ! boundary chunks include guard cells
-    if (Nychunks .gt. ny) Nychunks = ny ! is the same necessary for Y-chunks?
+!    if (Nychunks .gt. ny) Nychunks = ny ! is the same necessary for Y-chunks?
     NchunksPandf1 = Nxchunks * Nychunks
+    Nchunksmax = neq
     dx = real(nx)/Nxchunks
     dy = real(ny)/Nychunks
-    allocate(lims(NchunksPandf1,4), xlims(Nxchunks,2), ylims(Nychunks,2), Nivchunks(NchunksPandf1,neq), Niv(NchunksPandf1))
+    allocate(xlims(Nxchunks,2), ylims(Nychunks,2))!, Nivchunks(NchunksPandf1,neq), Niv(NchunksPandf1))
+    call gchange("OMPPandf1", 0)
 
 
     xlims(1,1) = 0; xlims(1,2)=max(1,int(dx))
@@ -3447,14 +3452,14 @@ END SUBROUTINE OMPSplitIndex
         xlims(ix,1) = xlims(ix-1,2)+1
         xlims(ix,2) = int(dx*ix)
     end do
-    xlims(Nxchunks,1) = xlims(Nxchunks-1,2)+1
+    if (Nxchunks .gt. 1) xlims(Nxchunks,1) = xlims(Nxchunks-1,2)+1
     xlims(Nxchunks,2) = nx+1
     ylims(1,1) = 0; ylims(1,2)=max(1,int(dy))
     do iy = 2, Nychunks-1
         ylims(iy,1) = ylims(iy-1,2)+1
         ylims(iy,2) = int(dy*iy)
     end do
-    ylims(Nychunks,1) = ylims(Nychunks-1,2)+1
+    if (Nychunks .gt. 1) ylims(Nychunks,1) = ylims(Nychunks-1,2)+1
     ylims(Nychunks,2) = ny+1
 
 !    ylims=0
@@ -3465,35 +3470,39 @@ END SUBROUTINE OMPSplitIndex
 !    ylims(Nychunks,2) = ny+1
     do ix = 1, Nxchunks
         do iy = 1, Nychunks
-            lims(Nxchunks*(iy-1) + ix, 1) = xlims(ix,1)
-            lims(Nxchunks*(iy-1) + ix, 2) = xlims(ix,2)
-            lims(Nxchunks*(iy-1) + ix, 3) = ylims(iy,1)
-            lims(Nxchunks*(iy-1) + ix, 4) = ylims(iy,2)
+            ixychunk(Nxchunks*(iy-1) + ix, 1) = xlims(ix,1)
+            ixychunk(Nxchunks*(iy-1) + ix, 2) = xlims(ix,2)
+            ixychunk(Nxchunks*(iy-1) + ix, 3) = ylims(iy,1)
+            ixychunk(Nxchunks*(iy-1) + ix, 4) = ylims(iy,2)
         end do
     end do
-    Niv = 0
-    Nivchunks = 0
+    Nivchunk = 0
+    ivchunk = 0
     do ix = 1, Nxchunks
         do iy = 1, Nychunks
             idxl = Nxchunks*(iy-1) + ix
             do ii = 1, neq
                 idx = igyl(ii,:)
-                if ((idx(1).ge.lims(idxl,1)).and.(idx(1).le.lims(idxl,2)) .and. &
-                &   (idx(2).ge.lims(idxl,3)).and.(idx(2).le.lims(idxl,4)) &
+                if ((idx(1).ge.ixychunk(idxl,1)).and.(idx(1).le.ixychunk(idxl,2)) .and. &
+                &   (idx(2).ge.ixychunk(idxl,3)).and.(idx(2).le.ixychunk(idxl,4)) &
                 &   ) then
-                    Niv(idxl) = Niv(idxl) + 1
-                    Nivchunks(idxl, Niv(idxl)) = ii
+                    Nivchunk(idxl) = Nivchunk(idxl) + 1
+                    ivchunk(idxl, Nivchunk(idxl)) = ii
                 endif
             end do    
         end do
     enddo
-    write(*,*) Niv
-    write(*,*) SUM(Niv)
+    Nchunksmax = MAXVAL(Nivchunk)
+    ! Trim overly large array
+    call gchange("OMPPandf1",0)
+    write(*,*) Nivchunk
+    write(*,*) SUM(Nivchunk)
+    write(*,*) SUM(ivchunk)
     
 
 
     do ix=1,NchunksPandf1
-        write(*,*) lims(ix,:)
+        write(*,*) ixychunk(ix,:)
 !        write(*,*) (lims(ix,2)-lims(ix,1)+1)*(lims(ix,4)-lims(ix,3)+1)
     end do
     do ix=1,Nxchunks
