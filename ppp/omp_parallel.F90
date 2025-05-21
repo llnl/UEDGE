@@ -3000,7 +3000,7 @@ END SUBROUTINE OMPSplitIndex
     USE OMPPandf1Settings, ONLY: OMPTimeParallelPandf1,OMPTimeSerialPandf1, &
             OMPPandf1Stamp,OMPPandf1Verbose,OMPPandf1Debug
     USE OMPPandf1, ONLY: Nivchunk,ivchunk,yincchunk,xincchunk, &
-            iychunk,ixchunk,NchunksPandf1
+            iychunk,ixchunk,NchunksPandf1, rangechunk, Nxchunks, Nychunks
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
     USE Dim, ONLY:nx,ny,nxpt, nusp
     USE Math_problem_size, ONLY: numvar
@@ -3017,12 +3017,19 @@ END SUBROUTINE OMPSplitIndex
     real,intent(in)::yl(*)
     real,intent(out)::yldot(*)
     real::yldotcopy(1:neq)
-    real ylcopy(1:neq+2), yldottot(1:neq)
+    real ylcopy(1:neq+2), yldottot(1:neq), Nxchunks_old, Nychunks_old
     INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc, ii, idx, ifld, jx
 
         yldotcopy = yldot(1:neq)
         yldottot = 0
 
+        ! TODO: Figure out all these chunking issues w/ bouncon
+        Nxchunks_old = Nxchunks
+        Nychunks_old = Nychunks
+        Nxchunks = 5
+        Nychunks = 1
+        call Make2DChunks
+        
 
         !$OMP    PARALLEL DO &
         !$OMP &      default(shared) &
@@ -3032,9 +3039,7 @@ END SUBROUTINE OMPSplitIndex
         !$OMP &      REDUCTION(+:yldottot)
         DO ichunk = 1, NchunksPandf1
             ! TODO: Figure out more generalized chunking routines for BCs
-            xc = ixchunk(ichunk)
-            yc = iychunk(ichunk)
-            call initialize_ranges(xc, yc,0,0,1)
+            call OMPinitialize_ranges2D(rangechunk(ichunk,:))
             call bouncon(neq, yldotcopy)
 
             do ii=1,Nivchunk(ichunk)
@@ -3044,6 +3049,10 @@ END SUBROUTINE OMPSplitIndex
         END DO
         !$OMP END PARALLEL DO
         yldot(1:neq) = yldottot(1:neq)
+
+        Nxchunks = Nxchunks_old
+        Nychunks = Nychunks_old
+        call Make2DChunks
 
     RETURN
   END SUBROUTINE OMPbouncon
@@ -3342,8 +3351,8 @@ END SUBROUTINE OMPSplitIndex
 
         call OMPbouncon(neq, yl, yldot)
 
-        call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
-        call bouncon(neq, yldot)
+!        call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
+!        call bouncon(neq, yldot)
 
 
 !        call OMPbouncon(neq, yl, yldot)
