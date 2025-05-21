@@ -558,6 +558,58 @@ END SUBROUTINE OMPSplitIndex
   END SUBROUTINE OMPPandf1Rhs_old
 
 
+  SUBROUTINE OMPinitialize_ranges2D(limits)
+    Use Selec
+    Use Bcond, ONLY: xcnearrb, xcnearlb
+    Use Dim, ONLY: nfsp, nhsp, nisp, nx, ny
+    Use Imprad, ONLY: isimpon
+    IMPLICIT NONE
+    integer, intent(in):: limits(4)
+    integer:: xs, xe, ys, ye
+    xs = limits(1)
+    xe = limits(2)
+    ys = limits(3)
+    ye = limits(4)
+      nfsp = nisp
+      if (isimpon .eq. 3 .or. isimpon .eq. 4) nfsp = nhsp
+
+
+    i1 = max(0, xs)
+    i2 = max(1, xs)
+    i2p = max(1, xs)
+    i3 = xs 
+    i4 = max(0, xs)
+    i5 = min(nx, xe)
+    i5m = min(nx-1, xe)
+    i6 = min(nx+1, xe)
+    i7 = xe     
+    i8 = min(nx+1, xe)
+    j1 = max(0, ys)
+    j2 = max(1, ys)
+    j1p = max(0, ys)
+    j2p = max(1, ys)
+    j3 = ys
+    j4 = max(0, ys)
+    j5 = min(ny, ye)
+    j5m = min(ny-1, ye)
+    j6 = min(ny+1, ye)
+    j5p = min(ny, ye)
+    j6p = min(ny+1, ye)
+    j7 = ye
+    j8 = min(ny+1, ye)
+
+    ixs = i2
+    ixf = i5
+    iys = j2
+    iyf = j5
+    ixs1 = i1
+    ixf6 = i6
+    iys1 = j1
+    iyf6 = j6
+
+
+  END SUBROUTINE OMPinitialize_ranges2D
+
   SUBROUTINE OMPinitialize_ranges(xc, yc)
     Use Selec 
     Use Bcond, ONLY: xcnearrb, xcnearlb
@@ -3426,7 +3478,7 @@ END SUBROUTINE OMPSplitIndex
     Use Indexes, ONLY: igyl
     Use Lsode, ONLY: neq
     Use OMPPandf1, ONLY: Nxchunks, Nychunks, NchunksPandf1, Nivchunk, &
-    &   ivchunk, Nchunksmax, ixychunk
+    &   ivchunk, Nchunksmax, rangechunk, ixychunk, Nixychunk, Nixychunksmax
 
     IMPLICIT NONE
     integer, intent(in):: Nxc, Nyc
@@ -3441,6 +3493,7 @@ END SUBROUTINE OMPSplitIndex
 !    if (Nychunks .gt. ny) Nychunks = ny ! is the same necessary for Y-chunks?
     NchunksPandf1 = Nxchunks * Nychunks
     Nchunksmax = neq
+    Nixychunksmax = (nx+2)*(ny+2)
     dx = real(nx)/Nxchunks
     dy = real(ny)/Nychunks
     allocate(xlims(Nxchunks,2), ylims(Nychunks,2))!, Nivchunks(NchunksPandf1,neq), Niv(NchunksPandf1))
@@ -3462,18 +3515,12 @@ END SUBROUTINE OMPSplitIndex
     if (Nychunks .gt. 1) ylims(Nychunks,1) = ylims(Nychunks-1,2)+1
     ylims(Nychunks,2) = ny+1
 
-!    ylims=0
-!    do iy = 1, Nychunks-1
-!        ylims(iy,2) = int(dy*iy) 
-!        ylims(iy+1,1) = ylims(iy,2)+1
-!    end do
-!    ylims(Nychunks,2) = ny+1
     do ix = 1, Nxchunks
         do iy = 1, Nychunks
-            ixychunk(Nxchunks*(iy-1) + ix, 1) = xlims(ix,1)
-            ixychunk(Nxchunks*(iy-1) + ix, 2) = xlims(ix,2)
-            ixychunk(Nxchunks*(iy-1) + ix, 3) = ylims(iy,1)
-            ixychunk(Nxchunks*(iy-1) + ix, 4) = ylims(iy,2)
+            rangechunk(Nxchunks*(iy-1) + ix, 1) = xlims(ix,1)
+            rangechunk(Nxchunks*(iy-1) + ix, 2) = xlims(ix,2)
+            rangechunk(Nxchunks*(iy-1) + ix, 3) = ylims(iy,1)
+            rangechunk(Nxchunks*(iy-1) + ix, 4) = ylims(iy,2)
         end do
     end do
     Nivchunk = 0
@@ -3483,8 +3530,8 @@ END SUBROUTINE OMPSplitIndex
             idxl = Nxchunks*(iy-1) + ix
             do ii = 1, neq
                 idx = igyl(ii,:)
-                if ((idx(1).ge.ixychunk(idxl,1)).and.(idx(1).le.ixychunk(idxl,2)) .and. &
-                &   (idx(2).ge.ixychunk(idxl,3)).and.(idx(2).le.ixychunk(idxl,4)) &
+                if ((idx(1).ge.rangechunk(idxl,1)).and.(idx(1).le.rangechunk(idxl,2)) .and. &
+                &   (idx(2).ge.rangechunk(idxl,3)).and.(idx(2).le.rangechunk(idxl,4)) &
                 &   ) then
                     Nivchunk(idxl) = Nivchunk(idxl) + 1
                     ivchunk(idxl, Nivchunk(idxl)) = ii
@@ -3492,30 +3539,21 @@ END SUBROUTINE OMPSplitIndex
             end do    
         end do
     enddo
+    do ii = 1, NchunksPandf1
+        do ix = rangechunk(ii,1), rangechunk(ii,2)
+            do iy = rangechunk(ii,3), rangechunk(ii,4)
+                Nixychunk(ii) = Nixychunk(ii) + 1
+                ixychunk(ii, Nixychunk(ii),1) = ix
+                ixychunk(ii, Nixychunk(ii),2) = iy
+            end do
+        end do
+    end do
+
+
     Nchunksmax = MAXVAL(Nivchunk)
+    Nixychunksmax = MAXVAL(Nixychunk)
     ! Trim overly large array
     call gchange("OMPPandf1",0)
-    write(*,*) Nivchunk
-    write(*,*) SUM(Nivchunk)
-    write(*,*) SUM(ivchunk)
-    
-
-
-    do ix=1,NchunksPandf1
-        write(*,*) ixychunk(ix,:)
-!        write(*,*) (lims(ix,2)-lims(ix,1)+1)*(lims(ix,4)-lims(ix,3)+1)
-    end do
-    do ix=1,Nxchunks
-!        write(*,*) xlims(ix,2)-xlims(ix,1)
-    end do
-!    write(*,*) ylims(1:nyi+1)
-        
-
-
- 
-    ! Create arbitrary chunks: only limitation is that the two 
-    ! X-boundary chunks need to be in the same slice
-
 
   END SUBROUTINE Make2DChunks
 

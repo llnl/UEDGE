@@ -97,14 +97,17 @@ NchunksPandf1       integer     /1/
 Nychunks_old        integer     /-1/
 Nxchunks_old        integer     /-1/
 neq_old             integer     /0/
-Nchunksmax           integer     /1/
+Nchunksmax          integer     /1/
+Nixychunksmax       integer     /1/
 yincchunk(NchunksPandf1)    _integer
 xincchunk(NchunksPandf1)    _integer
 ixchunk(NchunksPandf1)      _integer
 iychunk(NchunksPandf1)      _integer
-ixychunk(NchunksPandf1, 4)  _integer
+rangechunk(NchunksPandf1, 4)  _integer
 Nivchunk(NchunksPandf1)     _integer
 ivchunk(NchunksPandf1,Nchunksmax)  _integer
+Nixychunk(NchunksPandf1)    _integer
+ixychunk(NchunksPandf1,Nixychunksmax,2)  _integer
 iymaxchunk(NchunksPandf1)   _integer
 ixmaxchunk(NchunksPandf1)   _integer
 iyminchunk(NchunksPandf1)   _integer
