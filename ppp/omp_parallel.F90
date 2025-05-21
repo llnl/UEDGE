@@ -58,6 +58,7 @@ SUBROUTINE InitOMPPandf1
     USE Dim, ONLY: ny
     IMPLICIT NONE
 
+    if (1.eq.0) then
     if (OMPPandf1Nychunks.lt.0) then
         call xerrab('Nychunks<0. Nxchunks must be >=0')
     endif
@@ -70,6 +71,7 @@ SUBROUTINE InitOMPPandf1
         call xerrab('OMPPandf1Nxchunks!=1. Only Nxchunks=1 is implemented for the moment...')
     else
         Nxchunks=1
+    endif
     endif
 
     ! this is a placeholder for further parallelization but we need to implement handling of x-points discon. in ix indexing
@@ -495,7 +497,7 @@ END SUBROUTINE OMPSplitIndex
     if (ijactot.gt.0) then
 
         Time1=omp_get_wtime()
-        call MakeChunksPandf1
+!        call MakeChunksPandf1
         call OmpCopyPointerup
           !$omp parallel do default(shared) schedule(dynamic,OMPPandf1LoopNchunk) &
           !$omp& private(iv,ichunk) firstprivate(ylcopy,yldotcopy) copyin(yinc,xlinc,xrinc) &
@@ -1573,6 +1575,136 @@ END SUBROUTINE OMPSplitIndex
 
   END SUBROUTINE OMPcalc_elec_velocities
 
+
+  SUBROUTINE OMPcalc_volumetric_sources_2d(neq, yl, yldot)
+    USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt, nusp
+    USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
+    USE OMPPandf1, ONLY: NchunksPandf1, Nixychunk, ixychunk, rangechunk
+    USE OmpCopybbb
+    USE Rhsides, ONLY: psorrgc, psorgc, psordis, psorbgg, psordisg, smoc, psorc, snic, seic, psor, &
+    &    psorbgz, seec, msor, psorg, psorcxg, psorrg, msorxr, psorxr, psorxrc
+    USE Conduc, ONLY: nuelg, nurc, nuvl, nuiz, nucxi, nucx, nueli, nuix
+    USE Compla, ONLY: rtauy, rtaux, rtau
+    USE OMPTiming, ONLY: ParaTime, SerialTime
+    IMPLICIT NONE
+    INTEGER, INTENT(IN):: neq
+    REAL, INTENT(IN):: yl(*)
+    REAL, INTENT(OUT):: yldot(*)
+    INTEGER:: ichunk, xc, yc, ii
+    REAL:: yldotcopy(1:neq), ylcopy(1:neq+2)
+    real tick,tock, tsfe, tsjf, ttotfe, ttotjf, tserial, tpara
+! Define local variables
+    real:: psorrgc_tmp(0:nx+1,0:ny+1,1:ngsp), psorgc_tmp(0:nx+1,0:ny+1,1:ngsp), &
+    &      nuelg_tmp(0:nx+1,0:ny+1,ngsp), nurc_tmp(0:nx+1,0:ny+1,ngsp), &
+    &      psordis_tmp(0:nx+1,0:ny+1,1:nisp), psorbgg_tmp(0:nx+1,0:ny+1,1:ngsp), &
+    &      psordisg_tmp(0:nx+1,0:ny+1,1:ngsp), smoc_tmp(0:nx+1,0:ny+1,1:nusp), &
+    &      nuvl_tmp(0:nx+1,0:ny+1,nisp), psorc_tmp(0:nx+1,0:ny+1,1:nisp), &
+    &      nuiz_tmp(0:nx+1,0:ny+1,ngsp), nucxi_tmp(0:nx+1,0:ny+1,nisp), &
+    &      snic_tmp(0:nx+1,0:ny+1,1:nisp), seic_tmp(0:nx+1,0:ny+1), &
+    &      psor_tmp(0:nx+1,0:ny+1,1:nisp), rtauy_tmp(0:nx+1,0:ny+1), &
+    &      psorbgz_tmp(0:nx+1,0:ny+1), seec_tmp(0:nx+1,0:ny+1), &
+    &      msor_tmp(0:nx+1,0:ny+1,1:nisp), psorg_tmp(0:nx+1,0:ny+1,1:ngsp), &
+    &      rtaux_tmp(0:nx+1,0:ny+1), psorcxg_tmp(0:nx+1,0:ny+1,1:ngsp), &
+    &      psorrg_tmp(0:nx+1,0:ny+1,1:ngsp), msorxr_tmp(0:nx+1,0:ny+1,1:nisp), &
+    &      rtau_tmp(0:nx+1,0:ny+1), nucx_tmp(0:nx+1,0:ny+1,ngsp), &
+    &      nueli_tmp(0:nx+1,0:ny+1,nisp), psorxr_tmp(0:nx+1,0:ny+1,1:nisp), &
+    &      psorxrc_tmp(0:nx+1,0:ny+1,1:nisp), nuix_tmp(0:nx+1,0:ny+1,ngsp)
+
+    ! Initialize arrays to zero
+    psorrgc_tmp=0.; psorgc_tmp=0.; nuelg_tmp=0.; nurc_tmp=0.; psordis_tmp=0.
+    psorbgg_tmp=0.; psordisg_tmp=0.; smoc_tmp=0.; nuvl_tmp=0.; psorc_tmp=0.
+    nuiz_tmp=0.; nucxi_tmp=0.; snic_tmp=0.; seic_tmp=0.; psor_tmp=0.
+    rtauy_tmp=0.; psorbgz_tmp=0.; seec_tmp=0.; msor_tmp=0.; psorg_tmp=0.
+    rtaux_tmp=0.; psorcxg_tmp=0.; psorrg_tmp=0.; msorxr_tmp=0.; rtau_tmp=0.
+    nucx_tmp=0.; nueli_tmp=0.; psorxr_tmp=0.; psorxrc_tmp=0.; nuix_tmp=0.
+
+    ylcopy(1:neq+1)=yl(1:neq+1); yldotcopy=0
+
+
+        tpara = tick()
+    !$OMP    PARALLEL DO &
+    !$OMP &      default(shared) &
+    !$OMP &      schedule(dynamic,OMPPandf1LoopNchunk) &
+    !$OMP &      private(ichunk,xc,yc) &
+    !$OMP &      firstprivate(ylcopy, yldotcopy) &
+    !$OMP &      REDUCTION(+:psorrgc_tmp, psorgc_tmp, nuelg_tmp, nurc_tmp, psordis_tmp, psorbgg_tmp, &
+    !$OMP &         psordisg_tmp, smoc_tmp, nuvl_tmp, psorc_tmp, nuiz_tmp, nucxi_tmp, snic_tmp, &
+    !$OMP &         seic_tmp, psor_tmp, rtauy_tmp, psorbgz_tmp, seec_tmp, msor_tmp, psorg_tmp, &
+    !$OMP &         rtaux_tmp, psorcxg_tmp, psorrg_tmp, msorxr_tmp, rtau_tmp, nucx_tmp, &
+    !$OMP &         nueli_tmp, psorxr_tmp, psorxrc_tmp, nuix_tmp)
+    DO ichunk = 1, NchunksPandf1
+        
+        call OMPinitialize_ranges2d(rangechunk(ichunk,:))
+        call calc_volumetric_sources(1,1)
+
+        do ii = 1, Nixychunk(ichunk)
+        xc = ixychunk(ichunk,ii,1)
+        yc = ixychunk(ichunk,ii,2)
+        ! Update locally calculated variables
+        psorrgc_tmp(xc,yc,:)=psorrgc_tmp(xc,yc,:)+psorrgc(xc,yc,:)
+        psorgc_tmp(xc,yc,:)=psorgc_tmp(xc,yc,:)+psorgc(xc,yc,:)
+        nuelg_tmp(xc,yc,:)=nuelg_tmp(xc,yc,:)+nuelg(xc,yc,:)
+        nurc_tmp(xc,yc,:)=nurc_tmp(xc,yc,:)+nurc(xc,yc,:)
+        psordis_tmp(xc,yc,:)=psordis_tmp(xc,yc,:)+psordis(xc,yc,:)
+        psorbgg_tmp(xc,yc,:)=psorbgg_tmp(xc,yc,:)+psorbgg(xc,yc,:)
+        psordisg_tmp(xc,yc,:)=psordisg_tmp(xc,yc,:)+psordisg(xc,yc,:)
+        smoc_tmp(xc,yc,:)=smoc_tmp(xc,yc,:)+smoc(xc,yc,:)
+        nuvl_tmp(xc,yc,:)=nuvl_tmp(xc,yc,:)+nuvl(xc,yc,:)
+        psorc_tmp(xc,yc,:)=psorc_tmp(xc,yc,:)+psorc(xc,yc,:)
+        nuiz_tmp(xc,yc,:)=nuiz_tmp(xc,yc,:)+nuiz(xc,yc,:)
+        nucxi_tmp(xc,yc,:)=nucxi_tmp(xc,yc,:)+nucxi(xc,yc,:)
+        snic_tmp(xc,yc,:)=snic_tmp(xc,yc,:)+snic(xc,yc,:)
+        seic_tmp(xc,yc)=seic_tmp(xc,yc)+seic(xc,yc)
+        psor_tmp(xc,yc,:)=psor_tmp(xc,yc,:)+psor(xc,yc,:)
+        rtauy_tmp(xc,yc)=rtauy_tmp(xc,yc)+rtauy(xc,yc)
+        psorbgz_tmp(xc,yc)=psorbgz_tmp(xc,yc)+psorbgz(xc,yc)
+        seec_tmp(xc,yc)=seec_tmp(xc,yc)+seec(xc,yc)
+        msor_tmp(xc,yc,:)=msor_tmp(xc,yc,:)+msor(xc,yc,:)
+        psorg_tmp(xc,yc,:)=psorg_tmp(xc,yc,:)+psorg(xc,yc,:)
+        rtaux_tmp(xc,yc)=rtaux_tmp(xc,yc)+rtaux(xc,yc)
+        psorcxg_tmp(xc,yc,:)=psorcxg_tmp(xc,yc,:)+psorcxg(xc,yc,:)
+        psorrg_tmp(xc,yc,:)=psorrg_tmp(xc,yc,:)+psorrg(xc,yc,:)
+        msorxr_tmp(xc,yc,:)=msorxr_tmp(xc,yc,:)+msorxr(xc,yc,:)
+        rtau_tmp(xc,yc)=rtau_tmp(xc,yc)+rtau(xc,yc)
+        nucx_tmp(xc,yc,:)=nucx_tmp(xc,yc,:)+nucx(xc,yc,:)
+        nueli_tmp(xc,yc,:)=nueli_tmp(xc,yc,:)+nueli(xc,yc,:)
+        psorxr_tmp(xc,yc,:)=psorxr_tmp(xc,yc,:)+psorxr(xc,yc,:)
+        psorxrc_tmp(xc,yc,:)=psorxrc_tmp(xc,yc,:)+psorxrc(xc,yc,:)
+        nuix_tmp(xc,yc,:)=nuix_tmp(xc,yc,:)+nuix(xc,yc,:)
+        end do
+    END DO
+    !$OMP  END PARALLEL DO
+!        ParaTime = ParaTime + tock(tpara)
+
+    ! Update global variables
+    psorrgc=psorrgc_tmp; psorgc=psorgc_tmp; nuelg=nuelg_tmp; nurc=nurc_tmp
+    psordis=psordis_tmp; psorbgg=psorbgg_tmp; psordisg=psordisg_tmp
+    smoc=smoc_tmp; nuvl=nuvl_tmp; psorc=psorc_tmp; nuiz=nuiz_tmp
+    nucxi=nucxi_tmp; snic=snic_tmp; seic=seic_tmp; psor=psor_tmp
+    rtauy=rtauy_tmp; psorbgz=psorbgz_tmp; seec=seec_tmp; msor=msor_tmp
+    psorg=psorg_tmp; rtaux=rtaux_tmp; psorcxg=psorcxg_tmp; psorrg=psorrg_tmp
+    msorxr=msorxr_tmp; rtau=rtau_tmp; nucx=nucx_tmp; nueli=nueli_tmp
+    psorxr=psorxr_tmp; psorxrc=psorxrc_tmp; nuix=nuix_tmp
+    call OmpCopyPointerpsorrgc; call OmpCopyPointerpsorgc
+    call OmpCopyPointernuelg; call OmpCopyPointernurc
+    call OmpCopyPointerpsordis; call OmpCopyPointerpsorbgg
+    call OmpCopyPointerpsordisg; call OmpCopyPointersmoc
+    call OmpCopyPointernuvl; call OmpCopyPointerpsorc
+    call OmpCopyPointernuiz; call OmpCopyPointernucxi
+    call OmpCopyPointersnic; call OmpCopyPointerseic
+    call OmpCopyPointerpsor; call OmpCopyPointerrtauy
+    call OmpCopyPointerpsorbgz; call OmpCopyPointerseec
+    call OmpCopyPointermsor; call OmpCopyPointerpsorg
+    call OmpCopyPointerrtaux; call OmpCopyPointerpsorcxg
+    call OmpCopyPointerpsorrg; call OmpCopyPointermsorxr
+    call OmpCopyPointerrtau; call OmpCopyPointernucx
+    call OmpCopyPointernueli; call OmpCopyPointerpsorxr
+    call OmpCopyPointerpsorxrc; call OmpCopyPointernuix
+
+  END SUBROUTINE OMPcalc_volumetric_sources_2d
+
+
+
   SUBROUTINE OMPcalc_volumetric_sources(neq, yl, yldot)
     USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt, nusp
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
@@ -1581,11 +1713,12 @@ END SUBROUTINE OMPSplitIndex
     &    psorbgz, seec, msor, psorg, psorcxg, psorrg, msorxr, psorxr, psorxrc
     USE Conduc, ONLY: nuelg, nurc, nuvl, nuiz, nucxi, nucx, nueli, nuix
     USE Compla, ONLY: rtauy, rtaux, rtau
+    USE OMPPandf1, ONLY: Nchunks, chunks
     IMPLICIT NONE
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
     REAL, INTENT(OUT):: yldot(*)
-    INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc
+    INTEGER:: ichunk, xc, yc
     REAL:: yldotcopy(1:neq), ylcopy(1:neq+2)
 ! Define local variables
     real:: psorrgc_tmp(0:nx+1,0:ny+1,1:ngsp), psorgc_tmp(0:nx+1,0:ny+1,1:ngsp), &
@@ -3118,6 +3251,7 @@ END SUBROUTINE OMPSplitIndex
     USE Indices_domain_dcl, ONLY: iymnbcl,iymxbcl, ixmnbcl, ixmxbcl
     USE Share, ONLY: isudsym, geometry, islimon, ix_lim, nxc
     USE Bcond, ONLY: isfixlb
+    USE OMPPandf1, ONLY: Nchunks, chunks
     IMPLICIT NONE
  
     integer yinc_bkp,xrinc_bkp,xlinc_bkp,iv,tid
@@ -3129,7 +3263,7 @@ END SUBROUTINE OMPSplitIndex
     real yldotsave(1:neq),ylcopy(1:neq+2), yldottot(1:neq)
     character*80 ::FileName
     real time1,time2
-    INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc, ii
+    INTEGER:: ichunk, xc, yc, ii
     real tmp_prad(0:nx+1, 0:ny+1)
     real tick,tock, tsfe, tsjf, ttotfe, ttotjf, tserial, tpara
     external tick, tock
@@ -3148,7 +3282,10 @@ END SUBROUTINE OMPSplitIndex
 
     if (ijactot.gt.0) then
         Time1=omp_get_wtime()
-        call MakeChunksPandf1
+!        call MakeChunksPandf1
+        call Make2DChunks
+        call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)
+
         call OMPconvsr_vo1 (neq, yl, yldot) 
         call OMPconvsr_vo2 (neq, yl, yldot) 
         call OMPconvsr_aux1 (neq, yl, yldot) 
@@ -3163,7 +3300,17 @@ END SUBROUTINE OMPSplitIndex
         endif
         call OMPcalc_friction(neq, yl, yldot)
         call OMPcalc_elec_velocities(neq, yl, yldot)
-        call OMPcalc_volumetric_sources(neq, yl, yldot)
+
+
+        tpara = tick()
+        call OMPcalc_volumetric_sources_2d(neq, yl, yldot)
+        ParaTime = ParaTime + tock(tpara)
+
+        call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
+        tserial = tick()
+        call calc_volumetric_sources(xc, yc)
+        SerialTime = SerialTime + tock(tserial)
+
         if (TimingPandfOn.gt.0) TimeNeudif=tick()
         call OMPneudifpg(neq, yl, yldot)
         if (TimingPandfOn.gt.0) TotTimeNeudif=TotTimeNeudif+tock(TimeNeudif)
@@ -3193,14 +3340,10 @@ END SUBROUTINE OMPSplitIndex
         if (isphion.eq.1) call OMPcalc_potential_residuals(neq, yl, yldot)
         call OMPcalc_rhs(neq, yl, yldot)
 
-        tpara = tick()
         call OMPbouncon(neq, yl, yldot)
-        ParaTime = ParaTime + tock(tpara)
 
-        tserial = tick()
         call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
         call bouncon(neq, yldot)
-        SerialTime = SerialTime + tock(tserial)
 
 
 !        call OMPbouncon(neq, yl, yldot)
@@ -3473,7 +3616,7 @@ END SUBROUTINE OMPSplitIndex
   END SUBROUTINE chunk3d
   
 
-  SUBROUTINE Make2DChunks(Nxc, Nyc)
+  SUBROUTINE Make2DChunks
     Use Dim, ONLY: nx, ny
     Use Indexes, ONLY: igyl
     Use Lsode, ONLY: neq
@@ -3481,13 +3624,11 @@ END SUBROUTINE OMPSplitIndex
     &   ivchunk, Nchunksmax, rangechunk, ixychunk, Nixychunk, Nixychunksmax
 
     IMPLICIT NONE
-    integer, intent(in):: Nxc, Nyc
     integer:: ix, iy, nxi, nyi, ii, idx(2), idxl
     real:: dx, dy
     integer, allocatable:: xlims(:,:), ylims(:,:), Nivchunks(:,:), Niv(:)
-    Nxchunks = Nxc; Nychunks = Nyc
-    Nxchunks = MAX(MIN(nx, Nxc),1)
-    Nychunks = MAX(MIN(ny, Nyc),1)
+    Nxchunks = MAX(MIN(nx, Nxchunks),1)
+    Nychunks = MAX(MIN(ny, Nychunks),1)
 !    if (Nxchunks .gt. nx) Nxchunks = nx ! Limit nx to ensure 
     ! boundary chunks include guard cells
 !    if (Nychunks .gt. ny) Nychunks = ny ! is the same necessary for Y-chunks?
@@ -3525,6 +3666,8 @@ END SUBROUTINE OMPSplitIndex
     end do
     Nivchunk = 0
     ivchunk = 0
+    Nixychunk = 0
+    ixychunk = 0
     do ix = 1, Nxchunks
         do iy = 1, Nychunks
             idxl = Nxchunks*(iy-1) + ix

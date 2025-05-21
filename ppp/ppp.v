@@ -91,6 +91,8 @@ xpadding            integer         /2/
 ypadding            integer         /2/
 
 **** OMPPandf1:
+chunks(neq,3)       _integer
+Nchunks             integer
 Nychunks            integer     /0/
 Nxchunks            integer     /1/
 NchunksPandf1       integer     /1/
