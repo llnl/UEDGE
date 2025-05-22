@@ -2341,9 +2341,11 @@ END SUBROUTINE OMPSplitIndex
   END SUBROUTINE OMPcalc_plasma_momentum_coeffs
 
 
+
   SUBROUTINE OMPcalc_plasma_momentum(neq, yl, yldot)
     USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt, nusp
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
+    USE OMPPandf1, ONLY: NchunksPandf1, Nixychunk, ixychunk, rangechunk
     USE OmpCopybbb
     USE Compla, ONLY: fmivxpt, fmihxpt, vyvxpt, nixpt, vyhxpt, visyxpt, upxpt, up
     USE Comflo, ONLY: fmixy, fmix, fmiy
@@ -2354,7 +2356,7 @@ END SUBROUTINE OMPSplitIndex
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
     REAL, INTENT(OUT):: yldot(*)
-    INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc, iusp, ixpt, ifld
+    INTEGER:: ichunk, xc, yc, ii, iusp, ixpt, ifld
     REAL:: yldotcopy(1:neq), ylcopy(1:neq+2)
 ! Define local variables
     real:: fmivxpt_tmp(1:nusp,1:nxpt), fmihxpt_tmp(1:nusp,1:nxpt), &
@@ -2373,7 +2375,6 @@ END SUBROUTINE OMPSplitIndex
 
     ylcopy(1:neq+1)=yl(1:neq+1); yldotcopy=0
 
-    call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)
 
     !$OMP    PARALLEL DO &
     !$OMP &      default(shared) &
@@ -2383,10 +2384,10 @@ END SUBROUTINE OMPSplitIndex
     !$OMP &      REDUCTION(+:fmivxpt_tmp, fmihxpt_tmp, fmixy_tmp, &
     !$OMP &         vyvxpt_tmp, nixpt_tmp, vyhxpt_tmp, visyxpt_tmp, upxpt_tmp, smoc_tmp, &
     !$OMP &         fmix_tmp, fmiy_tmp)
-    DO ichunk = 1, Nchunks
-        xc = chunks(ichunk,1)
-        yc = chunks(ichunk,2)
-        call OMPinitialize_ranges(xc, yc)
+    DO ichunk = 1, NchunksPandf1
+        
+        
+        call OMPinitialize_ranges2d(rangechunk(ichunk,:))
         call calc_plasma_momentum(xc, yc)
 
         do iusp = 1, nusp
@@ -2401,11 +2402,15 @@ END SUBROUTINE OMPSplitIndex
             end do
         end do 
 
-        ! Update locally calculated variables
+        do ii = 1, Nixychunk(ichunk)
+         xc = ixychunk(ichunk,ii,1)
+         yc = ixychunk(ichunk,ii,2)
+         ! Update locally calculated variables
         fmixy_tmp(xc,yc,:)=fmixy_tmp(xc,yc,:)+fmixy(xc,yc,:)
         fmix_tmp(xc,yc,:)=fmix_tmp(xc,yc,:)+fmix(xc,yc,:)
         fmiy_tmp(xc,yc,:)=fmiy_tmp(xc,yc,:)+fmiy(xc,yc,:)
         smoc_tmp(xc,yc,:)=smoc_tmp(xc,yc,:)+smoc(xc,yc,:)
+            end do
     END DO
     !$OMP  END PARALLEL DO
 
