@@ -34,6 +34,7 @@ c!include "../sptodp.h"
       Use(Ext_neutrals)
       Use(Imprad)
       Use(Timing)
+      Use(ParallelEval)
       integer xc, yc
       integer iy, ix, iy1, ix1, ix2, ix3, ix4, ix5, ix6, jx, jfld, jz, 
      .  igsp, iy_min, iy_max, j2pwr, j5pwr, i2pwr, i5pwr, ifld, nsm1, zn,
@@ -657,6 +658,10 @@ c*************************************************************
               j2pwr = max(1, yc-1)
               j5pwr = min(ny, yc+1)
             endif 
+              if (ParallelPandfCall.gt.0) then
+                j2pwr = j2
+                j5pwr = j5
+              end if
             do iy = j2pwr, j5pwr
               if (xc < 0) then #full RHS eval
                 i2pwr = i2
@@ -665,6 +670,10 @@ c*************************************************************
                 i2pwr = max(1,ixm1(xc,yc))
                 i5pwr = min(nx, ixp1(xc,yc))
               endif
+              if (ParallelPandfCall.gt.0) then
+                i2pwr = i2
+                i5pwr = i5
+              end if
               do ix = i2pwr, i5pwr
                 ix1 = ixm1(ix,iy)
                 ix2 = ixp1(ix,iy)
@@ -851,6 +860,10 @@ cc         elseif (ishosor .ne. 0)
               j2pwr = max(1, yc-1)
               j5pwr = min(ny, yc+1)
             endif 
+              if (ParallelPandfCall.gt.0) then
+                j2pwr = j2
+                j5pwr = j5
+              end if
             do iy = j2pwr, j5pwr
               if (xc < 0) then #full RHS eval
                 i2pwr = i2
@@ -859,6 +872,10 @@ cc         elseif (ishosor .ne. 0)
                 i2pwr = max(1,ixm1(xc,yc))
                 i5pwr = min(nx, ixp1(xc,yc))
               endif
+              if (ParallelPandfCall.gt.0) then
+                i2pwr = i2
+                i5pwr = i5
+              end if
               do ix = i2pwr, i5pwr
                 ix1 = ixm1(ix,iy)
                 ix2 = ixp1(ix,iy)

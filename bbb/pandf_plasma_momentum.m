@@ -561,7 +561,7 @@ c  -- it is included in frici from mombal or mombalni
       END SUBROUTINE calc_plasma_momentum_residuals
 
 
-      SUBROUTINE calc_friction(xc, yc)
+      SUBROUTINE calc_friction(xc)
       IMPLICIT NONE
       Use(Imprad)
       Use(Selec)
