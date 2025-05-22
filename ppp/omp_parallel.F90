@@ -995,9 +995,11 @@ END SUBROUTINE OMPSplitIndex
 
   END SUBROUTINE OMPconvsr_aux2
 
+
   SUBROUTINE OMPcalc_plasma_diffusivities(neq, yl, yldot)
     USE Dim, ONLY: nx, ny, ngsp, nisp
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
+    USE OMPPandf1, ONLY: NchunksPandf1, Nixychunk, ixychunk, rangechunk
     USE OmpCopybbb
     USE Conduc, ONLY: dutm_use, difp_use, dif_use, kyi_use, trax_use, kxbohm, kxe_use, kxi_use, &
     &    kye_use, vy_use, kybohm, tray_use, dif2_use
@@ -1007,7 +1009,7 @@ END SUBROUTINE OMPSplitIndex
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
     REAL, INTENT(OUT):: yldot(*)
-    INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc
+    INTEGER:: ichunk, xc, yc, ii
     REAL:: yldotcopy(1:neq), ylcopy(1:neq+2)
 ! Define local variables
     real:: dutm_use_tmp(0:nx+1,0:ny+1,1:nisp), difp_use_tmp(0:nx+1,0:ny+1,1:nisp), &
@@ -1026,7 +1028,6 @@ END SUBROUTINE OMPSplitIndex
 
     ylcopy(1:neq+1)=yl(1:neq+1); yldotcopy=0
 
-    call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)
 
     !$OMP    PARALLEL DO &
     !$OMP &      default(shared) &
@@ -1036,13 +1037,16 @@ END SUBROUTINE OMPSplitIndex
     !$OMP &      REDUCTION(+:dutm_use_tmp, difp_use_tmp, dif_use_tmp, kyi_use_tmp, trax_use_tmp, &
     !$OMP &         kxbohm_tmp, kxe_use_tmp, kxi_use_tmp, kye_use_tmp, vy_use_tmp, betap_tmp, &
     !$OMP &         kybohm_tmp, tray_use_tmp, dif2_use_tmp)
-    DO ichunk = 1, Nchunks
-        xc = chunks(ichunk,1)
-        yc = chunks(ichunk,2)
-        call OMPinitialize_ranges(xc, yc)
+    DO ichunk = 1, NchunksPandf1
+        
+        
+        call OMPinitialize_ranges2d(rangechunk(ichunk,:))
         call calc_plasma_diffusivities
 
-        ! Update locally calculated variables
+        do ii = 1, Nixychunk(ichunk)
+         xc = ixychunk(ichunk,ii,1)
+         yc = ixychunk(ichunk,ii,2)
+         ! Update locally calculated variables
         dutm_use_tmp(xc,yc,:)=dutm_use_tmp(xc,yc,:)+dutm_use(xc,yc,:)
         difp_use_tmp(xc,yc,:)=difp_use_tmp(xc,yc,:)+difp_use(xc,yc,:)
         dif_use_tmp(xc,yc,:)=dif_use_tmp(xc,yc,:)+dif_use(xc,yc,:)
@@ -1057,6 +1061,7 @@ END SUBROUTINE OMPSplitIndex
         kybohm_tmp(xc,yc)=kybohm_tmp(xc,yc)+kybohm(xc,yc)
         tray_use_tmp(xc,yc,:)=tray_use_tmp(xc,yc,:)+tray_use(xc,yc,:)
         dif2_use_tmp(xc,yc,:)=dif2_use_tmp(xc,yc,:)+dif2_use(xc,yc,:)
+            end do
     END DO
     !$OMP END PARALLEL DO
 
@@ -1079,6 +1084,7 @@ END SUBROUTINE OMPSplitIndex
   SUBROUTINE OMPinitialize_driftterms(neq, yl, yldot)
     USE Dim, ONLY: nx, ny, ngsp, nisp
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
+    USE OMPPandf1, ONLY: NchunksPandf1, Nixychunk, ixychunk, rangechunk
     USE OmpCopybbb
     USE Conduc, ONLY: eta1, dclass_e, rtaue, dclass_i
     USE UEpar, ONLY: ctaui, ctaue
@@ -1087,7 +1093,7 @@ END SUBROUTINE OMPSplitIndex
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
     REAL, INTENT(OUT):: yldot(*)
-    INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc
+    INTEGER:: ichunk, xc, yc, ii
     REAL:: yldotcopy(1:neq), ylcopy(1:neq+2)
 ! Define local variables
     real:: eta1_tmp(0:nx+1,0:ny+1), ctaui_tmp(0:nx+1,0:ny+1,nisp), &
@@ -1101,7 +1107,6 @@ END SUBROUTINE OMPSplitIndex
 
     ylcopy(1:neq+1)=yl(1:neq+1); yldotcopy=0
 
-    call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)
 
     !$OMP    PARALLEL DO &
     !$OMP &      default(shared) &
@@ -1110,13 +1115,16 @@ END SUBROUTINE OMPSplitIndex
     !$OMP &      firstprivate(ylcopy, yldotcopy) &
     !$OMP &      REDUCTION(+:eta1_tmp, ctaui_tmp, dclass_e_tmp, loglambda_tmp, rtaue_tmp, ctaue_tmp, &
     !$OMP &         dclass_i_tmp)
-    DO ichunk = 1, Nchunks
-        xc = chunks(ichunk,1)
-        yc = chunks(ichunk,2)
-        call OMPinitialize_ranges(xc, yc)
+    DO ichunk = 1, NchunksPandf1
+        
+        
+        call OMPinitialize_ranges2d(rangechunk(ichunk,:))
         call initialize_driftterms
 
-        ! Update locally calculated variables
+        do ii = 1, Nixychunk(ichunk)
+         xc = ixychunk(ichunk,ii,1)
+         yc = ixychunk(ichunk,ii,2)
+         ! Update locally calculated variables
         eta1_tmp(xc,yc)=eta1_tmp(xc,yc)+eta1(xc,yc)
         ctaui_tmp(xc,yc,:)=ctaui_tmp(xc,yc,:)+ctaui(xc,yc,:)
         dclass_e_tmp(xc,yc)=dclass_e_tmp(xc,yc)+dclass_e(xc,yc)
@@ -1124,6 +1132,7 @@ END SUBROUTINE OMPSplitIndex
         rtaue_tmp(xc,yc)=rtaue_tmp(xc,yc)+rtaue(xc,yc)
         ctaue_tmp(xc,yc,:)=ctaue_tmp(xc,yc,:)+ctaue(xc,yc,:)
         dclass_i_tmp(xc,yc)=dclass_i_tmp(xc,yc)+dclass_i(xc,yc)
+            end do
     END DO
     !$OMP END PARALLEL DO
 
@@ -1141,6 +1150,7 @@ END SUBROUTINE OMPSplitIndex
   SUBROUTINE OMPcalc_driftterms1(neq, yl, yldot)
     USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
+    USE OMPPandf1, ONLY: NchunksPandf1, Nixychunk, ixychunk, rangechunk
     USE OmpCopybbb
     USE Compla, ONLY: vydd, veycb, vyrd, vycf, vygp, vy, vycr, vyce, veycp, vycb, vycp
     USE Comtra, ONLY: coll_fe, diffusivwrk, coll_fi
@@ -1149,7 +1159,7 @@ END SUBROUTINE OMPSplitIndex
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
     REAL, INTENT(OUT):: yldot(*)
-    INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc
+    INTEGER:: ichunk, xc, yc, ii
     REAL:: yldotcopy(1:neq), ylcopy(1:neq+2)
 ! Define local variables
     real:: vydd_tmp(0:nx+1,0:ny+1,1:nisp), veycb_tmp(0:nx+1,0:ny+1), &
@@ -1170,7 +1180,6 @@ END SUBROUTINE OMPSplitIndex
 
     ylcopy(1:neq+1)=yl(1:neq+1); yldotcopy=0
 
-    call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)
 
     !$OMP    PARALLEL DO &
     !$OMP &      default(shared) &
@@ -1180,13 +1189,16 @@ END SUBROUTINE OMPSplitIndex
     !$OMP &      REDUCTION(+:vydd_tmp, veycb_tmp, coll_fe_tmp, vyte_cft_tmp, vyrd_tmp, vycf_tmp, vygp_tmp, &
     !$OMP &         diffusivwrk_tmp, vy_tmp, vycr_tmp, vyce_tmp, coll_fi_tmp, veycp_tmp, &
     !$OMP &         vyti_cft_tmp, vycb_tmp, vycp_tmp, vy_cft_tmp)
-    DO ichunk = 1, Nchunks
-        xc = chunks(ichunk,1)
-        yc = chunks(ichunk,2)
-        call OMPinitialize_ranges(xc, yc)
+    DO ichunk = 1, NchunksPandf1
+        
+        
+        call OMPinitialize_ranges2d(rangechunk(ichunk,:))
         call calc_driftterms1
 
-        ! Update locally calculated variables
+        do ii = 1, Nixychunk(ichunk)
+         xc = ixychunk(ichunk,ii,1)
+         yc = ixychunk(ichunk,ii,2)
+         ! Update locally calculated variables
         vydd_tmp(xc,yc,:)=vydd_tmp(xc,yc,:)+vydd(xc,yc,:)
         veycb_tmp(xc,yc)=veycb_tmp(xc,yc)+veycb(xc,yc)
         coll_fe_tmp(xc,yc)=coll_fe_tmp(xc,yc)+coll_fe(xc,yc)
@@ -1204,6 +1216,7 @@ END SUBROUTINE OMPSplitIndex
         vycb_tmp(xc,yc,:)=vycb_tmp(xc,yc,:)+vycb(xc,yc,:)
         vycp_tmp(xc,yc,:)=vycp_tmp(xc,yc,:)+vycp(xc,yc,:)
         vy_cft_tmp(xc,yc,:)=vy_cft_tmp(xc,yc,:)+vy_cft(xc,yc,:)
+            end do
     END DO
     !$OMP END PARALLEL DO
 
@@ -1228,6 +1241,7 @@ END SUBROUTINE OMPSplitIndex
   SUBROUTINE OMPcalc_driftterms2(neq, yl, yldot)
     USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
+    USE OMPPandf1, ONLY: NchunksPandf1, Nixychunk, ixychunk, rangechunk
     USE OmpCopybbb
     USE Compla, ONLY: v2dd, ve2cb, vytan, v2rd, ve2cd, vy, v2xgp, v2cd, vyavis, v2ce, q2cd, v2cb, v2
     USE Comflo, ONLY: fdiaxlb, fdiaxrb
@@ -1236,7 +1250,7 @@ END SUBROUTINE OMPSplitIndex
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
     REAL, INTENT(OUT):: yldot(*)
-    INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc, jx
+    INTEGER:: ichunk, xc, yc, ii, jx
     REAL:: yldotcopy(1:neq), ylcopy(1:neq+2)
 ! Define local variables
     real:: v2dd_tmp(0:nx+1,0:ny+1,1:nisp), ve2cb_tmp(0:nx+1,0:ny+1), &
@@ -1255,7 +1269,6 @@ END SUBROUTINE OMPSplitIndex
 
     ylcopy(1:neq+1)=yl(1:neq+1); yldotcopy=0
 
-    call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)
 
     !$OMP    PARALLEL DO &
     !$OMP &      default(shared) &
@@ -1265,12 +1278,16 @@ END SUBROUTINE OMPSplitIndex
     !$OMP &      REDUCTION(+:v2dd_tmp, ve2cb_tmp, vytan_tmp, v2rd_tmp, fdiaxlb_tmp, ve2cd_tmp, vy_tmp, &
     !$OMP &         v2xgp_tmp, v2cd_tmp, vyavis_tmp, v2ce_tmp, q2cd_tmp, v2cb_tmp, v2_tmp, &
     !$OMP &         fdiaxrb_tmp)
-    DO ichunk = 1, Nchunks
-        xc = chunks(ichunk,1)
-        yc = chunks(ichunk,2)
-        call OMPinitialize_ranges(xc, yc)
+    DO ichunk = 1, NchunksPandf1
+        
+        
+        call OMPinitialize_ranges2d(rangechunk(ichunk,:))
         call calc_driftterms2
 
+
+        do ii = 1, Nixychunk(ichunk)
+         xc = ixychunk(ichunk,ii,1)
+         yc = ixychunk(ichunk,ii,2)
 
         do jx = 1, nxpt
             if (xc .eq. ixlb(jx)) &
@@ -1279,7 +1296,7 @@ END SUBROUTINE OMPSplitIndex
             &   fdiaxrb_tmp(yc,:)=fdiaxrb_tmp(yc,:)+fdiaxrb(yc,:)
         end do
 
-        ! Update locally calculated variables
+         ! Update locally calculated variables
         v2dd_tmp(xc,yc,:)=v2dd_tmp(xc,yc,:)+v2dd(xc,yc,:)
         ve2cb_tmp(xc,yc)=ve2cb_tmp(xc,yc)+ve2cb(xc,yc)
         vytan_tmp(xc,yc,:)=vytan_tmp(xc,yc,:)+vytan(xc,yc,:)
@@ -1293,6 +1310,7 @@ END SUBROUTINE OMPSplitIndex
         q2cd_tmp(xc,yc,:)=q2cd_tmp(xc,yc,:)+q2cd(xc,yc,:)
         v2cb_tmp(xc,yc,:)=v2cb_tmp(xc,yc,:)+v2cb(xc,yc,:)
         v2_tmp(xc,yc,:)=v2_tmp(xc,yc,:)+v2(xc,yc,:)
+            end do
     END DO
     !$OMP END PARALLEL DO
 
@@ -1310,6 +1328,7 @@ END SUBROUTINE OMPSplitIndex
     call OmpCopyPointerfdiaxrb
 
   END SUBROUTINE OMPcalc_driftterms2
+
 
   SUBROUTINE OMPcalc_currents(neq, yl, yldot)
     USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt
@@ -3192,6 +3211,7 @@ END SUBROUTINE OMPSplitIndex
         call OMPconvsr_vo2 (neq, yl, yldot) 
         call OMPconvsr_aux1 (neq, yl, yldot) 
         call OMPconvsr_aux2 (neq, yl, yldot) 
+
         call OMPcalc_plasma_diffusivities (neq, yl, yldot) 
         call OMPinitialize_driftterms (neq, yl, yldot) 
         call OMPcalc_driftterms1(neq, yl, yldot)
