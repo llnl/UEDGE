@@ -1333,6 +1333,7 @@ END SUBROUTINE OMPSplitIndex
   SUBROUTINE OMPcalc_currents(neq, yl, yldot)
     USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
+    USE OMPPandf1, ONLY: NchunksPandf1, Nixychunk, ixychunk, rangechunk
     USE OmpCopybbb
     USE Comflo, ONLY: fq2d, fmity, fqym, fqyai, fqyb, fqydti, fqymi, fqydt, fqyao, fqya, fqyae, fqygp, &
     &    fq2, fqyd, fqy
@@ -1340,7 +1341,7 @@ END SUBROUTINE OMPSplitIndex
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
     REAL, INTENT(OUT):: yldot(*)
-    INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc
+    INTEGER:: ichunk, xc, yc, ii
     REAL:: yldotcopy(1:neq), ylcopy(1:neq+2)
 ! Define local variables
     real:: fq2d_tmp(0:nx+1,0:ny+1), fmity_tmp(0:nx+1,0:ny+1,1:nisp), &
@@ -1358,7 +1359,6 @@ END SUBROUTINE OMPSplitIndex
 
     ylcopy(1:neq+1)=yl(1:neq+1); yldotcopy=0
 
-    call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)
 
     !$OMP    PARALLEL DO &
     !$OMP &      default(shared) &
@@ -1368,13 +1368,16 @@ END SUBROUTINE OMPSplitIndex
     !$OMP &      REDUCTION(+:fq2d_tmp, fmity_tmp, fqym_tmp, fqyai_tmp, fqyb_tmp, fqydti_tmp, fqymi_tmp, &
     !$OMP &         fqydt_tmp, fqyao_tmp, fqya_tmp, fqyae_tmp, fqygp_tmp, fq2_tmp, fqyd_tmp, &
     !$OMP &         fqy_tmp)
-    DO ichunk = 1, Nchunks
-        xc = chunks(ichunk,1)
-        yc = chunks(ichunk,2)
-        call OMPinitialize_ranges(xc, yc)
+    DO ichunk = 1, NchunksPandf1
+        
+        
+        call OMPinitialize_ranges2d(rangechunk(ichunk,:))
         call calc_currents
 
-        ! Update locally calculated variables
+        do ii = 1, Nixychunk(ichunk)
+         xc = ixychunk(ichunk,ii,1)
+         yc = ixychunk(ichunk,ii,2)
+         ! Update locally calculated variables
         fq2d_tmp(xc,yc)=fq2d_tmp(xc,yc)+fq2d(xc,yc)
         fmity_tmp(xc,yc,:)=fmity_tmp(xc,yc,:)+fmity(xc,yc,:)
         fqym_tmp(xc,yc)=fqym_tmp(xc,yc)+fqym(xc,yc)
@@ -1390,6 +1393,7 @@ END SUBROUTINE OMPSplitIndex
         fq2_tmp(xc,yc)=fq2_tmp(xc,yc)+fq2(xc,yc)
         fqyd_tmp(xc,yc)=fqyd_tmp(xc,yc)+fqyd(xc,yc)
         fqy_tmp(xc,yc)=fqy_tmp(xc,yc)+fqy(xc,yc)
+            end do
     END DO
     !$OMP END PARALLEL DO
 
@@ -1411,6 +1415,7 @@ END SUBROUTINE OMPSplitIndex
   SUBROUTINE OMPcalc_fqp(neq, yl, yldot)
     USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
+    USE OMPPandf1, ONLY: NchunksPandf1, Nixychunk, ixychunk, rangechunk
     USE OmpCopybbb
     USE Poten, ONLY: dphi_iy1
     USE Compla, ONLY: vy, netap, vyavis
@@ -1421,7 +1426,7 @@ END SUBROUTINE OMPSplitIndex
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
     REAL, INTENT(OUT):: yldot(*)
-    INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc, jx
+    INTEGER:: ichunk, xc, yc, ii, jx
     REAL:: yldotcopy(1:neq), ylcopy(1:neq+2)
 ! Define local variables
     real:: dphi_iy1_tmp(0:nx+1), vy_tmp(0:nx+1,0:ny+1,1:nisp), &
@@ -1436,7 +1441,6 @@ END SUBROUTINE OMPSplitIndex
 
     ylcopy(1:neq+1)=yl(1:neq+1); yldotcopy=0
 
-    call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)
 
     !$OMP    PARALLEL DO &
     !$OMP &      default(shared) &
@@ -1444,15 +1448,19 @@ END SUBROUTINE OMPSplitIndex
     !$OMP &      private(ichunk,xc,yc) &
     !$OMP &      firstprivate(ylcopy, yldotcopy) &
     !$OMP &      REDUCTION(+:fqp_tmp,netap_tmp)
-    DO ichunk = 1, Nchunks
-        xc = chunks(ichunk,1)
-        yc = chunks(ichunk,2)
-        call OMPinitialize_ranges(xc, yc)
+    DO ichunk = 1, NchunksPandf1
+        
+        
+        call OMPinitialize_ranges2d(rangechunk(ichunk,:))
         call calc_fqp1
 
-        ! Update locally calculated variables
+        do ii = 1, Nixychunk(ichunk)
+         xc = ixychunk(ichunk,ii,1)
+         yc = ixychunk(ichunk,ii,2)
+         ! Update locally calculated variables
         fqp_tmp(xc,yc)=fqp_tmp(xc,yc)+fqp(xc,yc)
         netap_tmp(xc,yc)=netap_tmp(xc,yc)+netap(xc,yc)
+            end do
     END DO
     !$OMP END PARALLEL DO
     fqp=fqp_tmp;netap=netap_tmp
@@ -1465,11 +1473,13 @@ END SUBROUTINE OMPSplitIndex
     !$OMP &      firstprivate(ylcopy, yldotcopy) &
     !$OMP &      REDUCTION(+:dphi_iy1_tmp, vy_tmp, netap_tmp, fqpsatrb_tmp, vyavis_tmp, fqp_tmp, fqx_tmp, &
     !$OMP &         fqpsatlb_tmp, fqxb_tmp)
-    DO ichunk = 1, Nchunks
-        xc = chunks(ichunk,1)
-        yc = chunks(ichunk,2)
-        call OMPinitialize_ranges(xc, yc)
+    DO ichunk = 1, NchunksPandf1
+        
+        
+        call OMPinitialize_ranges2d(rangechunk(ichunk,:))
         call calc_fqp2
+
+        do ii = 1, Nixychunk(ichunk)
     
         if (yc .eq. 1) &
         & dphi_iy1_tmp(xc)=dphi_iy1_tmp(xc)+dphi_iy1(xc)
@@ -1481,12 +1491,16 @@ END SUBROUTINE OMPSplitIndex
             &   fqpsatrb_tmp(yc, jx)=fqpsatrb_tmp(yc,jx)+fqpsatrb(yc,jx)
         end do
 
-        ! Update locally calculated variables
+
+         xc = ixychunk(ichunk,ii,1)
+         yc = ixychunk(ichunk,ii,2)
+         ! Update locally calculated variables
         vy_tmp(xc,yc,:)=vy_tmp(xc,yc,:)+vy(xc,yc,:)
         vyavis_tmp(xc,yc,:)=vyavis_tmp(xc,yc,:)+vyavis(xc,yc,:)
         fqp_tmp(xc,yc)=fqp_tmp(xc,yc)+fqp(xc,yc)
         fqx_tmp(xc,yc)=fqx_tmp(xc,yc)+fqx(xc,yc)
         fqxb_tmp(xc,yc)=fqxb_tmp(xc,yc)+fqxb(xc,yc)
+            end do
     END DO
     !$OMP END PARALLEL DO
 
@@ -1506,6 +1520,7 @@ END SUBROUTINE OMPSplitIndex
   SUBROUTINE OMPcalc_friction(neq, yl, yldot)
     USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
+    USE OMPPandf1, ONLY: NchunksPandf1, Nixychunk, ixychunk, rangechunk
     USE OmpCopybbb
     USE Compla, ONLY: upi, uz, uu, uup
     USE Cfric, ONLY: frici, frice
@@ -1515,7 +1530,7 @@ END SUBROUTINE OMPSplitIndex
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
     REAL, INTENT(OUT):: yldot(*)
-    INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc
+    INTEGER:: ichunk, xc, yc, ii
     REAL:: yldotcopy(1:neq), ylcopy(1:neq+2)
 ! Define local variables
     real:: upi_tmp(0:nx+1,0:ny+1,1:nisp), uz_tmp(0:nx+1,0:ny+1,1:nisp), &
@@ -1529,7 +1544,6 @@ END SUBROUTINE OMPSplitIndex
 
     ylcopy(1:neq+1)=yl(1:neq+1); yldotcopy=0
 
-    call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)
 
     !$OMP    PARALLEL DO &
     !$OMP &      default(shared) &
@@ -1537,13 +1551,16 @@ END SUBROUTINE OMPSplitIndex
     !$OMP &      private(ichunk,xc,yc) &
     !$OMP &      firstprivate(ylcopy, yldotcopy) &
     !$OMP &      REDUCTION(+:upi_tmp, uz_tmp, uu_tmp, frici_tmp, ex_tmp, uup_tmp, frice_tmp)
-    DO ichunk = 1, Nchunks
-        xc = chunks(ichunk,1)
-        yc = chunks(ichunk,2)
-        call OMPinitialize_ranges(xc, yc)
-        call calc_friction(xc)
+    DO ichunk = 1, NchunksPandf1
+        
+        
+        call OMPinitialize_ranges2d(rangechunk(ichunk,:))
+        call calc_friction(-1)
 
-        ! Update locally calculated variables
+        do ii = 1, Nixychunk(ichunk)
+         xc = ixychunk(ichunk,ii,1)
+         yc = ixychunk(ichunk,ii,2)
+         ! Update locally calculated variables
         upi_tmp(xc,yc,:)=upi_tmp(xc,yc,:)+upi(xc,yc,:)
         uz_tmp(xc,yc,:)=uz_tmp(xc,yc,:)+uz(xc,yc,:)
         uu_tmp(xc,yc,:)=uu_tmp(xc,yc,:)+uu(xc,yc,:)
@@ -1551,6 +1568,7 @@ END SUBROUTINE OMPSplitIndex
         ex_tmp(xc,yc)=ex_tmp(xc,yc)+ex(xc,yc)
         uup_tmp(xc,yc,:)=uup_tmp(xc,yc,:)+uup(xc,yc,:)
         frice_tmp(xc,yc)=frice_tmp(xc,yc)+frice(xc,yc)
+            end do
     END DO
     !$OMP  END PARALLEL DO
 
@@ -1566,13 +1584,14 @@ END SUBROUTINE OMPSplitIndex
   SUBROUTINE OMPcalc_elec_velocities(neq, yl, yldot)
     USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
+    USE OMPPandf1, ONLY: NchunksPandf1, Nixychunk, ixychunk, rangechunk
     USE OmpCopybbb
     USE Compla, ONLY: vey, vex, upe
     IMPLICIT NONE
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
     REAL, INTENT(OUT):: yldot(*)
-    INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc
+    INTEGER:: ichunk, xc, yc, ii
     REAL:: yldotcopy(1:neq), ylcopy(1:neq+2)
 ! Define local variables
     real:: vey_tmp(0:nx+1,0:ny+1), vex_tmp(0:nx+1,0:ny+1), upe_tmp(0:nx+1,0:ny+1)
@@ -1582,7 +1601,6 @@ END SUBROUTINE OMPSplitIndex
 
     ylcopy(1:neq+1)=yl(1:neq+1); yldotcopy=0
 
-    call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)
 
     !$OMP    PARALLEL DO &
     !$OMP &      default(shared) &
@@ -1590,16 +1608,20 @@ END SUBROUTINE OMPSplitIndex
     !$OMP &      private(ichunk,xc,yc) &
     !$OMP &      firstprivate(ylcopy, yldotcopy) &
     !$OMP &      REDUCTION(+:vey_tmp, vex_tmp, upe_tmp)
-    DO ichunk = 1, Nchunks
-        xc = chunks(ichunk,1)
-        yc = chunks(ichunk,2)
-        call OMPinitialize_ranges(xc, yc)
+    DO ichunk = 1, NchunksPandf1
+        
+        
+        call OMPinitialize_ranges2d(rangechunk(ichunk,:))
         call calc_elec_velocities
 
-        ! Update locally calculated variables
+        do ii = 1, Nixychunk(ichunk)
+         xc = ixychunk(ichunk,ii,1)
+         yc = ixychunk(ichunk,ii,2)
+         ! Update locally calculated variables
         vey_tmp(xc,yc)=vey_tmp(xc,yc)+vey(xc,yc)
         vex_tmp(xc,yc)=vex_tmp(xc,yc)+vex(xc,yc)
         upe_tmp(xc,yc)=upe_tmp(xc,yc)+upe(xc,yc)
+            end do
     END DO
     !$OMP  END PARALLEL DO
 
