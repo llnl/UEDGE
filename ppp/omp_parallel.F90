@@ -2232,13 +2232,14 @@ END SUBROUTINE OMPSplitIndex
   SUBROUTINE OMPcalc_plasma_transport(neq, yl, yldot)
     USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
+    USE OMPPandf1, ONLY: NchunksPandf1, Nixychunk, ixychunk, rangechunk
     USE OmpCopybbb
     USE Comflo, ONLY: fniy, fniy4ord, fnixcb, fniycbo, fniycb, fnix
     IMPLICIT NONE
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
     REAL, INTENT(OUT):: yldot(*)
-    INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc
+    INTEGER:: ichunk, xc, yc, ii
     REAL:: yldotcopy(1:neq), ylcopy(1:neq+2)
 ! Define local variables
     real:: fniy_tmp(0:nx+1,0:ny+1,1:nisp), fniy4ord_tmp(0:nx+1,0:ny+1,1:nisp), &
@@ -2251,7 +2252,6 @@ END SUBROUTINE OMPSplitIndex
 
     ylcopy(1:neq+1)=yl(1:neq+1); yldotcopy=0
 
-    call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)
 
     !$OMP    PARALLEL DO &
     !$OMP &      default(shared) &
@@ -2259,19 +2259,23 @@ END SUBROUTINE OMPSplitIndex
     !$OMP &      private(ichunk,xc,yc) &
     !$OMP &      firstprivate(ylcopy, yldotcopy) &
     !$OMP &      REDUCTION(+:fniy_tmp, fniy4ord_tmp, fnixcb_tmp, fniycbo_tmp, fniycb_tmp, fnix_tmp)
-    DO ichunk = 1, Nchunks
-        xc = chunks(ichunk,1)
-        yc = chunks(ichunk,2)
-        call OMPinitialize_ranges(xc, yc)
+    DO ichunk = 1, NchunksPandf1
+        
+        
+        call OMPinitialize_ranges2d(rangechunk(ichunk,:))
         call calc_plasma_transport
 
-        ! Update locally calculated variables
+        do ii = 1, Nixychunk(ichunk)
+         xc = ixychunk(ichunk,ii,1)
+         yc = ixychunk(ichunk,ii,2)
+         ! Update locally calculated variables
         fniy_tmp(xc,yc,:)=fniy_tmp(xc,yc,:)+fniy(xc,yc,:)
         fniy4ord_tmp(xc,yc,:)=fniy4ord_tmp(xc,yc,:)+fniy4ord(xc,yc,:)
         fnixcb_tmp(xc,yc,:)=fnixcb_tmp(xc,yc,:)+fnixcb(xc,yc,:)
         fniycbo_tmp(xc,yc)=fniycbo_tmp(xc,yc)+fniycbo(xc,yc)
         fniycb_tmp(xc,yc,:)=fniycb_tmp(xc,yc,:)+fniycb(xc,yc,:)
         fnix_tmp(xc,yc,:)=fnix_tmp(xc,yc,:)+fnix(xc,yc,:)
+            end do
     END DO
     !$OMP  END PARALLEL DO
 
@@ -2287,13 +2291,14 @@ END SUBROUTINE OMPSplitIndex
   SUBROUTINE OMPcalc_plasma_momentum_coeffs(neq, yl, yldot)
     USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt, nusp
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
+    USE OMPPandf1, ONLY: NchunksPandf1, Nixychunk, ixychunk, rangechunk
     USE OmpCopybbb
     USE Locflux, ONLY: conx, floy, flox, cony
     IMPLICIT NONE
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
     REAL, INTENT(OUT):: yldot(*)
-    INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc, iusp, ixpt
+    INTEGER:: ichunk, xc, yc, ii, iusp, ixpt
     REAL:: yldotcopy(1:neq), ylcopy(1:neq+2)
 ! Define local variables
     real:: conx_tmp(0:nx+1,0:ny+1,1:nusp), floy_tmp(0:nx+1,0:ny+1,1:nusp), &
@@ -2304,7 +2309,6 @@ END SUBROUTINE OMPSplitIndex
 
     ylcopy(1:neq+1)=yl(1:neq+1); yldotcopy=0
 
-    call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)
 
     !$OMP    PARALLEL DO &
     !$OMP &      default(shared) &
@@ -2312,16 +2316,20 @@ END SUBROUTINE OMPSplitIndex
     !$OMP &      private(ichunk,xc,yc) &
     !$OMP &      firstprivate(ylcopy, yldotcopy) &
     !$OMP &      REDUCTION(+:conx_tmp, floy_tmp, flox_tmp, cony_tmp)
-    DO ichunk = 1, Nchunks
-        xc = chunks(ichunk,1)
-        yc = chunks(ichunk,2)
-        call OMPinitialize_ranges(xc, yc)
+    DO ichunk = 1, NchunksPandf1
+        
+        
+        call OMPinitialize_ranges2d(rangechunk(ichunk,:))
         call calc_plasma_momentum_coeffs
-        ! Update locally calculated variables
+        do ii = 1, Nixychunk(ichunk)
+         xc = ixychunk(ichunk,ii,1)
+         yc = ixychunk(ichunk,ii,2)
+         ! Update locally calculated variables
         conx_tmp(xc,yc,:)=conx_tmp(xc,yc,:)+conx(xc,yc,:)
         floy_tmp(xc,yc,:)=floy_tmp(xc,yc,:)+floy(xc,yc,:)
         flox_tmp(xc,yc,:)=flox_tmp(xc,yc,:)+flox(xc,yc,:)
         cony_tmp(xc,yc,:)=cony_tmp(xc,yc,:)+cony(xc,yc,:)
+            end do
     END DO
     !$OMP  END PARALLEL DO
 
@@ -2429,6 +2437,7 @@ END SUBROUTINE OMPSplitIndex
   SUBROUTINE OMPcalc_plasma_energy(neq, yl, yldot)
     USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt, nzspmx, nusp
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
+    USE OMPPandf1, ONLY: NchunksPandf1, Nixychunk, ixychunk, rangechunk
     USE OmpCopybbb
     USE Rhsides, ONLY: wvh, vsoree, edisse, seak, seik, emolia, pwribkg, psicx, seid, sead, seit, &
     &    pwrebkg, vsoreec, seidh, seadh, erliz
@@ -2444,7 +2453,7 @@ END SUBROUTINE OMPSplitIndex
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
     REAL, INTENT(OUT):: yldot(*)
-    INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc
+    INTEGER:: ichunk, xc, yc, ii
     REAL:: yldotcopy(1:neq), ylcopy(1:neq+2)
 ! Define local variables
     real:: wvh_tmp(0:nx+1,0:ny+1,1:nusp), prad_tmp(0:nx+1,0:ny+1), &
@@ -2490,7 +2499,6 @@ END SUBROUTINE OMPSplitIndex
 
     ylcopy(1:neq+1)=yl(1:neq+1); yldotcopy=0
 
-    call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)
 
     !$OMP    PARALLEL DO &
     !$OMP &      default(shared) &
@@ -2506,19 +2514,22 @@ END SUBROUTINE OMPSplitIndex
     !$OMP &         seadh_tmp, conye_tmp, conyi_tmp, feiy4ord_tmp, feiycbo_tmp, floxebgt_tmp, &
     !$OMP &         feex_tmp, nratio_tmp, feiy_tmp, feix_tmp, floxi_tmp, erliz_tmp, w0_tmp, &
     !$OMP &         nzloc_tmp)
-    DO ichunk = 1, Nchunks
-        xc = chunks(ichunk,1)
-        yc = chunks(ichunk,2)
-        call initialize_ranges(xc, yc, 0, 0, 0)
-        call calc_plasma_energy(xc,yc)
+    DO ichunk = 1, NchunksPandf1
+        
+        
+        call OMPinitialize_ranges2d(rangechunk(ichunk,:))
+        call calc_plasma_energy(-1,-1)
 
+
+        nzloc_tmp=nzloc_tmp+nzloc
+        do ii = 1, Nixychunk(ichunk)
+         xc = ixychunk(ichunk,ii,1)
+         yc = ixychunk(ichunk,ii,2)
         if (yc .eq. 0) then
             feeycbo_tmp(xc)=feeycbo_tmp(xc)+feeycbo(xc)
             feiycbo_tmp(xc)=feiycbo_tmp(xc)+feiycbo(xc)
         end if
-
-        nzloc_tmp=nzloc_tmp+nzloc
-        ! Update locally calculated variables
+         ! Update locally calculated variables
         wvh_tmp(xc,yc,:)=wvh_tmp(xc,yc,:)+wvh(xc,yc,:)
         prad_tmp(xc,yc)=prad_tmp(xc,yc)+prad(xc,yc)
         pwrzec_tmp(xc,yc)=pwrzec_tmp(xc,yc)+pwrzec(xc,yc)
@@ -2569,6 +2580,7 @@ END SUBROUTINE OMPSplitIndex
         floxi_tmp(xc,yc)=floxi_tmp(xc,yc)+floxi(xc,yc)
         erliz_tmp(xc,yc)=erliz_tmp(xc,yc)+erliz(xc,yc)
         w0_tmp(xc,yc)=w0_tmp(xc,yc)+w0(xc,yc)
+            end do
     END DO
     !$OMP  END PARALLEL DO
 
