@@ -210,6 +210,7 @@ c_mpi      Use(MpiVars)  #module defined in com/mpivarsmod.F.in
                                 #typebdy,typecn,iv_totbdy
       Use(Indices_domain_dcg)   #isddcon
       Use(Npes_mpi)             #mype
+      Use(ParallelEval)
  
       integer ifake  #forces Forthon scripts to put implicit none above here
 
@@ -240,6 +241,13 @@ c... Added the following for OMPPandf1rhs call (added by .J.Guterl)
          js = max(1-iymnbcl,iyl-yinc)
          je = min(ny+iymxbcl,iyl+yinc)
       endif
+
+      if (ParallelPandfCall.gt.0) then
+        is = i4
+        ie = i8
+        js = j4
+        je = j8
+      end if
 
         do 20 iy = js, je
           do 19 ix = is, ie  # was nx+1
@@ -398,6 +406,7 @@ c_mpi      Use(MpiVars)  #module defined in com/mpivarsmod.F.in
                                 #typebdy,typecn,iv_totbdy
       Use(Indices_domain_dcg)   #isddcon
       Use(Npes_mpi)             #mype
+      Use(ParallelEval)
  
       integer ifake  #forces Forthon scripts to put implicit none above here
 
@@ -429,6 +438,12 @@ c... Added the following for OMPPandf1rhs call (added by .J.Guterl)
          je = min(ny+iymxbcl,iyl+yinc)
       endif
 
+      if (ParallelPandfCall.gt.0) then
+        is = i4
+        ie = i8
+        js = j4
+        je = j8
+      end if
 
       do 10 ifld = 1, nusp
          do 9 iy = js, je
@@ -499,6 +514,7 @@ c...  Calculates various plasmas quantities used repeatedly in pandf
       Use(Compla)      # ,zi,zeff,zimpc
       Use(Phyvar)      # pi,ev
       Use(Imprad)      # isimpon
+      Use(ParallelEval)
 
       if(ixl .lt. 0 .or. yinc .ge. 6) then
          is = 0
@@ -521,6 +537,13 @@ c... Added the following for OMPPandf1rhs call (added by .J.Guterl)
          js = max(0,iyl-yinc)
          je = min(ny+1,iyl+yinc)
       endif
+
+      if (ParallelPandfCall.gt.0) then
+        is = i4
+        ie = i8
+        js = j4
+        je = j8
+      end if
 
       do iy = js, je
         do ix = is, ie
@@ -614,6 +637,7 @@ c...  Calculates various plasmas quantities used repeatedly in pandf
       Use(Share)       # nysol,nyomitmx
       Use(RZ_grid_info)   # rm,zm 
       Use(Volsrc)      # pondpot     
+      Use(ParallelEval)
 
 *  -- procedures --
       real interpte,interpti,interpphi,interpni,interppri,interpng,
@@ -703,6 +727,13 @@ c... Added the following for OMPPandf1rhs call (added by .J.Guterl)
          js = max(0,iyl-yinc)
          je = min(ny+1,iyl+yinc)
       endif
+
+      if (ParallelPandfCall.gt.0) then
+        is = i4
+        ie = i8
+        js = j4
+        je = j8
+      end if
 
       do iy = js, je
         do ix = is, ie

@@ -1,4 +1,79 @@
 
+
+def addchunks():
+    with open("ppp/omp_parallel.F90") as f:
+        infile = f.read()
+    infile = infile.replace("USE OmpCopybbb",
+            "USE OMPPandf1, ONLY: NchunksPandf1, Nixychunk, ixychunk, rangechunk\n    USE OmpCopybbb")
+    infile = infile.replace("DO ichunk = 1, Nchunks", 
+            "DO ichunk = 1, NchunksPandf1")
+    infile = infile.replace("OMPinitialize_ranges(xc, yc)",
+            "OMPinitialize_ranges2d(rangechunk(ichunk,:))")
+    infile = infile.replace("INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc",
+            "INTEGER:: ichunk, xc, yc, ii")
+    infile = infile.replace("xc = chunks(ichunk,1)","")
+    infile = infile.replace("yc = chunks(ichunk,2)","")
+    infile = infile.replace("! Update locally calculated variables",
+            """do ii = 1, Nixychunk(ichunk)
+         xc = ixychunk(ichunk,ii,1)
+         yc = ixychunk(ichunk,ii,2)
+         ! Update locally calculated variables""")
+    infile = infile.replace("END DO", 
+        "        end do\n    END DO")
+    with open("omp_parallel.F90",'w') as f:
+        f.write(infile)
+
+    return
+    
+
+
+def get_pandf_strings():
+    from os import walk
+    bbbv = parse_bbbv()
+    for root, dirs, files in walk('bbb'):
+        for file in files:
+            if (("pandf_" in file) and (file[-2:]==".m")) or (file == "convert.m"):
+                subroutines =  get_sourcefile_string(f"bbb/{file}")
+    return subroutines
+
+
+
+def get_sourcefile_string(fname):
+    subroutines = {}
+    subrutine = None
+    block=None
+    locdef = False
+    with open(fname) as f:
+        for line in f:
+#            if (line[0].lower() == 'c') or (line[0] == '!') or (line[0] == '*'):
+#                continue
+#            line = line.split('#')[0]
+#            line = line.split('remark')[0]
+#            line = line.split('xerrab')[0]
+            if ('subroutine' in line.lower()) and (line.split()[0].lower() == 'subroutine'):
+                subroutine = line.split()[1].split('(')[0].strip()
+                subroutines[subroutine] = []
+                block = subroutines[subroutine]
+                block.append(line)
+            elif 'end subroutine' in line.lower():
+                subroutine = None
+                block = None
+                block.append(line)
+#            elif len(line.strip())==0:
+#                continue
+#            elif (line.strip()[:4].lower() == 'call'):
+#                continue
+            else:
+                print(line, block)
+                block.append(line)
+    for subroutine, varlist in subroutines.items():
+        subroutines[subroutine] = ";".join(varlist)
+    return subroutines
+
+
+
+
+
 def write_subpandf1():
     lines = write_ompsubroutine('convsr_vo1', "(xc, yc, ylcopy)", True)
     lines = write_ompsubroutine('convsr_vo2', "(xc, yc, ylcopy)", True)
@@ -193,6 +268,8 @@ def parse_bbbv(fname='bbb/bbb.v', pointers_only=True):
                 else:
                     continue
     return data
+
+
 
 def get_sourcefile_vars_set(fname):
     subroutines = {}
