@@ -2638,6 +2638,7 @@ END SUBROUTINE OMPSplitIndex
   SUBROUTINE OMPcalc_gas_energy(neq, yl, yldot)
     USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
+    USE OMPPandf1, ONLY: NchunksPandf1, Nixychunk, ixychunk, rangechunk
     USE OmpCopybbb
     USE Rhsides, ONLY: seic, eiamoldiss
     USE Conduc, ONLY: eqpg
@@ -2645,7 +2646,7 @@ END SUBROUTINE OMPSplitIndex
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
     REAL, INTENT(OUT):: yldot(*)
-    INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc
+    INTEGER:: ichunk, xc, yc, ii
     REAL:: yldotcopy(1:neq), ylcopy(1:neq+2)
 ! Define local variables
     real:: seic_tmp(0:nx+1,0:ny+1), eqpg_tmp(0:nx+1,0:ny+1,ngsp), &
@@ -2656,7 +2657,6 @@ END SUBROUTINE OMPSplitIndex
 
     ylcopy(1:neq+1)=yl(1:neq+1); yldotcopy=0
 
-    call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)
 
     !$OMP    PARALLEL DO &
     !$OMP &      default(shared) &
@@ -2664,16 +2664,20 @@ END SUBROUTINE OMPSplitIndex
     !$OMP &      private(ichunk,xc,yc) &
     !$OMP &      firstprivate(ylcopy, yldotcopy) &
     !$OMP &      REDUCTION(+:seic_tmp, eqpg_tmp, eiamoldiss_tmp)
-    DO ichunk = 1, Nchunks
-        xc = chunks(ichunk,1)
-        yc = chunks(ichunk,2)
-        call initialize_ranges(xc, yc, 0, 0, 0)
+    DO ichunk = 1, NchunksPandf1
+        
+        
+        call OMPinitialize_ranges2d(rangechunk(ichunk,:))
         call calc_gas_energy
 
-        ! Update locally calculated variables
+        do ii = 1, Nixychunk(ichunk)
+         xc = ixychunk(ichunk,ii,1)
+         yc = ixychunk(ichunk,ii,2)
+         ! Update locally calculated variables
         seic_tmp(xc,yc)=seic_tmp(xc,yc)+seic(xc,yc)
         eqpg_tmp(xc,yc,:)=eqpg_tmp(xc,yc,:)+eqpg(xc,yc,:)
         eiamoldiss_tmp(xc,yc,:)=eiamoldiss_tmp(xc,yc,:)+eiamoldiss(xc,yc,:)
+            end do
     END DO
     !$OMP  END PARALLEL DO
 
@@ -2684,9 +2688,11 @@ END SUBROUTINE OMPSplitIndex
 
   END SUBROUTINE OMPcalc_gas_energy
 
+
   SUBROUTINE OMPcalc_plasma_particle_residuals(neq, yl, yldot)
     USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
+    USE OMPPandf1, ONLY: NchunksPandf1, Nixychunk, ixychunk, rangechunk
     USE OmpCopybbb
     USE MCN_sources, ONLY: sng_ue
     USE MCN_dim, ONLY: nfl
@@ -2695,7 +2701,7 @@ END SUBROUTINE OMPSplitIndex
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
     REAL, INTENT(OUT):: yldot(*)
-    INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc
+    INTEGER:: ichunk, xc, yc, ii
     REAL:: yldotcopy(1:neq), ylcopy(1:neq+2)
 ! Define local variables
     real:: sng_ue_tmp(0:nx+1,0:ny+1,1:nfl), resco_tmp(0:nx+1,0:ny+1,1:nisp)
@@ -2705,7 +2711,6 @@ END SUBROUTINE OMPSplitIndex
 
     ylcopy(1:neq+1)=yl(1:neq+1); yldotcopy=0
 
-    call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)
 
     !$OMP    PARALLEL DO &
     !$OMP &      default(shared) &
@@ -2713,15 +2718,19 @@ END SUBROUTINE OMPSplitIndex
     !$OMP &      private(ichunk,xc,yc) &
     !$OMP &      firstprivate(ylcopy, yldotcopy) &
     !$OMP &      REDUCTION(+:sng_ue_tmp, resco_tmp)
-    DO ichunk = 1, Nchunks
-        xc = chunks(ichunk,1)
-        yc = chunks(ichunk,2)
-        call OMPinitialize_ranges(xc, yc)
+    DO ichunk = 1, NchunksPandf1
+        
+        
+        call OMPinitialize_ranges2d(rangechunk(ichunk,:))
         call calc_plasma_particle_residuals
 
-        ! Update locally calculated variables
+        do ii = 1, Nixychunk(ichunk)
+         xc = ixychunk(ichunk,ii,1)
+         yc = ixychunk(ichunk,ii,2)
+         ! Update locally calculated variables
         sng_ue_tmp(xc,yc,:)=sng_ue_tmp(xc,yc,:)+sng_ue(xc,yc,:)
         resco_tmp(xc,yc,:)=resco_tmp(xc,yc,:)+resco(xc,yc,:)
+            end do
     END DO
     !$OMP  END PARALLEL DO
 
@@ -2734,6 +2743,7 @@ END SUBROUTINE OMPSplitIndex
   SUBROUTINE OMPcalc_gas_continuity_residuals(neq, yl, yldot)
     USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
+    USE OMPPandf1, ONLY: NchunksPandf1, Nixychunk, ixychunk, rangechunk
     USE OmpCopybbb
     USE Rhsides, ONLY: resng
     USE MCN_sources, ONLY: sng_ue
@@ -2742,7 +2752,7 @@ END SUBROUTINE OMPSplitIndex
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
     REAL, INTENT(OUT):: yldot(*)
-    INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc
+    INTEGER:: ichunk, xc, yc, ii
     REAL:: yldotcopy(1:neq), ylcopy(1:neq+2)
 ! Define local variables
     real:: resng_tmp(0:nx+1,0:ny+1,1:ngsp), sng_ue_tmp(0:nx+1,0:ny+1,1:nfl)
@@ -2752,7 +2762,6 @@ END SUBROUTINE OMPSplitIndex
 
     ylcopy(1:neq+1)=yl(1:neq+1); yldotcopy=0
 
-    call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)
 
     !$OMP    PARALLEL DO &
     !$OMP &      default(shared) &
@@ -2760,15 +2769,19 @@ END SUBROUTINE OMPSplitIndex
     !$OMP &      private(ichunk,xc,yc) &
     !$OMP &      firstprivate(ylcopy, yldotcopy) &
     !$OMP &      REDUCTION(+:resng_tmp, sng_ue_tmp)
-    DO ichunk = 1, Nchunks
-        xc = chunks(ichunk,1)
-        yc = chunks(ichunk,2)
-        call OMPinitialize_ranges(xc, yc)
+    DO ichunk = 1, NchunksPandf1
+        
+        
+        call OMPinitialize_ranges2d(rangechunk(ichunk,:))
         call calc_gas_continuity_residuals
 
-        ! Update locally calculated variables
+        do ii = 1, Nixychunk(ichunk)
+         xc = ixychunk(ichunk,ii,1)
+         yc = ixychunk(ichunk,ii,2)
+         ! Update locally calculated variables
         resng_tmp(xc,yc,:)=resng_tmp(xc,yc,:)+resng(xc,yc,:)
         sng_ue_tmp(xc,yc,:)=sng_ue_tmp(xc,yc,:)+sng_ue(xc,yc,:)
+            end do
     END DO
     !$OMP  END PARALLEL DO
 
@@ -2781,6 +2794,7 @@ END SUBROUTINE OMPSplitIndex
   SUBROUTINE OMPcalc_plasma_momentum_residuals(neq, yl, yldot)
     USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt, nusp
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
+    USE OMPPandf1, ONLY: NchunksPandf1, Nixychunk, ixychunk, rangechunk
     USE OmpCopybbb
     USE Wkspace, ONLY: w0, w2
     USE Cfric, ONLY: fricnrl
@@ -2789,7 +2803,7 @@ END SUBROUTINE OMPSplitIndex
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
     REAL, INTENT(OUT):: yldot(*)
-    INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc
+    INTEGER:: ichunk, xc, yc, ii
     REAL:: yldotcopy(1:neq), ylcopy(1:neq+2)
 ! Define local variables
     real:: w0_tmp(0:nx+1,0:ny+1), fricnrl_tmp(0:nx+1,0:ny+1,nusp), &
@@ -2800,7 +2814,6 @@ END SUBROUTINE OMPSplitIndex
 
     ylcopy(1:neq+1)=yl(1:neq+1); yldotcopy=0
 
-    call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)
 
     !$OMP    PARALLEL DO &
     !$OMP &      default(shared) &
@@ -2808,17 +2821,21 @@ END SUBROUTINE OMPSplitIndex
     !$OMP &      private(ichunk,xc,yc) &
     !$OMP &      firstprivate(ylcopy, yldotcopy) &
     !$OMP &      REDUCTION(+:w0_tmp, fricnrl_tmp, resmo_tmp, w2_tmp)
-    DO ichunk = 1, Nchunks
-        xc = chunks(ichunk,1)
-        yc = chunks(ichunk,2)
-        call OMPinitialize_ranges(xc, yc)
+    DO ichunk = 1, NchunksPandf1
+        
+        
+        call OMPinitialize_ranges2d(rangechunk(ichunk,:))
         call calc_plasma_momentum_residuals
 
-        ! Update locally calculated variables
+        do ii = 1, Nixychunk(ichunk)
+         xc = ixychunk(ichunk,ii,1)
+         yc = ixychunk(ichunk,ii,2)
+         ! Update locally calculated variables
         w0_tmp(xc,yc)=w0_tmp(xc,yc)+w0(xc,yc)
         fricnrl_tmp(xc,yc,:)=fricnrl_tmp(xc,yc,:)+fricnrl(xc,yc,:)
         resmo_tmp(xc,yc,:)=resmo_tmp(xc,yc,:)+resmo(xc,yc,:)
         w2_tmp(xc,yc)=w2_tmp(xc,yc)+w2(xc,yc)
+            end do
     END DO
     !$OMP  END PARALLEL DO
 
@@ -2832,13 +2849,14 @@ END SUBROUTINE OMPSplitIndex
   SUBROUTINE OMPcalc_gas_energy_residuals(neq, yl, yldot)
     USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
+    USE OMPPandf1, ONLY: NchunksPandf1, Nixychunk, ixychunk, rangechunk
     USE OmpCopybbb
     USE Rhsides, ONLY: reseg
     IMPLICIT NONE
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
     REAL, INTENT(OUT):: yldot(*)
-    INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc
+    INTEGER:: ichunk, xc, yc, ii
     REAL:: yldotcopy(1:neq), ylcopy(1:neq+2)
 ! Define local variables
     real:: reseg_tmp(0:nx+1,0:ny+1,1:ngsp)
@@ -2848,7 +2866,6 @@ END SUBROUTINE OMPSplitIndex
 
     ylcopy(1:neq+1)=yl(1:neq+1); yldotcopy=0
 
-    call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)
 
     !$OMP    PARALLEL DO &
     !$OMP &      default(shared) &
@@ -2856,14 +2873,18 @@ END SUBROUTINE OMPSplitIndex
     !$OMP &      private(ichunk,xc,yc) &
     !$OMP &      firstprivate(ylcopy, yldotcopy) &
     !$OMP &      REDUCTION(+:reseg_tmp)
-    DO ichunk = 1, Nchunks
-        xc = chunks(ichunk,1)
-        yc = chunks(ichunk,2)
-        call initialize_ranges(xc, yc, 0, 0, 0)
+    DO ichunk = 1, NchunksPandf1
+        
+        
+        call OMPinitialize_ranges2d(rangechunk(ichunk,:))
         call calc_gas_energy_residuals
 
-        ! Update locally calculated variables
+        do ii = 1, Nixychunk(ichunk)
+         xc = ixychunk(ichunk,ii,1)
+         yc = ixychunk(ichunk,ii,2)
+         ! Update locally calculated variables
         reseg_tmp(xc,yc,:)=reseg_tmp(xc,yc,:)+reseg(xc,yc,:)
+            end do
     END DO
     !$OMP  END PARALLEL DO
 
@@ -2876,6 +2897,7 @@ END SUBROUTINE OMPSplitIndex
   SUBROUTINE OMPcalc_plasma_energy_residuals(neq, yl, yldot)
     USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt, nusp
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
+    USE OMPPandf1, ONLY: NchunksPandf1, Nixychunk, ixychunk, rangechunk
     USE OmpCopybbb
     USE Wkspace, ONLY: w0
     USE Rhsides, ONLY: resei, wjdote, reseg, resee, wvh
@@ -2883,7 +2905,7 @@ END SUBROUTINE OMPSplitIndex
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
     REAL, INTENT(OUT):: yldot(*)
-    INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc
+    INTEGER:: ichunk, xc, yc, ii
     REAL:: yldotcopy(1:neq), ylcopy(1:neq+2)
 ! Define local variables
     real:: resei_tmp(0:nx+1,0:ny+1), &
@@ -2895,7 +2917,6 @@ END SUBROUTINE OMPSplitIndex
 
     ylcopy(1:neq+1)=yl(1:neq+1); yldotcopy=0
 
-    call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)
 
     !$OMP    PARALLEL DO &
     !$OMP &      default(shared) &
@@ -2903,16 +2924,20 @@ END SUBROUTINE OMPSplitIndex
     !$OMP &      private(ichunk,xc,yc) &
     !$OMP &      firstprivate(ylcopy, yldotcopy) &
     !$OMP &      REDUCTION(+:resei_tmp, reseg_tmp, resee_tmp)
-    DO ichunk = 1, Nchunks
-        xc = chunks(ichunk,1)
-        yc = chunks(ichunk,2)
-        call initialize_ranges(xc, yc, 0, 0, 0)
+    DO ichunk = 1, NchunksPandf1
+        
+        
+        call OMPinitialize_ranges2d(rangechunk(ichunk,:))
         call calc_plasma_energy_residuals(xc,yc)
 
-        ! Update locally calculated variables
+        do ii = 1, Nixychunk(ichunk)
+         xc = ixychunk(ichunk,ii,1)
+         yc = ixychunk(ichunk,ii,2)
+         ! Update locally calculated variables
         resei_tmp(xc,yc)=resei_tmp(xc,yc)+resei(xc,yc)
         reseg_tmp(xc,yc)=reseg_tmp(xc,yc)+reseg(xc,yc,1)
         resee_tmp(xc,yc)=resee_tmp(xc,yc)+resee(xc,yc)
+            end do
     END DO
     !$OMP  END PARALLEL DO
 
@@ -2929,13 +2954,14 @@ END SUBROUTINE OMPSplitIndex
   SUBROUTINE OMPcalc_potential_residuals(neq, yl, yldot)
     USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
+    USE OMPPandf1, ONLY: NchunksPandf1, Nixychunk, ixychunk, rangechunk
     USE OmpCopybbb
     USE Rhsides, ONLY: resphi
     IMPLICIT NONE
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
     REAL, INTENT(OUT):: yldot(*)
-    INTEGER:: chunks(1:neq,3), Nchunks, ichunk, xc, yc
+    INTEGER:: ichunk, xc, yc, ii
     REAL:: yldotcopy(1:neq), ylcopy(1:neq+2)
 ! Define local variables
     real:: resphi_tmp(0:nx+1,0:ny+1)
@@ -2945,7 +2971,6 @@ END SUBROUTINE OMPSplitIndex
 
     ylcopy(1:neq+1)=yl(1:neq+1); yldotcopy=0
 
-    call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)
 
     !$OMP    PARALLEL DO &
     !$OMP &      default(shared) &
@@ -2953,14 +2978,18 @@ END SUBROUTINE OMPSplitIndex
     !$OMP &      private(ichunk,xc,yc) &
     !$OMP &      firstprivate(ylcopy, yldotcopy) &
     !$OMP &      REDUCTION(+:resphi_tmp)
-    DO ichunk = 1, Nchunks
-        xc = chunks(ichunk,1)
-        yc = chunks(ichunk,2)
-        call OMPinitialize_ranges(xc, yc)
+    DO ichunk = 1, NchunksPandf1
+        
+        
+        call OMPinitialize_ranges2d(rangechunk(ichunk,:))
         call calc_potential_residuals
 
-        ! Update locally calculated variables
+        do ii = 1, Nixychunk(ichunk)
+         xc = ixychunk(ichunk,ii,1)
+         yc = ixychunk(ichunk,ii,2)
+         ! Update locally calculated variables
         resphi_tmp(xc,yc)=resphi_tmp(xc,yc)+resphi(xc,yc)
+            end do
     END DO
     !$OMP  END PARALLEL DO
 
