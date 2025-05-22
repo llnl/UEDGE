@@ -3008,8 +3008,8 @@ END SUBROUTINE OMPSplitIndex
     USE ParallelSettings, ONLY: Nthreads,CheckPandf1
     USE OMPPandf1Settings, ONLY: OMPTimeParallelPandf1,OMPTimeSerialPandf1, &
             OMPPandf1Stamp,OMPPandf1Verbose,OMPPandf1Debug
-    USE OMPPandf1, ONLY: Nivchunk,ivchunk,yincchunk,xincchunk, &
-            iychunk,ixchunk,NchunksPandf1, rangechunk, Nxchunks, Nychunks
+    USE OMPPandf1, ONLY: Nivchunk,ivchunk,NchunksPandf1, rangechunk, &
+    &       Nxchunks, Nychunks
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
     USE Dim, ONLY:nx,ny,nxpt, nusp
     USE Math_problem_size, ONLY: numvar
@@ -3075,8 +3075,7 @@ END SUBROUTINE OMPSplitIndex
     USE ParallelSettings, ONLY: Nthreads,CheckPandf1
     USE OMPPandf1Settings, ONLY: OMPTimeParallelPandf1,OMPTimeSerialPandf1, &
             OMPPandf1Stamp,OMPPandf1Verbose,OMPPandf1Debug
-    USE OMPPandf1, ONLY: Nivchunk,ivchunk,yincchunk,xincchunk, &
-            iychunk,ixchunk,NchunksPandf1
+    USE OMPPandf1, ONLY: Nivchunk,ivchunk,NchunksPandf1, rangechunk
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
     USE Dim, ONLY:nx,ny,nisp
     USE Math_problem_size, ONLY: numvar
@@ -3092,7 +3091,6 @@ END SUBROUTINE OMPSplitIndex
         yldotcopy = yldot(1:neq)
         yldottot = 0
 
-        call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)
 
         !$OMP    PARALLEL DO &
         !$OMP &      default(shared) &
@@ -3100,16 +3098,12 @@ END SUBROUTINE OMPSplitIndex
         !$OMP &      private(ichunk,xc,yc) &
         !$OMP &      firstprivate(ylcopy, yldotcopy) &
         !$OMP &      REDUCTION(+:yldottot)
-        DO ichunk = 1, Nchunks
-            xc = chunks(ichunk,1)
-            yc = chunks(ichunk,2)
-
-            call OMPinitialize_ranges(xc, yc)
+        DO ichunk = 1, NchunksPandf1
+            call OMPinitialize_ranges2D(rangechunk(ichunk,:))
             call calc_rhs(yldotcopy)
             
-            do ii = 1, numvar
-                yldottot((ichunk-1)*numvar + ii) = yldottot((ichunk-1)*numvar + ii) &
-                &       + yldotcopy((ichunk-1)*numvar + ii)
+            do ii=1,Nivchunk(ichunk)
+                yldottot(ivchunk(ichunk,ii)) = yldottot(ivchunk(ichunk,ii)) + yldotcopy(ivchunk(ichunk,ii))
             end do
 
         END DO
