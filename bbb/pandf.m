@@ -387,10 +387,17 @@ cccMER   NOTE: what about internal guard cells (for dnbot,dnull,limiter) ???
                 i5l = nx+1-(1-ixmxbcl)
              endif           
          else
-            j2l = j2
-            j5l = j5
-            i2l = i2
-            i5l = i5
+             if (isbcwdt .eq. 0) then  # omit b.c. eqns
+                j2l = j2
+                j5l = j5
+                i2l = i2
+                i5l = i5
+            else
+                j2l = j3
+                j5l = j7
+                i2l = i3
+                i5l = i7
+            endif
          endif
          do iy = j2l, j5l    # if j2l=j2, etc., omit the boundary equations
             do ix = i2l, i5l
