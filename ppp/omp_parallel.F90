@@ -614,50 +614,6 @@ END SUBROUTINE OMPSplitIndex
 
   END SUBROUTINE OMPinitialize_ranges2D
 
-  SUBROUTINE OMPinitialize_ranges(xc, yc)
-    Use Selec 
-    Use Bcond, ONLY: xcnearrb, xcnearlb
-    IMPLICIT NONE
-    integer, intent(in):: xc, yc
-
-      i1 = xc
-      i2 = xc
-      i2p = xc
-      i3 = xc
-      i4 = xc
-      i5 = xc
-      i5m = xc
-      i6 = xc
-      i7 = xc
-      i8 = xc
-      j1 = yc
-      j1p = yc
-      j2 = yc
-      j2p = yc
-      j3 = yc
-      j4 = yc
-      j5 = yc
-      j5m = yc
-      j5p = yc
-      j6 = yc
-      j6p = yc
-      j7 = yc
-      j8 = yc
-
-            ixs = xc
-            ixf = xc
-            iys = yc
-            iyf = yc
-            ixs1 = xc
-            ixf6 = xc
-            iys1 = yc
-            iyf6 = yc
-
-      xcnearrb = .TRUE.
-      xcnearlb = .TRUE.
-      END SUBROUTINE OMPinitialize_ranges
-
-
   SUBROUTINE OMPconvsr_vo1(neq, yl, yldot)
     USE Dim, ONLY: nx, ny, ngsp, nisp
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
@@ -3278,9 +3234,7 @@ END SUBROUTINE OMPSplitIndex
 
     if (ijactot.gt.0) then
         Time1=omp_get_wtime()
-!        call MakeChunksPandf1
         call Make2DChunks
-        call chunk3d(0,nx+1,0,ny+1,0,0,chunks,Nchunks)
 
         call OMPconvsr_vo1 (neq, yl, yldot) 
         call OMPconvsr_vo2 (neq, yl, yldot) 
@@ -3573,41 +3527,6 @@ END SUBROUTINE OMPSplitIndex
   END SUBROUTINE MakeChunksPandf1
 #endif
 
-
-  SUBROUTINE chunk2d(nxl, nxu, nyl, nyu, chunks, nchunks)
-  Use Lsode, only: neq
-  IMPLICIT NONE
-  integer, intent(in) :: nxl, nxu, nyl, nyu
-  integer, intent(out) :: nchunks, chunks(neq,3)
-    
-    call chunk3d(nxl, nxu, nyl, nyu, 0, 0, chunks, nchunks)
-
-  RETURN
-  END SUBROUTINE chunk2d
-  
-
-  SUBROUTINE chunk3d(nxl, nxu, nyl, nyu, nzl, nzu, chunks, nchunks)
-  Use Lsode, only: neq
-  IMPLICIT NONE
-  integer, intent(in) :: nxl, nxu, nyl, nyu, nzl, nzu
-  integer, intent(out) :: nchunks, chunks(neq,3)
-  integer ii, dx, dy, dz
-    
-    dx = nxu -nxl +1
-    dy = nyu -nyl +1
-    dz = nzu -nzl +1
-    nchunks = dx*dy*dz
-
-!   TODO OMP parallelize this loop?
-    DO ii = 0, nchunks-1
-        chunks(ii+1,3) = INT(ii/(dx*dy))
-        chunks(ii+1,2) = nyl + INT( (ii -(chunks(ii+1,3)*dx*dy))/dx)
-        chunks(ii+1,1) = nxl + MOD(ii, dx)
-        chunks(ii+1,3) = chunks(ii+1,3) + nzl
-    END DO
-  RETURN
-  END SUBROUTINE chunk3d
-  
 
   SUBROUTINE Make2DChunks
     Use Dim, ONLY: nx, ny
