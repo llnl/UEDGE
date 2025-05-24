@@ -3232,55 +3232,96 @@ END SUBROUTINE OMPSplitIndex
         Time1=omp_get_wtime()
         call Make2DChunks
 
+        ! ============================================
         call OMPconvsr_vo1 (neq, yl, yldot) 
-        call OMPconvsr_vo2 (neq, yl, yldot) 
-        call OMPconvsr_aux1 (neq, yl, yldot) 
-        call OMPconvsr_aux2 (neq, yl, yldot) 
+        ! ============================================
 
+        ! ============================================
+        call OMPconvsr_vo2 (neq, yl, yldot) 
+        ! ============================================
+
+        ! ============================================
+        call OMPconvsr_aux1 (neq, yl, yldot) 
+        ! ============================================
+
+        ! ============================================
+        call OMPconvsr_aux2 (neq, yl, yldot) 
+        ! ============================================
+        ! ============================================
+        call OMPcalc_driftterms2(neq, yl, yldot)
+        call OMPcalc_driftterms1(neq, yl, yldot)
+        if(isphion+isphiofft .eq. 1) then
+            call OMPcalc_fqp(neq, yl, yldot)
+            call OMPcalc_currents(neq, yl, yldot)
+        endif
         call OMPcalc_plasma_diffusivities (neq, yl, yldot) 
         call OMPinitialize_driftterms (neq, yl, yldot) 
-        call OMPcalc_driftterms1(neq, yl, yldot)
-        call OMPcalc_driftterms2(neq, yl, yldot)
-        if(isphion+isphiofft .eq. 1) then
-            call OMPcalc_currents(neq, yl, yldot)
-            call OMPcalc_fqp(neq, yl, yldot)
-        endif
-        call OMPcalc_friction(neq, yl, yldot)
-        call OMPcalc_elec_velocities(neq, yl, yldot)
-
         call OMPcalc_volumetric_sources(neq, yl, yldot)
+        ! ============================================
+
+
+
+        ! ============================================
+        call OMPcalc_friction(neq, yl, yldot)
+        ! ============================================
+
+        ! ============================================
+        call OMPcalc_elec_velocities(neq, yl, yldot)
+        ! ============================================
+
+
+        ! ============================================
+        call OMPcalc_plasma_equipartition(neq, yl, yldot)
+        call OMPcalc_plasma_heatconductivities(neq, yl, yldot)
+        call OMPcalc_plasma_viscosities(neq, yl, yldot)
+        call OMPcalc_srcmod(neq, yl, yldot)
         if (TimingPandfOn.gt.0) TimeNeudif=tick()
         call OMPneudifpg(neq, yl, yldot)
         if (TimingPandfOn.gt.0) TotTimeNeudif=TotTimeNeudif+tock(TimeNeudif)
-        call OMPcalc_srcmod(neq, yl, yldot)
-        call OMPcalc_plasma_viscosities(neq, yl, yldot)
-        call OMPcalc_plasma_heatconductivities(neq, yl, yldot)
-        call OMPcalc_plasma_equipartition(neq, yl, yldot)
-        call OMPcalc_gas_heatconductivities(neq, yl, yldot)
-        call OMPengbalg(neq, yl, yldot)
-        call OMPcalc_plasma_transport(neq, yl, yldot)
-        call calc_fniycbo ! Nothing much to parallelize here, just do serial
-        call OmpCopyPointerfniycbo
-        call OMPcalc_plasma_momentum_coeffs(neq, yl, yldot)
-        call OMPcalc_plasma_momentum(neq, yl, yldot) 
-        call OMPcalc_plasma_energy(neq, yl, yldot)
+        ! ============================================
+
+
+        ! ============================================
         call OMPcalc_gas_energy(neq, yl, yldot)
+        call OMPcalc_plasma_transport(neq, yl, yldot)
+        call OMPcalc_gas_heatconductivities(neq, yl, yldot)
+        ! ============================================
+
+
+
+        ! ============================================
+        call OMPcalc_plasma_momentum_coeffs(neq, yl, yldot)
+        call OMPcalc_plasma_energy(neq, yl, yldot)
+        call OMPengbalg(neq, yl, yldot)
+        ! ============================================
+
+
+        ! ============================================
+        call OMPcalc_plasma_momentum(neq, yl, yldot) 
+        ! ============================================
+
+        ! ============================================
+        call calc_fniycbo ! Nothing much to parallelize here, just do serial
         call calc_feeiycbo ! Nothing much to parallelize here, just do serial
+        call calc_atom_seic ! Nothing much to parallelize here, just do serial
+        call OmpCopyPointerfniycbo
         call OmpCopyPointerfeeycbo
         call OmpCopyPointerfeiycbo
-        call OMPcalc_plasma_particle_residuals(neq, yl, yldot)
-        call OMPcalc_gas_continuity_residuals(neq, yl, yldot)
-        call OMPcalc_plasma_momentum_residuals(neq, yl, yldot)
-        call OMPcalc_gas_energy_residuals(neq, yl, yldot)
-        call calc_atom_seic ! Nothing much to parallelize here, just do serial
         call OmpCopyPointerseic
-        call OMPcalc_plasma_energy_residuals(neq, yl, yldot)
+        ! ============================================
+
+        ! ============================================
         if (isphion.eq.1) call OMPcalc_potential_residuals(neq, yl, yldot)
+        call OMPcalc_plasma_energy_residuals(neq, yl, yldot)
+        call OMPcalc_gas_energy_residuals(neq, yl, yldot)
+        call OMPcalc_plasma_momentum_residuals(neq, yl, yldot)
+        call OMPcalc_gas_continuity_residuals(neq, yl, yldot)
+        call OMPcalc_plasma_particle_residuals(neq, yl, yldot)
+        ! ============================================
+
+
         call OMPcalc_rhs(neq, yl, yldot)
-
         call OMPbouncon(neq, yl, yldot)
-
-
         if (TimingPandfOn.gt.0) & 
         &      TotTimePandf=TotTimePandf+tock(TimePandf)
 
