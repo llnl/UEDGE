@@ -52,6 +52,7 @@ SUBROUTINE InitOMPJac()
     RETURN
 END SUBROUTINE InitOMPJAC
 
+
 SUBROUTINE InitOMPPandf1
     USE OMPPandf1Settings, ONLY: OMPPandf1Nxchunks,OMPPandf1Nychunks,OMPPandf1Stamp,OMPPandf1Verbose
     USE OMPPandf1, ONLY: NchunksPandf1,Nxchunks,Nychunks
@@ -84,7 +85,7 @@ SUBROUTINE InitOMPPandf1
     endif
     RETURN
 END SUBROUTINE InitOMPPandf1
-!-------------------------------------------------------------------------------------------------
+
 
 SUBROUTINE InitZeroOMP
     IMPLICIT NONE
@@ -96,7 +97,9 @@ SUBROUTINE InitZeroOMP
     RETURN
 END SUBROUTINE InitZeroOMP
 
+
 #ifdef _OPENMP
+
   SUBROUTINE OMPCollectJacobian(neq,nnzmx,rcsc,icsc,jcsc,nnzcumout)
     USE OMPJac, ONLY: iJacCol,rJacElem,iJacRow,OMPivmin,OMPivmax,nnz,nnzcum,OMPTimeJacRow,NchunksJac
     USE OMPJacSettings, ONLY: OMPJacVerbose,OMPJacStamp,OMPTimingJacRow
@@ -149,7 +152,8 @@ END SUBROUTINE InitZeroOMP
     endif
     RETURN
   END SUBROUTINE OMPCOllectJacobian
-!-------------------------------------------------------------------------------------------------
+
+
   SUBROUTINE jac_calc_omp (neq, t, yl, yldot00, ml, mu, wk,nnzmx, jac, ja, ia)
     !   Calculate Jacobian matrix (derivatives with respect to each
     !   dependent variable of the right-hand side of each rate equation).
@@ -298,7 +302,8 @@ END SUBROUTINE InitZeroOMP
         
     RETURN
   END SUBROUTINE jac_calc_omp
-!-------------------------------------------------------------------------------------------------
+
+
   SUBROUTINE OMPJacBuilder(neq, t, yl,yldot00, ml,mu,wk,iJacCol,rJacElem,iJacRow,nnz)
     USE OMPJacSettings, ONLY: OMPJacStamp,OMPJacVerbose,OMPLoopJacNchunk
     USE ParallelDebug, ONLY: OMPJacDebug,OMPCopyArray,OMPCopyScalar
@@ -402,6 +407,8 @@ END SUBROUTINE InitZeroOMP
     endif
     RETURN
   END SUBROUTINE OMPJacBuilder
+
+
 #endif
 
 SUBROUTINE  OMPSplitIndex(ieqmin,ieqmax,NchunksJac,ivmin,ivmax,weight)
@@ -460,7 +467,9 @@ SUBROUTINE  OMPSplitIndex(ieqmin,ieqmax,NchunksJac,ivmin,ivmax,weight)
     RETURN
 END SUBROUTINE OMPSplitIndex
 
+
 #ifdef _OPENMP
+
   SUBROUTINE OMPPandf1Rhs_old(neq,time,yl,yldot)
     USE omp_lib
     USE OmpCopybbb
@@ -614,12 +623,16 @@ END SUBROUTINE OMPSplitIndex
 
   END SUBROUTINE OMPinitialize_ranges2D
 
+
   SUBROUTINE OMPconvsr_vo1(neq, yl, yldot)
+    USE PandfCopies
     USE Dim, ONLY: nx, ny, ngsp, nisp
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
     USE OMPPandf1, ONLY: NchunksPandf1, Nixychunk, ixychunk, rangechunk
     USE OmpCopybbb
     USE Compla, ONLY: ne, phi, ti, tg, te, nit, nz2, ng, nm, lng, ni
+    USE Compla, ONLY: ne,phi,ti,tg,te,nit,nz2,ng,nm,lng,ni
+
     IMPLICIT NONE
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
@@ -648,6 +661,8 @@ END SUBROUTINE OMPSplitIndex
     !$OMP &      REDUCTION(+:ne_tmp, phi_tmp, ti_tmp, tg_tmp, te_tmp, nit_tmp, nz2_tmp, ng_tmp, nm_tmp, &
     !$OMP &         lng_tmp, ni_tmp)
     DO ichunk = 1, NchunksPandf1
+        ne=ne_cp;phi=phi_cp;ti=ti_cp;tg=tg_cp;te=te_cp;nit=nit_cp;nz2=nz2_cp;ng=ng_cp
+        nm=nm_cp;lng=lng_cp;ni=ni_cp
         
         
         call OMPinitialize_ranges2d(rangechunk(ichunk,:))
@@ -679,17 +694,20 @@ END SUBROUTINE OMPSplitIndex
     call OmpCopyPointertg; call OmpCopyPointerte; call OmpCopyPointernit
     call OmpCopyPointernz2; call OmpCopyPointerng; call OmpCopyPointernm
     call OmpCopyPointerlng; call OmpCopyPointerni
-
+    ne_cp=ne;phi_cp=phi;ti_cp=ti;tg_cp=tg;te_cp=te;nit_cp=nit;nz2_cp=nz2;ng_cp=ng
+    nm_cp=nm;lng_cp=lng;ni_cp=ni
   END SUBROUTINE OMPconvsr_vo1
 
 
-
   SUBROUTINE OMPconvsr_vo2(neq, yl, yldot)
+    USE PandfCopies
     USE Dim, ONLY: nx, ny, ngsp, nisp
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
     USE OMPPandf1, ONLY: NchunksPandf1, Nixychunk, ixychunk, rangechunk
     USE OmpCopybbb
     USE Compla, ONLY: up
+    USE Compla, ONLY: up,nm
+
     IMPLICIT NONE
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
@@ -712,6 +730,7 @@ END SUBROUTINE OMPSplitIndex
     !$OMP &      firstprivate(ylcopy, yldotcopy) &
     !$OMP &      REDUCTION(+:up_tmp)
     DO ichunk = 1, NchunksPandf1
+        up=up_cp;nm=nm_cp
         
         
         call OMPinitialize_ranges2d(rangechunk(ichunk,:))
@@ -729,15 +748,19 @@ END SUBROUTINE OMPSplitIndex
     ! Update global variables
     up=up_tmp
     call OmpCopyPointerup
-
+    up_cp=up
   END SUBROUTINE OMPconvsr_vo2
 
+
   SUBROUTINE OMPconvsr_aux1(neq, yl, yldot)
+    USE PandfCopies
     USE Dim, ONLY: nx, ny, ngsp, nisp
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
     USE OMPPandf1, ONLY: NchunksPandf1, Nixychunk, ixychunk, rangechunk
     USE OmpCopybbb
     USE Compla, ONLY: pg, pr, pre, pri, tg
+    USE Compla, ONLY: ne,ti,tg,te,ng,ni,pg,pr,pre,pri
+
     IMPLICIT NONE
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
@@ -762,6 +785,8 @@ END SUBROUTINE OMPSplitIndex
     !$OMP &      firstprivate(ylcopy, yldotcopy) &
     !$OMP &      REDUCTION(+:pg_tmp, pr_tmp, pre_tmp, pri_tmp, tg_tmp)
     DO ichunk = 1, NchunksPandf1
+        ne=ne_cp;ti=ti_cp;tg=tg_cp;te=te_cp;ng=ng_cp;ni=ni_cp;pg=pg_cp;pr=pr_cp
+        pre=pre_cp;pri=pri_cp
         
         
         call OMPinitialize_ranges2d(rangechunk(ichunk,:))
@@ -784,11 +809,12 @@ END SUBROUTINE OMPSplitIndex
     pg=pg_tmp; pr=pr_tmp; pre=pre_tmp; pri=pri_tmp; tg=tg_tmp
     call OmpCopyPointerpg; call OmpCopyPointerpr; call OmpCopyPointerpre
     call OmpCopyPointerpri; call OmpCopyPointertg
-
+    pg_cp=pg;pr_cp=pr;pre_cp=pre;pri_cp=pri;tg_cp=tg
   END SUBROUTINE OMPconvsr_aux1
 
 
   SUBROUTINE OMPconvsr_aux2(neq, yl, yldot)
+    USE PandfCopies
     USE Dim, ONLY: nx, ny, ngsp, nisp
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
     USE OMPPandf1, ONLY: NchunksPandf1, Nixychunk, ixychunk, rangechunk
@@ -797,6 +823,11 @@ END SUBROUTINE OMPSplitIndex
     &    ngy0, priy0, phiv, niy0s, tey1, tiy1s, priy1, tgy1, niy0, tiv, priv, ney1, tev, &
     &    phiy1s, prtv, prev, tey0, znot, niy1s, nity0, ngy1
     USE Gradients, ONLY: gpry, gpix, ex, ey, gtex, gtiy, gpiy, gtey, gtix, gpex, gpondpotx, gprx, gpey
+    USE Gradients, ONLY: gpry,gpix,ex,ey,gtex,gtiy,gpiy,gtey,gtix,gpex,gpondpotx,gprx,gpey
+    USE Compla, ONLY: ne,phi,ti,tg,te,ng,ni,pg,pre,pri,pgy0,tgy0,niy1,nity1,tiy1,phiy0,tiy0s,ney0,zeff, &
+    &    tiy0,pgy1,phiy0s,phiy1,ngy0,priy0,phiv,niy0s,tey1,tiy1s,priy1,tgy1,niy0,tiv,priv, &
+    &    ney1,tev,phiy1s,prtv,prev,tey0,znot,niy1s,nity0,ngy1
+
     IMPLICIT NONE
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
@@ -856,6 +887,16 @@ END SUBROUTINE OMPSplitIndex
     !$OMP &         tev_tmp, phiy1s_tmp, prtv_tmp, prev_tmp, tey0_tmp, gprx_tmp, gpey_tmp, &
     !$OMP &         znot_tmp, niy1s_tmp, nity0_tmp, ngy1_tmp)
     DO ichunk = 1, NchunksPandf1
+        ne=ne_cp;phi=phi_cp;ti=ti_cp;tg=tg_cp;te=te_cp;ng=ng_cp;ni=ni_cp;pg=pg_cp
+        pre=pre_cp;pri=pri_cp;pgy0=pgy0_cp;tgy0=tgy0_cp;gpry=gpry_cp;niy1=niy1_cp
+        nity1=nity1_cp;gpix=gpix_cp;ex=ex_cp;ey=ey_cp;tiy1=tiy1_cp;phiy0=phiy0_cp
+        tiy0s=tiy0s_cp;gtex=gtex_cp;ney0=ney0_cp;gtiy=gtiy_cp;zeff=zeff_cp;tiy0=tiy0_cp
+        pgy1=pgy1_cp;phiy0s=phiy0s_cp;phiy1=phiy1_cp;ngy0=ngy0_cp;gpiy=gpiy_cp
+        priy0=priy0_cp;gtey=gtey_cp;gtix=gtix_cp;phiv=phiv_cp;niy0s=niy0s_cp
+        tey1=tey1_cp;tiy1s=tiy1s_cp;priy1=priy1_cp;tgy1=tgy1_cp;gpex=gpex_cp
+        niy0=niy0_cp;tiv=tiv_cp;priv=priv_cp;ney1=ney1_cp;gpondpotx=gpondpotx_cp
+        tev=tev_cp;phiy1s=phiy1s_cp;prtv=prtv_cp;prev=prev_cp;tey0=tey0_cp;gprx=gprx_cp
+        gpey=gpey_cp;znot=znot_cp;niy1s=niy1s_cp;nity0=nity0_cp;ngy1=ngy1_cp
         
         
         call OMPinitialize_ranges2d(rangechunk(ichunk,:))
@@ -950,11 +991,20 @@ END SUBROUTINE OMPSplitIndex
     call OmpCopyPointergprx; call OmpCopyPointergpey
     call OmpCopyPointerznot; call OmpCopyPointerniy1s
     call OmpCopyPointernity0; call OmpCopyPointerngy1
-
+    pgy0_cp=pgy0;tgy0_cp=tgy0;gpry_cp=gpry;niy1_cp=niy1;nity1_cp=nity1;gpix_cp=gpix
+    ex_cp=ex;ey_cp=ey;tiy1_cp=tiy1;phiy0_cp=phiy0;tiy0s_cp=tiy0s;gtex_cp=gtex
+    ney0_cp=ney0;gtiy_cp=gtiy;zeff_cp=zeff;tiy0_cp=tiy0;pgy1_cp=pgy1
+    phiy0s_cp=phiy0s;phiy1_cp=phiy1;ngy0_cp=ngy0;gpiy_cp=gpiy;priy0_cp=priy0
+    gtey_cp=gtey;gtix_cp=gtix;phiv_cp=phiv;niy0s_cp=niy0s;tey1_cp=tey1
+    tiy1s_cp=tiy1s;priy1_cp=priy1;tgy1_cp=tgy1;gpex_cp=gpex;niy0_cp=niy0;tiv_cp=tiv
+    priv_cp=priv;ney1_cp=ney1;gpondpotx_cp=gpondpotx;tev_cp=tev;phiy1s_cp=phiy1s
+    prtv_cp=prtv;prev_cp=prev;tey0_cp=tey0;gprx_cp=gprx;gpey_cp=gpey;znot_cp=znot
+    niy1s_cp=niy1s;nity0_cp=nity0;ngy1_cp=ngy1
   END SUBROUTINE OMPconvsr_aux2
 
 
   SUBROUTINE OMPcalc_plasma_diffusivities(neq, yl, yldot)
+    USE PandfCopies
     USE Dim, ONLY: nx, ny, ngsp, nisp
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
     USE OMPPandf1, ONLY: NchunksPandf1, Nixychunk, ixychunk, rangechunk
@@ -963,6 +1013,10 @@ END SUBROUTINE OMPSplitIndex
     &    kye_use, vy_use, kybohm, tray_use, dif2_use
     USE Compla, ONLY: betap
     USE OMPTiming
+    USE Conduc, ONLY: dutm_use,difp_use,dif_use,kyi_use,trax_use,kxbohm,kxe_use,kxi_use,kye_use,vy_use, &
+    &    kybohm,tray_use,dif2_use
+    USE Compla, ONLY: te,ni,pr,betap,v2
+
     IMPLICIT NONE
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
@@ -1036,10 +1090,15 @@ END SUBROUTINE OMPSplitIndex
     call OmpCopyPointerkye_use; call OmpCopyPointervy_use
     call OmpCopyPointerbetap; call OmpCopyPointerkybohm
     call OmpCopyPointertray_use; call OmpCopyPointerdif2_use
-
+    dutm_use_cp=dutm_use;difp_use_cp=difp_use;dif_use_cp=dif_use;kyi_use_cp=kyi_use
+    trax_use_cp=trax_use;kxbohm_cp=kxbohm;kxe_use_cp=kxe_use;kxi_use_cp=kxi_use
+    kye_use_cp=kye_use;vy_use_cp=vy_use;betap_cp=betap;kybohm_cp=kybohm
+    tray_use_cp=tray_use;dif2_use_cp=dif2_use
   END SUBROUTINE OMPcalc_plasma_diffusivities
 
+
   SUBROUTINE OMPinitialize_driftterms(neq, yl, yldot)
+    USE PandfCopies
     USE Dim, ONLY: nx, ny, ngsp, nisp
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
     USE OMPPandf1, ONLY: NchunksPandf1, Nixychunk, ixychunk, rangechunk
@@ -1047,6 +1106,10 @@ END SUBROUTINE OMPSplitIndex
     USE Conduc, ONLY: eta1, dclass_e, rtaue, dclass_i
     USE UEpar, ONLY: ctaui, ctaue
     USE Compla, ONLY: loglambda
+    USE UEpar, ONLY: ctaui,ctaue
+    USE Conduc, ONLY: eta1,dclass_e,rtaue,dclass_i
+    USE Compla, ONLY: ne,ti,te,nm,loglambda
+
     IMPLICIT NONE
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
@@ -1074,6 +1137,9 @@ END SUBROUTINE OMPSplitIndex
     !$OMP &      REDUCTION(+:eta1_tmp, ctaui_tmp, dclass_e_tmp, loglambda_tmp, rtaue_tmp, ctaue_tmp, &
     !$OMP &         dclass_i_tmp)
     DO ichunk = 1, NchunksPandf1
+        ne=ne_cp;ti=ti_cp;te=te_cp;nm=nm_cp;eta1=eta1_cp;ctaui=ctaui_cp
+        dclass_e=dclass_e_cp;loglambda=loglambda_cp;rtaue=rtaue_cp;ctaue=ctaue_cp
+        dclass_i=dclass_i_cp
         
         
         call OMPinitialize_ranges2d(rangechunk(ichunk,:))
@@ -1102,10 +1168,13 @@ END SUBROUTINE OMPSplitIndex
     call OmpCopyPointerdclass_e; call OmpCopyPointerloglambda
     call OmpCopyPointerrtaue; call OmpCopyPointerctaue
     call OmpCopyPointerdclass_i
-
+    eta1_cp=eta1;ctaui_cp=ctaui;dclass_e_cp=dclass_e;loglambda_cp=loglambda
+    rtaue_cp=rtaue;ctaue_cp=ctaue;dclass_i_cp=dclass_i
   END SUBROUTINE OMPinitialize_driftterms
 
+
   SUBROUTINE OMPcalc_driftterms1(neq, yl, yldot)
+    USE PandfCopies
     USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
     USE OMPPandf1, ONLY: NchunksPandf1, Nixychunk, ixychunk, rangechunk
@@ -1113,6 +1182,13 @@ END SUBROUTINE OMPSplitIndex
     USE Compla, ONLY: vydd, veycb, vyrd, vycf, vygp, vy, vycr, vyce, veycp, vycb, vycp
     USE Comtra, ONLY: coll_fe, diffusivwrk, coll_fi
     USE Conduc, ONLY: vyte_cft, vyti_cft, vy_cft
+    USE Locflux, ONLY: cony
+    USE Comtra, ONLY: coll_fe,diffusivwrk,coll_fi
+    USE Conduc, ONLY: difp_use,dif_use,vy_use,eta1,rtaue,vyte_cft,vyti_cft,vy_cft
+    USE Gradients, ONLY: gpry,ex,ey,gpiy,gtey,gpey
+    USE Compla, ONLY: up,ne,ti,te,nit,ni,pr,niy1,tiy1,ney0,tiy0,phiv,tey1,niy0,priv,ney1,prev,tey0, &
+    &    loglambda,vydd,veycb,vyrd,vycf,vygp,vy,vycr,vyce,veycp,vycb,vycp
+
     IMPLICIT NONE
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
@@ -1192,11 +1268,15 @@ END SUBROUTINE OMPSplitIndex
     call OmpCopyPointercoll_fi; call OmpCopyPointerveycp
     call OmpCopyPointervyti_cft; call OmpCopyPointervycb
     call OmpCopyPointervycp; call OmpCopyPointervy_cft
-
+    vydd_cp=vydd;veycb_cp=veycb;coll_fe_cp=coll_fe;vyte_cft_cp=vyte_cft;vyrd_cp=vyrd
+    vycf_cp=vycf;vygp_cp=vygp;diffusivwrk_cp=diffusivwrk;vy_cp=vy;vycr_cp=vycr
+    vyce_cp=vyce;coll_fi_cp=coll_fi;veycp_cp=veycp;vyti_cft_cp=vyti_cft;vycb_cp=vycb
+    vycp_cp=vycp;vy_cft_cp=vy_cft
   END SUBROUTINE OMPcalc_driftterms1
 
 
   SUBROUTINE OMPcalc_driftterms2(neq, yl, yldot)
+    USE PandfCopies
     USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
     USE OMPPandf1, ONLY: NchunksPandf1, Nixychunk, ixychunk, rangechunk
@@ -1204,6 +1284,12 @@ END SUBROUTINE OMPSplitIndex
     USE Compla, ONLY: v2dd, ve2cb, vytan, v2rd, ve2cd, vy, v2xgp, v2cd, vyavis, v2ce, q2cd, v2cb, v2
     USE Comflo, ONLY: fdiaxlb, fdiaxrb
     USE Xpoint_indices, ONLY: ixlb, ixrb
+    USE Comflo, ONLY: fdiaxlb,fdiaxrb,fqya
+    USE Conduc, ONLY: dif_use,dif2_use
+    USE Gradients, ONLY: ey,gprx,gpey
+    USE Compla, ONLY: up,ne,te,ni,pr,niy1,phiv,niy0,tiv,priv,tev,prev,loglambda,vy,v2dd,ve2cb,vytan, &
+    &    v2rd,ve2cd,v2xgp,v2cd,vyavis,v2ce,q2cd,v2cb,v2
+
     IMPLICIT NONE
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
@@ -1284,17 +1370,27 @@ END SUBROUTINE OMPSplitIndex
     call OmpCopyPointervyavis; call OmpCopyPointerv2ce
     call OmpCopyPointerq2cd; call OmpCopyPointerv2cb; call OmpCopyPointerv2
     call OmpCopyPointerfdiaxrb
-
+    v2dd_cp=v2dd;ve2cb_cp=ve2cb;vytan_cp=vytan;v2rd_cp=v2rd;fdiaxlb_cp=fdiaxlb
+    ve2cd_cp=ve2cd;vy_cp=vy;v2xgp_cp=v2xgp;v2cd_cp=v2cd;vyavis_cp=vyavis
+    v2ce_cp=v2ce;q2cd_cp=q2cd;v2cb_cp=v2cb;v2_cp=v2;fdiaxrb_cp=fdiaxrb
   END SUBROUTINE OMPcalc_driftterms2
 
 
   SUBROUTINE OMPcalc_currents(neq, yl, yldot)
+    USE PandfCopies
     USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
     USE OMPPandf1, ONLY: NchunksPandf1, Nixychunk, ixychunk, rangechunk
     USE OmpCopybbb
     USE Comflo, ONLY: fq2d, fmity, fqym, fqyai, fqyb, fqydti, fqymi, fqydt, fqyao, fqya, fqyae, fqygp, &
     &    fq2, fqyd, fqy
+    USE Comflo, ONLY: fq2d,fmity,fqym,fqyai,fqyb,fqydti,fqymi,fqydt,fqyao,fqya,fqyae,fqygp,fq2,fqyd, &
+    &    fqy
+    USE Conduc, ONLY: dutm_use
+    USE Gradients, ONLY: ey,gpiy
+    USE Compla, ONLY: ne,ti,te,niy1,tiy1,phiy0,tiy0s,ney0,zeff,tiy0,phiy0s,phiy1,niy0s,tey1,tiy1s,niy0, &
+    &    ney1,phiy1s,prtv,tey0,niy1s,veycb,vycf,vy,vyce,vycb,vycp,vyavis
+
     IMPLICIT NONE
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
@@ -1327,6 +1423,15 @@ END SUBROUTINE OMPSplitIndex
     !$OMP &         fqydt_tmp, fqyao_tmp, fqya_tmp, fqyae_tmp, fqygp_tmp, fq2_tmp, fqyd_tmp, &
     !$OMP &         fqy_tmp)
     DO ichunk = 1, NchunksPandf1
+        ne=ne_cp;ti=ti_cp;te=te_cp;niy1=niy1_cp;ey=ey_cp;tiy1=tiy1_cp;phiy0=phiy0_cp
+        tiy0s=tiy0s_cp;ney0=ney0_cp;zeff=zeff_cp;tiy0=tiy0_cp;phiy0s=phiy0s_cp
+        phiy1=phiy1_cp;gpiy=gpiy_cp;niy0s=niy0s_cp;tey1=tey1_cp;tiy1s=tiy1s_cp
+        niy0=niy0_cp;ney1=ney1_cp;phiy1s=phiy1s_cp;prtv=prtv_cp;tey0=tey0_cp
+        niy1s=niy1s_cp;dutm_use=dutm_use_cp;veycb=veycb_cp;vycf=vycf_cp;vy=vy_cp
+        vyce=vyce_cp;vycb=vycb_cp;vycp=vycp_cp;vyavis=vyavis_cp;fq2d=fq2d_cp
+        fmity=fmity_cp;fqym=fqym_cp;fqyai=fqyai_cp;fqyb=fqyb_cp;fqydti=fqydti_cp
+        fqymi=fqymi_cp;fqydt=fqydt_cp;fqyao=fqyao_cp;fqya=fqya_cp;fqyae=fqyae_cp
+        fqygp=fqygp_cp;fq2=fq2_cp;fqyd=fqyd_cp;fqy=fqy_cp
         
         
         call OMPinitialize_ranges2d(rangechunk(ichunk,:))
@@ -1367,10 +1472,14 @@ END SUBROUTINE OMPSplitIndex
     call OmpCopyPointerfqyao; call OmpCopyPointerfqya
     call OmpCopyPointerfqyae; call OmpCopyPointerfqygp
     call OmpCopyPointerfq2; call OmpCopyPointerfqyd; call OmpCopyPointerfqy
-
+    fq2d_cp=fq2d;fmity_cp=fmity;fqym_cp=fqym;fqyai_cp=fqyai;fqyb_cp=fqyb
+    fqydti_cp=fqydti;fqymi_cp=fqymi;fqydt_cp=fqydt;fqyao_cp=fqyao;fqya_cp=fqya
+    fqyae_cp=fqyae;fqygp_cp=fqygp;fq2_cp=fq2;fqyd_cp=fqyd;fqy_cp=fqy
   END SUBROUTINE OMPcalc_currents
 
+
   SUBROUTINE OMPcalc_fqp1(neq, yl, yldot)
+    USE PandfCopies
     USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
     USE OMPPandf1, ONLY: NchunksPandf1, Nixychunk, ixychunk, rangechunk
@@ -1380,6 +1489,9 @@ END SUBROUTINE OMPSplitIndex
     USE Bcond, ONLY: fqpsatrb, fqpsatlb
     USE Comflo, ONLY: fqp, fqx, fqxb
     USE Xpoint_indices, ONLY: ixlb, ixrb
+    USE Comflo, ONLY: fqp
+    USE Compla, ONLY: ne,phi,te,pre,zeff,netap
+
     IMPLICIT NONE
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
@@ -1402,6 +1514,7 @@ END SUBROUTINE OMPSplitIndex
     !$OMP &      firstprivate(ylcopy, yldotcopy) &
     !$OMP &      REDUCTION(+:fqp_tmp,netap_tmp)
     DO ichunk = 1, NchunksPandf1
+        ne=ne_cp;phi=phi_cp;te=te_cp;pre=pre_cp;zeff=zeff_cp;netap=netap_cp;fqp=fqp_cp
         
         
         call OMPinitialize_ranges2d(rangechunk(ichunk,:))
@@ -1418,12 +1531,12 @@ END SUBROUTINE OMPSplitIndex
     !$OMP END PARALLEL DO
     fqp=fqp_tmp;netap=netap_tmp
     call OmpCopyPointernetap; call OmpCopyPointerfqp
-
+    netap_cp=netap;fqp_cp=fqp
   END SUBROUTINE OMPcalc_fqp1
 
 
-
   SUBROUTINE OMPcalc_fqp2(neq, yl, yldot)
+    USE PandfCopies
     USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
     USE OMPPandf1, ONLY: NchunksPandf1, Nixychunk, ixychunk, rangechunk
@@ -1433,6 +1546,11 @@ END SUBROUTINE OMPSplitIndex
     USE Bcond, ONLY: fqpsatrb, fqpsatlb
     USE Comflo, ONLY: fqp, fqx, fqxb
     USE Xpoint_indices, ONLY: ixlb, ixrb
+    USE Bcond, ONLY: fqpsatrb,fqpsatlb
+    USE Poten, ONLY: dphi_iy1
+    USE Comflo, ONLY: fdiaxlb,fdiaxrb,fq2,fqp,fqx,fqxb
+    USE Compla, ONLY: up,ne,phi,te,ni,pre,zeff,ve2cb,v2ce,v2cb
+
     IMPLICIT NONE
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
@@ -1460,6 +1578,10 @@ END SUBROUTINE OMPSplitIndex
     !$OMP &      REDUCTION(+:dphi_iy1_tmp, vy_tmp, fqpsatrb_tmp, vyavis_tmp, fqp_tmp, fqx_tmp, &
     !$OMP &         fqpsatlb_tmp, fqxb_tmp)
     DO ichunk = 1, NchunksPandf1
+        up=up_cp;ne=ne_cp;phi=phi_cp;te=te_cp;ni=ni_cp;pre=pre_cp;zeff=zeff_cp
+        ve2cb=ve2cb_cp;fdiaxlb=fdiaxlb_cp;v2ce=v2ce_cp;v2cb=v2cb_cp;fdiaxrb=fdiaxrb_cp
+        fq2=fq2_cp;fqp=fqp_cp;dphi_iy1=dphi_iy1_cp;fqpsatrb=fqpsatrb_cp;fqx=fqx_cp
+        fqpsatlb=fqpsatlb_cp;fqxb=fqxb_cp
         
         
         call OMPinitialize_ranges2d(rangechunk(ichunk,:))
@@ -1500,11 +1622,13 @@ END SUBROUTINE OMPSplitIndex
     call OmpCopyPointervyavis; call OmpCopyPointerfqp
     call OmpCopyPointerfqx; call OmpCopyPointerfqpsatlb
     call OmpCopyPointerfqxb
-
+    dphi_iy1_cp=dphi_iy1;vy_cp=vy;fqpsatrb_cp=fqpsatrb;vyavis_cp=vyavis;fqp_cp=fqp
+    fqx_cp=fqx;fqpsatlb_cp=fqpsatlb;fqxb_cp=fqxb
   END SUBROUTINE OMPcalc_fqp2
 
 
   SUBROUTINE OMPcalc_friction(neq, yl, yldot)
+    USE PandfCopies
     USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
     USE OMPPandf1, ONLY: NchunksPandf1, Nixychunk, ixychunk, rangechunk
@@ -1513,6 +1637,11 @@ END SUBROUTINE OMPSplitIndex
     USE Cfric, ONLY: frici, frice
     USE Gradients, ONLY: ex
     USE UEpar, ONLY: cs
+    USE Cfric, ONLY: frici,frice
+    USE Comflo, ONLY: fqp
+    USE Gradients, ONLY: ex,gtex,gpex,gpondpotx
+    USE Compla, ONLY: up,ne,phi,ti,te,ni,vytan,v2cd,v2ce,v2,netap,upi,uz,uu,uup
+
     IMPLICIT NONE
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
@@ -1539,6 +1668,10 @@ END SUBROUTINE OMPSplitIndex
     !$OMP &      firstprivate(ylcopy, yldotcopy) &
     !$OMP &      REDUCTION(+:upi_tmp, uz_tmp, uu_tmp, frici_tmp, ex_tmp, uup_tmp, frice_tmp)
     DO ichunk = 1, NchunksPandf1
+        up=up_cp;ne=ne_cp;phi=phi_cp;ti=ti_cp;te=te_cp;ni=ni_cp;ex=ex_cp;gtex=gtex_cp
+        gpex=gpex_cp;gpondpotx=gpondpotx_cp;vytan=vytan_cp;v2cd=v2cd_cp;v2ce=v2ce_cp
+        v2=v2_cp;netap=netap_cp;fqp=fqp_cp;upi=upi_cp;uz=uz_cp;uu=uu_cp;frici=frici_cp
+        uup=uup_cp;frice=frice_cp
         
         
         call OMPinitialize_ranges2d(rangechunk(ichunk,:))
@@ -1565,15 +1698,22 @@ END SUBROUTINE OMPSplitIndex
     call OmpCopyPointerupi; call OmpCopyPointeruz; call OmpCopyPointeruu
     call OmpCopyPointerfrici; call OmpCopyPointerex; call OmpCopyPointeruup
     call OmpCopyPointerfrice
-
+    upi_cp=upi;uz_cp=uz;uu_cp=uu;frici_cp=frici;ex_cp=ex;uup_cp=uup;frice_cp=frice
   END SUBROUTINE OMPcalc_friction
 
+
   SUBROUTINE OMPcalc_elec_velocities(neq, yl, yldot)
+    USE PandfCopies
     USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
     USE OMPPandf1, ONLY: NchunksPandf1, Nixychunk, ixychunk, rangechunk
     USE OmpCopybbb
     USE Compla, ONLY: vey, vex, upe
+    USE Comflo, ONLY: fqy,fqp
+    USE Gradients, ONLY: ex,ey
+    USE Compla, ONLY: ne,ni,niy1,ney0,niy0,ney1,vydd,veycb,vy,vyce,ve2cb,vytan,ve2cd,v2ce,upi,vey,vex, &
+    &    upe
+
     IMPLICIT NONE
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
@@ -1596,6 +1736,10 @@ END SUBROUTINE OMPSplitIndex
     !$OMP &      firstprivate(ylcopy, yldotcopy) &
     !$OMP &      REDUCTION(+:vey_tmp, vex_tmp, upe_tmp)
     DO ichunk = 1, NchunksPandf1
+        ne=ne_cp;ni=ni_cp;niy1=niy1_cp;ex=ex_cp;ey=ey_cp;ney0=ney0_cp;niy0=niy0_cp
+        ney1=ney1_cp;vydd=vydd_cp;veycb=veycb_cp;vy=vy_cp;vyce=vyce_cp;ve2cb=ve2cb_cp
+        vytan=vytan_cp;ve2cd=ve2cd_cp;v2ce=v2ce_cp;fqy=fqy_cp;fqp=fqp_cp;upi=upi_cp
+        vey=vey_cp;vex=vex_cp;upe=upe_cp
         
         
         call OMPinitialize_ranges2d(rangechunk(ichunk,:))
@@ -1615,11 +1759,12 @@ END SUBROUTINE OMPSplitIndex
     ! Update global variables
     vey=vey_tmp; vex=vex_tmp; upe=upe_tmp
     call OmpCopyPointervey; call OmpCopyPointervex; call OmpCopyPointerupe
-
+    vey_cp=vey;vex_cp=vex;upe_cp=upe
   END SUBROUTINE OMPcalc_elec_velocities
 
 
   SUBROUTINE OMPcalc_volumetric_sources(neq, yl, yldot)
+    USE PandfCopies
     USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt, nusp
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
     USE OMPPandf1, ONLY: NchunksPandf1, Nixychunk, ixychunk, rangechunk
@@ -1629,6 +1774,15 @@ END SUBROUTINE OMPSplitIndex
     USE Conduc, ONLY: nuelg, nurc, nuvl, nuiz, nucxi, nucx, nueli, nuix
     USE Compla, ONLY: rtauy, rtaux, rtau
     USE OMPTiming, ONLY: ParaTime, SerialTime
+    USE Conduc, ONLY: nuelg,nurc,nuvl,nuiz,nucxi,nucx,nueli,nuix
+    USE Rhsides, ONLY: psorrgc,psorgc,psordis,psorbgg,psordisg,smoc,psorc,snic,seic,psor,psorbgz,seec, &
+    &    msor,psorg,psorcxg,psorrg,msorxr,psorxr,psorxrc,seik,seid,seidh
+    USE Cfric, ONLY: frici,frice
+    USE Comflo, ONLY: fqp
+    USE Gradients, ONLY: gpix,ex,ey,gpiy,gpex,gpondpotx,gpey
+    USE Compla, ONLY: up,ne,ti,te,nz2,ng,ni,vygp,vy,vycb,v2xgp,v2cb,upi,uu,vey,vex,upe,rtauy,rtaux, &
+    &    rtau,vyg,uuxg
+
     IMPLICIT NONE
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
@@ -1676,6 +1830,18 @@ END SUBROUTINE OMPSplitIndex
     !$OMP &         rtaux_tmp, psorcxg_tmp, psorrg_tmp, msorxr_tmp, rtau_tmp, nucx_tmp, &
     !$OMP &         nueli_tmp, psorxr_tmp, psorxrc_tmp, nuix_tmp)
     DO ichunk = 1, NchunksPandf1
+        up=up_cp;ne=ne_cp;ti=ti_cp;te=te_cp;nz2=nz2_cp;ng=ng_cp;ni=ni_cp;gpix=gpix_cp
+        ex=ex_cp;ey=ey_cp;gpiy=gpiy_cp;gpex=gpex_cp;gpondpotx=gpondpotx_cp;gpey=gpey_cp
+        vygp=vygp_cp;vy=vy_cp;vycb=vycb_cp;v2xgp=v2xgp_cp;v2cb=v2cb_cp;fqp=fqp_cp
+        upi=upi_cp;uu=uu_cp;frici=frici_cp;frice=frice_cp;vey=vey_cp;vex=vex_cp
+        upe=upe_cp;psorrgc=psorrgc_cp;psorgc=psorgc_cp;nuelg=nuelg_cp;nurc=nurc_cp
+        psordis=psordis_cp;psorbgg=psorbgg_cp;psordisg=psordisg_cp;smoc=smoc_cp
+        nuvl=nuvl_cp;psorc=psorc_cp;nuiz=nuiz_cp;nucxi=nucxi_cp;snic=snic_cp
+        seic=seic_cp;psor=psor_cp;rtauy=rtauy_cp;psorbgz=psorbgz_cp;seec=seec_cp
+        msor=msor_cp;psorg=psorg_cp;rtaux=rtaux_cp;psorcxg=psorcxg_cp;psorrg=psorrg_cp
+        msorxr=msorxr_cp;rtau=rtau_cp;nucx=nucx_cp;nueli=nueli_cp;psorxr=psorxr_cp
+        psorxrc=psorxrc_cp;nuix=nuix_cp;vyg=vyg_cp;uuxg=uuxg_cp;seik=seik_cp
+        seid=seid_cp;seidh=seidh_cp
         
         call OMPinitialize_ranges2d(rangechunk(ichunk,:))
         call calc_volumetric_sources(1,1)
@@ -1743,11 +1909,18 @@ END SUBROUTINE OMPSplitIndex
     call OmpCopyPointerrtau; call OmpCopyPointernucx
     call OmpCopyPointernueli; call OmpCopyPointerpsorxr
     call OmpCopyPointerpsorxrc; call OmpCopyPointernuix
-
+    psorrgc_cp=psorrgc;psorgc_cp=psorgc;nuelg_cp=nuelg;nurc_cp=nurc
+    psordis_cp=psordis;psorbgg_cp=psorbgg;psordisg_cp=psordisg;smoc_cp=smoc
+    nuvl_cp=nuvl;psorc_cp=psorc;nuiz_cp=nuiz;nucxi_cp=nucxi;snic_cp=snic
+    seic_cp=seic;psor_cp=psor;rtauy_cp=rtauy;psorbgz_cp=psorbgz;seec_cp=seec
+    msor_cp=msor;psorg_cp=psorg;rtaux_cp=rtaux;psorcxg_cp=psorcxg;psorrg_cp=psorrg
+    msorxr_cp=msorxr;rtau_cp=rtau;nucx_cp=nucx;nueli_cp=nueli;psorxr_cp=psorxr
+    psorxrc_cp=psorxrc;nuix_cp=nuix
   END SUBROUTINE OMPcalc_volumetric_sources
 
 
   SUBROUTINE OMPneudifpg(neq, yl, yldot)
+    USE PandfCopies
     USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
     USE OMPPandf1, ONLY: NchunksPandf1, Nixychunk, ixychunk, rangechunk
@@ -1755,6 +1928,11 @@ END SUBROUTINE OMPSplitIndex
     USE Locflux, ONLY: floxg, conyg, conxg, floyg
     USE Compla, ONLY: vy, vyg, uu, v2, vygtan, uug, uuxg
     USE Comflo, ONLY: fngy4ord, fngy, fngxy, fngx, fngx4ord
+    USE Comflo, ONLY: fngy4ord,fngy,fngxy,fngx,fngx4ord
+    USE Locflux, ONLY: floxg,conyg,conxg,floyg,floy,flox
+    USE Conduc, ONLY: nuiz,nuix
+    USE Compla, ONLY: up,tg,ng,pg,pgy0,pgy1,ngy0,ngy1,vy,v2,uu,vyg,vygtan,uug,uuxg
+
     IMPLICIT NONE
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
@@ -1789,6 +1967,11 @@ END SUBROUTINE OMPSplitIndex
     !$OMP &         fngy_tmp, fngxy_tmp, uu_tmp, v2_tmp, conxg_tmp, fngx_tmp, vygtan_tmp, &
     !$OMP &         floyg_tmp, uug_tmp, fngx4ord_tmp, uuxg_tmp)
     DO ichunk = 1, NchunksPandf1
+        up=up_cp;tg=tg_cp;ng=ng_cp;pg=pg_cp;pgy0=pgy0_cp;pgy1=pgy1_cp;ngy0=ngy0_cp
+        ngy1=ngy1_cp;vy=vy_cp;v2=v2_cp;uu=uu_cp;nuiz=nuiz_cp;nuix=nuix_cp;floxg=floxg_cp
+        conyg=conyg_cp;vyg=vyg_cp;fngy4ord=fngy4ord_cp;fngy=fngy_cp;fngxy=fngxy_cp
+        conxg=conxg_cp;fngx=fngx_cp;vygtan=vygtan_cp;floyg=floyg_cp;uug=uug_cp
+        fngx4ord=fngx4ord_cp;uuxg=uuxg_cp;floy=floy_cp;flox=flox_cp
         
         
         call OMPinitialize_ranges2d(rangechunk(ichunk,:))
@@ -1832,15 +2015,25 @@ END SUBROUTINE OMPSplitIndex
     call OmpCopyPointervygtan; 
     call OmpCopyPointerfloyg; call OmpCopyPointeruug
     call OmpCopyPointerfngx4ord; call OmpCopyPointeruuxg
-
+    floxg_cp=floxg;vy_cp=vy;conyg_cp=conyg;vyg_cp=vyg;fngy4ord_cp=fngy4ord
+    fngy_cp=fngy;fngxy_cp=fngxy;uu_cp=uu;v2_cp=v2;conxg_cp=conxg;fngx_cp=fngx
+    vygtan_cp=vygtan;floyg_cp=floyg;uug_cp=uug;fngx4ord_cp=fngx4ord;uuxg_cp=uuxg
   END SUBROUTINE OMPneudifpg
 
+
   SUBROUTINE OMPcalc_srcmod(neq, yl, yldot)
+    USE PandfCopies
     USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt, nusp
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
     USE OMPPandf1, ONLY: NchunksPandf1, Nixychunk, ixychunk, rangechunk
     USE OmpCopybbb
     USE Rhsides, ONLY: smoc, seic, seec, snic
+    USE Rhsides, ONLY: smoc,snic,seic,seec
+    USE Cfric, ONLY: frici,frice
+    USE Comflo, ONLY: fqp
+    USE Gradients, ONLY: gpix,ex,ey,gpiy,gpex,gpondpotx,gpey
+    USE Compla, ONLY: up,ne,nz2,ni,vygp,vy,vycb,v2xgp,v2cb,upi,vey,vex,upe
+
     IMPLICIT NONE
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
@@ -1864,6 +2057,11 @@ END SUBROUTINE OMPSplitIndex
     !$OMP &      firstprivate(ylcopy, yldotcopy) &
     !$OMP &      REDUCTION(+:smoc_tmp, seic_tmp, seec_tmp, snic_tmp)
     DO ichunk = 1, NchunksPandf1
+        up=up_cp;ne=ne_cp;nz2=nz2_cp;ni=ni_cp;gpix=gpix_cp;ex=ex_cp;ey=ey_cp
+        gpiy=gpiy_cp;gpex=gpex_cp;gpondpotx=gpondpotx_cp;gpey=gpey_cp;vygp=vygp_cp
+        vy=vy_cp;vycb=vycb_cp;v2xgp=v2xgp_cp;v2cb=v2cb_cp;fqp=fqp_cp;upi=upi_cp
+        frici=frici_cp;frice=frice_cp;vey=vey_cp;vex=vex_cp;upe=upe_cp;smoc=smoc_cp
+        snic=snic_cp;seic=seic_cp;seec=seec_cp
         
         
         call OMPinitialize_ranges2d(rangechunk(ichunk,:))
@@ -1885,11 +2083,12 @@ END SUBROUTINE OMPSplitIndex
     smoc=smoc_tmp; seic=seic_tmp; seec=seec_tmp; snic=snic_tmp
     call OmpCopyPointersmoc; call OmpCopyPointerseic
     call OmpCopyPointerseec; call OmpCopyPointersnic
-
+    smoc_cp=smoc;seic_cp=seic;seec_cp=seec;snic_cp=snic
   END SUBROUTINE OMPcalc_srcmod
 
 
   SUBROUTINE OMPcalc_plasma_viscosities(neq, yl, yldot)
+    USE PandfCopies
     USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
     USE OMPPandf1, ONLY: NchunksPandf1, Nixychunk, ixychunk, rangechunk
@@ -1897,6 +2096,11 @@ END SUBROUTINE OMPSplitIndex
     USE UEpar, ONLY: ctaui
     USE Conduc, ONLY: alfneo, visy, ktneo, visxneo, nuiistar, nuii, visx, k2neo
     USE Wkspace, ONLY: w
+    USE Wkspace, ONLY: w
+    USE UEpar, ONLY: ctaui
+    USE Conduc, ONLY: trax_use,tray_use,eta1,alfneo,visy,ktneo,visxneo,nuiistar,nuii,visx,k2neo
+    USE Compla, ONLY: up,ti,tg,ng,nm,ni,loglambda,upi
+
     IMPLICIT NONE
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
@@ -1929,6 +2133,10 @@ END SUBROUTINE OMPSplitIndex
     !$OMP &         ktneo_tmp, visxneo_tmp, nuiistar_tmp, nuii_tmp, w_tmp, visx_tmp, &
     !$OMP &         k2neo_tmp)
     DO ichunk = 1, NchunksPandf1
+        up=up_cp;ti=ti_cp;tg=tg_cp;ng=ng_cp;nm=nm_cp;ni=ni_cp;trax_use=trax_use_cp
+        tray_use=tray_use_cp;eta1=eta1_cp;ctaui=ctaui_cp;loglambda=loglambda_cp
+        upi=upi_cp;alfneo=alfneo_cp;visy=visy_cp;ktneo=ktneo_cp;visxneo=visxneo_cp
+        nuiistar=nuiistar_cp;nuii=nuii_cp;w=w_cp;visx=visx_cp;k2neo=k2neo_cp
         
         
         call OMPinitialize_ranges2d(rangechunk(ichunk,:))
@@ -1963,10 +2171,13 @@ END SUBROUTINE OMPSplitIndex
     call OmpCopyPointervisxneo; 
     call OmpCopyPointernuiistar; call OmpCopyPointernuii
     call OmpCopyPointerw; call OmpCopyPointervisx; call OmpCopyPointerk2neo
-
+    alfneo_cp=alfneo;visy_cp=visy;ctaui_cp=ctaui;ktneo_cp=ktneo;visxneo_cp=visxneo
+    nuiistar_cp=nuiistar;nuii_cp=nuii;w_cp=w;visx_cp=visx;k2neo_cp=k2neo
   END SUBROUTINE OMPcalc_plasma_viscosities
 
+
   SUBROUTINE OMPcalc_plasma_heatconductivities(neq, yl, yldot)
+    USE PandfCopies
     USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
     USE OMPPandf1, ONLY: NchunksPandf1, Nixychunk, ixychunk, rangechunk
@@ -1975,6 +2186,14 @@ END SUBROUTINE OMPSplitIndex
     USE Conduc, ONLY: hcxineo, hcyij, hcxij, hcyi, hcyn, hcye, hcxi, hcxe, hcxn
     USE Wkspace, ONLY: w2, w1
     USE Comflo, ONLY: qipar
+    USE Comflo, ONLY: qipar
+    USE Wkspace, ONLY: w2,w1
+    USE Comtra, ONLY: diffusivwrk
+    USE UEpar, ONLY: ctaui,ctaue
+    USE Conduc, ONLY: kyi_use,kxe_use,kxi_use,kye_use,dclass_e,dclass_i,nucx,k2neo,hcxineo,hcyij,hcxij, &
+    &    hcyi,hcyn,hcye,hcxi,hcxe,hcxn
+    USE Compla, ONLY: ne,ti,tg,te,ng,ni,tgy0,niy1,tiy1,zeff,tiy0,ngy0,tgy1,niy0,ngy1,loglambda
+
     IMPLICIT NONE
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
@@ -2008,6 +2227,14 @@ END SUBROUTINE OMPSplitIndex
     !$OMP &         hcyi_tmp, ctaue_tmp, hcyn_tmp, hcye_tmp, qipar_tmp, hcxi_tmp, &
     !$OMP &         w1_tmp, hcxe_tmp, hcxn_tmp)
     DO ichunk = 1, NchunksPandf1
+        ne=ne_cp;ti=ti_cp;tg=tg_cp;te=te_cp;ng=ng_cp;ni=ni_cp;tgy0=tgy0_cp;niy1=niy1_cp
+        tiy1=tiy1_cp;zeff=zeff_cp;tiy0=tiy0_cp;ngy0=ngy0_cp;tgy1=tgy1_cp;niy0=niy0_cp
+        ngy1=ngy1_cp;kyi_use=kyi_use_cp;kxe_use=kxe_use_cp;kxi_use=kxi_use_cp
+        kye_use=kye_use_cp;ctaui=ctaui_cp;dclass_e=dclass_e_cp;loglambda=loglambda_cp
+        ctaue=ctaue_cp;dclass_i=dclass_i_cp;diffusivwrk=diffusivwrk_cp;nucx=nucx_cp
+        k2neo=k2neo_cp;hcxineo=hcxineo_cp;w2=w2_cp;hcyij=hcyij_cp;hcxij=hcxij_cp
+        hcyi=hcyi_cp;hcyn=hcyn_cp;hcye=hcye_cp;qipar=qipar_cp;hcxi=hcxi_cp;w1=w1_cp
+        hcxe=hcxe_cp;hcxn=hcxn_cp
         
         
         call OMPinitialize_ranges2d(rangechunk(ichunk,:))
@@ -2048,15 +2275,22 @@ END SUBROUTINE OMPSplitIndex
     call OmpCopyPointerqipar; 
     call OmpCopyPointerhcxi; call OmpCopyPointerw1; call OmpCopyPointerhcxe
     call OmpCopyPointerhcxn
-
+    hcxineo_cp=hcxineo;ctaui_cp=ctaui;w2_cp=w2;hcyij_cp=hcyij;hcxij_cp=hcxij
+    hcyi_cp=hcyi;ctaue_cp=ctaue;hcyn_cp=hcyn;hcye_cp=hcye;qipar_cp=qipar
+    hcxi_cp=hcxi;w1_cp=w1;hcxe_cp=hcxe;hcxn_cp=hcxn
   END SUBROUTINE OMPcalc_plasma_heatconductivities
 
+
   SUBROUTINE OMPcalc_plasma_equipartition(neq, yl, yldot)
+    USE PandfCopies
     USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
     USE OMPPandf1, ONLY: NchunksPandf1, Nixychunk, ixychunk, rangechunk
     USE OmpCopybbb
     USE Conduc, ONLY: eqp
+    USE Conduc, ONLY: eqp
+    USE Compla, ONLY: ne,ti,te,ni,loglambda
+
     IMPLICIT NONE
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
@@ -2079,6 +2313,7 @@ END SUBROUTINE OMPSplitIndex
     !$OMP &      firstprivate(ylcopy, yldotcopy) &
     !$OMP &      REDUCTION(+:eqp_tmp)
     DO ichunk = 1, NchunksPandf1
+        ne=ne_cp;ti=ti_cp;te=te_cp;ni=ni_cp;loglambda=loglambda_cp;eqp=eqp_cp
         
         
         call OMPinitialize_ranges2d(rangechunk(ichunk,:))
@@ -2096,15 +2331,20 @@ END SUBROUTINE OMPSplitIndex
 
     ! Update global variables
     call OmpCopyPointereqp
-
+    eqp_cp=eqp
   END SUBROUTINE OMPcalc_plasma_equipartition
 
+
   SUBROUTINE OMPcalc_gas_heatconductivities(neq, yl, yldot)
+    USE PandfCopies
     USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
     USE OMPPandf1, ONLY: NchunksPandf1, Nixychunk, ixychunk, rangechunk
     USE OmpCopybbb
     USE Conduc, ONLY: hcxg, hcyg
+    USE Conduc, ONLY: hcyn,hcxn,hcxg,hcyg
+    USE Compla, ONLY: tg,ng,ni,tgy0,niy1,ngy0,tgy1,niy0,ngy1
+
     IMPLICIT NONE
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
@@ -2127,6 +2367,8 @@ END SUBROUTINE OMPSplitIndex
     !$OMP &      firstprivate(ylcopy, yldotcopy) &
     !$OMP &      REDUCTION(+:hcxg_tmp, hcyg_tmp)
     DO ichunk = 1, NchunksPandf1
+        tg=tg_cp;ng=ng_cp;ni=ni_cp;tgy0=tgy0_cp;niy1=niy1_cp;ngy0=ngy0_cp;tgy1=tgy1_cp
+        niy0=niy0_cp;ngy1=ngy1_cp;hcyn=hcyn_cp;hcxn=hcxn_cp;hcxg=hcxg_cp;hcyg=hcyg_cp
         
         
         call OMPinitialize_ranges2d(rangechunk(ichunk,:))
@@ -2145,10 +2387,12 @@ END SUBROUTINE OMPSplitIndex
     ! Update global variables
     hcxg=hcxg_tmp; hcyg=hcyg_tmp
     call OmpCopyPointerhcxg; call OmpCopyPointerhcyg
-
+    hcxg_cp=hcxg;hcyg_cp=hcyg
   END SUBROUTINE OMPcalc_gas_heatconductivities
 
+
   SUBROUTINE OMPengbalg(neq, yl, yldot)
+    USE PandfCopies
     USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
     USE OMPPandf1, ONLY: NchunksPandf1, Nixychunk, ixychunk, rangechunk
@@ -2156,6 +2400,12 @@ END SUBROUTINE OMPSplitIndex
     USE Locflux, ONLY: floxge, floyge, conxge, conyge
     USE Comflo, ONLY: fegx, fegy, fegxy
     USE Rhsides, ONLY: segc
+    USE Locflux, ONLY: floxge,floyge,conxge,conyge
+    USE Comflo, ONLY: fngy,fngx,fegx,fegxy,fegy
+    USE Rhsides, ONLY: seic,segc
+    USE Conduc, ONLY: nuiz,nucxi,nueli,nuix,hcxg,hcyg
+    USE Compla, ONLY: ti,tg,ng,ni,pg,pgy0,pgy1,vyg,uuxg
+
     IMPLICIT NONE
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
@@ -2185,6 +2435,11 @@ END SUBROUTINE OMPSplitIndex
     !$OMP &      REDUCTION(+:floxge_tmp, segc_tmp, floyge_tmp, conxge_tmp, & 
     !$OMP &      conyge_tmp, fegx_tmp, fegxy_tmp, fegy_tmp)
     DO ichunk = 1, NchunksPandf1
+        ti=ti_cp;tg=tg_cp;ng=ng_cp;ni=ni_cp;pg=pg_cp;pgy0=pgy0_cp;pgy1=pgy1_cp
+        nuiz=nuiz_cp;nucxi=nucxi_cp;seic=seic_cp;nueli=nueli_cp;nuix=nuix_cp;vyg=vyg_cp
+        fngy=fngy_cp;fngx=fngx_cp;uuxg=uuxg_cp;hcxg=hcxg_cp;hcyg=hcyg_cp
+        floxge=floxge_cp;segc=segc_cp;floyge=floyge_cp;conxge=conxge_cp;conyge=conyge_cp
+        fegx=fegx_cp;fegxy=fegxy_cp;fegy=fegy_cp
         
         
         call OMPinitialize_ranges2d(rangechunk(ichunk,:))
@@ -2213,16 +2468,21 @@ END SUBROUTINE OMPSplitIndex
     call OmpCopyPointerfloyge; call OmpCopyPointerconxge
     call OmpCopyPointerconyge; call OmpCopyPointerfegx
     call OmpCopyPointerfegxy; call OmpCopyPointerfegy
-
+    floxge_cp=floxge;segc_cp=segc;floyge_cp=floyge;conxge_cp=conxge;conyge_cp=conyge
+    fegx_cp=fegx;fegxy_cp=fegxy;fegy_cp=fegy
   END SUBROUTINE OMPengbalg
 
 
   SUBROUTINE OMPcalc_plasma_transport(neq, yl, yldot)
+    USE PandfCopies
     USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
     USE OMPPandf1, ONLY: NchunksPandf1, Nixychunk, ixychunk, rangechunk
     USE OmpCopybbb
     USE Comflo, ONLY: fniy, fniy4ord, fnixcb, fniycbo, fniycb, fnix
+    USE Comflo, ONLY: fngy,fngx,fniy,fniy4ord,fnixcb,fniycb,fnix
+    USE Compla, ONLY: ni,niy1,niy0,vy,vycb,vytan,v2cb,uu
+
     IMPLICIT NONE
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
@@ -2248,6 +2508,9 @@ END SUBROUTINE OMPSplitIndex
     !$OMP &      firstprivate(ylcopy, yldotcopy) &
     !$OMP &      REDUCTION(+:fniy_tmp, fniy4ord_tmp, fnixcb_tmp, fniycbo_tmp, fniycb_tmp, fnix_tmp)
     DO ichunk = 1, NchunksPandf1
+        ni=ni_cp;niy1=niy1_cp;niy0=niy0_cp;vy=vy_cp;vycb=vycb_cp;vytan=vytan_cp
+        v2cb=v2cb_cp;uu=uu_cp;fngy=fngy_cp;fngx=fngx_cp;fniy=fniy_cp
+        fniy4ord=fniy4ord_cp;fnixcb=fnixcb_cp;fniycb=fniycb_cp;fnix=fnix_cp
         
         
         call OMPinitialize_ranges2d(rangechunk(ichunk,:))
@@ -2273,15 +2536,22 @@ END SUBROUTINE OMPSplitIndex
     call OmpCopyPointerfniy; call OmpCopyPointerfniy4ord
     call OmpCopyPointerfnixcb; call OmpCopyPointerfniycbo
     call OmpCopyPointerfniycb; call OmpCopyPointerfnix
-
+    fniy_cp=fniy;fniy4ord_cp=fniy4ord;fnixcb_cp=fnixcb;fniycbo_cp=fniycbo
+    fniycb_cp=fniycb;fnix_cp=fnix
   END SUBROUTINE OMPcalc_plasma_transport
 
+
   SUBROUTINE OMPcalc_plasma_momentum_coeffs(neq, yl, yldot)
+    USE PandfCopies
     USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt, nusp
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
     USE OMPPandf1, ONLY: NchunksPandf1, Nixychunk, ixychunk, rangechunk
     USE OmpCopybbb
     USE Locflux, ONLY: conx, floy, flox, cony
+    USE Locflux, ONLY: conx,floy,flox,cony
+    USE Conduc, ONLY: visy,visx
+    USE Compla, ONLY: up,nm,vy,vytan,v2,uu
+
     IMPLICIT NONE
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
@@ -2305,6 +2575,8 @@ END SUBROUTINE OMPSplitIndex
     !$OMP &      firstprivate(ylcopy, yldotcopy) &
     !$OMP &      REDUCTION(+:conx_tmp, floy_tmp, flox_tmp, cony_tmp)
     DO ichunk = 1, NchunksPandf1
+        up=up_cp;nm=nm_cp;vy=vy_cp;vytan=vytan_cp;v2=v2_cp;uu=uu_cp;visy=visy_cp
+        visx=visx_cp;conx=conx_cp;floy=floy_cp;flox=flox_cp;cony=cony_cp
         
         
         call OMPinitialize_ranges2d(rangechunk(ichunk,:))
@@ -2325,12 +2597,12 @@ END SUBROUTINE OMPSplitIndex
     conx=conx_tmp; floy=floy_tmp;flox=flox_tmp;cony=cony_tmp
     call OmpCopyPointerconx; call OmpCopyPointerfloy
     call OmpCopyPointerflox; call OmpCopyPointercony
-
+    conx_cp=conx;floy_cp=floy;flox_cp=flox;cony_cp=cony
   END SUBROUTINE OMPcalc_plasma_momentum_coeffs
 
 
-
   SUBROUTINE OMPcalc_plasma_momentum(neq, yl, yldot)
+    USE PandfCopies
     USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt, nusp
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
     USE OMPPandf1, ONLY: NchunksPandf1, Nixychunk, ixychunk, rangechunk
@@ -2340,6 +2612,11 @@ END SUBROUTINE OMPSplitIndex
     USE Rhsides, ONLY: smoc
     USE UEpar, ONLY: methu, isupon
     USE Locflux, ONLY: flox, floy, conx, cony
+    USE Comflo, ONLY: fmixy,fmix,fmiy
+    USE Conduc, ONLY: visy,visx
+    USE Rhsides, ONLY: smoc
+    USE Compla, ONLY: up,ti,tg,nm,ni,vy,fmivxpt,fmihxpt,vyvxpt,nixpt,vyhxpt,visyxpt,upxpt
+
     IMPLICIT NONE
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
@@ -2373,6 +2650,10 @@ END SUBROUTINE OMPSplitIndex
     !$OMP &         vyvxpt_tmp, nixpt_tmp, vyhxpt_tmp, visyxpt_tmp, upxpt_tmp, smoc_tmp, &
     !$OMP &         fmix_tmp, fmiy_tmp)
     DO ichunk = 1, NchunksPandf1
+        up=up_cp;ti=ti_cp;tg=tg_cp;nm=nm_cp;ni=ni_cp;vy=vy_cp;smoc=smoc_cp;visy=visy_cp
+        visx=visx_cp;fmivxpt=fmivxpt_cp;fmihxpt=fmihxpt_cp;fmixy=fmixy_cp
+        vyvxpt=vyvxpt_cp;nixpt=nixpt_cp;vyhxpt=vyhxpt_cp;visyxpt=visyxpt_cp
+        upxpt=upxpt_cp;fmix=fmix_cp;fmiy=fmiy_cp
         
         
         call OMPinitialize_ranges2d(rangechunk(ichunk,:))
@@ -2423,11 +2704,14 @@ END SUBROUTINE OMPSplitIndex
     call OmpCopyPointervyhxpt; call OmpCopyPointervisyxpt
     call OmpCopyPointerupxpt; call OmpCopyPointersmoc
     call OmpCopyPointerfmix; call OmpCopyPointerfmiy
-
+    fmivxpt_cp=fmivxpt;fmihxpt_cp=fmihxpt;fmixy_cp=fmixy;vyvxpt_cp=vyvxpt
+    nixpt_cp=nixpt;vyhxpt_cp=vyhxpt;visyxpt_cp=visyxpt;upxpt_cp=upxpt;smoc_cp=smoc
+    fmix_cp=fmix;fmiy_cp=fmiy
   END SUBROUTINE OMPcalc_plasma_momentum
 
 
   SUBROUTINE OMPcalc_plasma_energy(neq, yl, yldot)
+    USE PandfCopies
     USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt, nzspmx, nusp
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
     USE OMPPandf1, ONLY: NchunksPandf1, Nixychunk, ixychunk, rangechunk
@@ -2442,6 +2726,18 @@ END SUBROUTINE OMPSplitIndex
     USE Locflux, ONLY: floye, conxi, floxe, conxe, floyi, conye, conyi, floxi
     USE MCN_sources, ONLY: seg_ue
     USE MCN_dim, ONLY: nfl
+    USE MCN_sources, ONLY: seg_ue
+    USE Locflux, ONLY: floye,conxi,floxe,conxe,floyi,conye,conyi,floxi
+    USE Imprad, ONLY: prad,pwrzec,pwrze,ntau,pradcff,na,pradc,pradzc,pradz,nratio,nzloc
+    USE Wkspace, ONLY: w1,w0
+    USE Rhsides, ONLY: psorrgc,psordis,psordisg,psorc,psor,psorrg,vsoree,edisse,seak,seik,emolia, &
+    &    pwribkg,psicx,seid,sead,seit,pwrebkg,vsoreec,seidh,seadh,erliz
+    USE Comflo, ONLY: fqp,fngy,fngx,qipar,fniy,fnix,floxibgt,feexy,feeycbo,feey4ord,feixy,feey, &
+    &    feiy4ord,feiycbo,floxebgt,feex,feiy,feix
+    USE Conduc, ONLY: kyi_use,kye_use,vyte_cft,vyti_cft,nucx,hcyi,hcyn,hcye,hcxi,hcxe,eeli,pradhyd
+    USE Gradients, ONLY: ex,ey,gtex
+    USE Compla, ONLY: up,ne,ti,tg,te,nit,ng,ni,niy1,ney0,niy0,tiv,ney1,tev,vy,v2,vey,vex,rtau
+
     IMPLICIT NONE
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
@@ -2508,6 +2804,25 @@ END SUBROUTINE OMPSplitIndex
     !$OMP &         feex_tmp, nratio_tmp, feiy_tmp, feix_tmp, floxi_tmp, erliz_tmp, w0_tmp, &
     !$OMP &         nzloc_tmp)
     DO ichunk = 1, NchunksPandf1
+        up=up_cp;ne=ne_cp;ti=ti_cp;tg=tg_cp;te=te_cp;nit=nit_cp;ng=ng_cp;ni=ni_cp
+        niy1=niy1_cp;ex=ex_cp;ey=ey_cp;gtex=gtex_cp;ney0=ney0_cp;niy0=niy0_cp;tiv=tiv_cp
+        ney1=ney1_cp;tev=tev_cp;kyi_use=kyi_use_cp;kye_use=kye_use_cp
+        vyte_cft=vyte_cft_cp;vy=vy_cp;vyti_cft=vyti_cft_cp;v2=v2_cp;fqp=fqp_cp
+        vey=vey_cp;vex=vex_cp;psorrgc=psorrgc_cp;psordis=psordis_cp;psordisg=psordisg_cp
+        psorc=psorc_cp;psor=psor_cp;psorrg=psorrg_cp;rtau=rtau_cp;nucx=nucx_cp
+        fngy=fngy_cp;fngx=fngx_cp;hcyi=hcyi_cp;hcyn=hcyn_cp;hcye=hcye_cp;qipar=qipar_cp
+        hcxi=hcxi_cp;w1=w1_cp;hcxe=hcxe_cp;fniy=fniy_cp;fnix=fnix_cp;prad=prad_cp
+        pwrzec=pwrzec_cp;eeli=eeli_cp;floxibgt=floxibgt_cp;vsoree=vsoree_cp
+        pwrze=pwrze_cp;edisse=edisse_cp;feexy=feexy_cp;feeycbo=feeycbo_cp
+        feey4ord=feey4ord_cp;seak=seak_cp;seik=seik_cp;emolia=emolia_cp;ntau=ntau_cp
+        pradcff=pradcff_cp;pwribkg=pwribkg_cp;psicx=psicx_cp;floye=floye_cp;na=na_cp
+        feixy=feixy_cp;pradc=pradc_cp;pradzc=pradzc_cp;pradhyd=pradhyd_cp;seid=seid_cp
+        conxi=conxi_cp;floxe=floxe_cp;sead=sead_cp;conxe=conxe_cp;seit=seit_cp
+        pwrebkg=pwrebkg_cp;pradz=pradz_cp;feey=feey_cp;seg_ue=seg_ue_cp
+        vsoreec=vsoreec_cp;floyi=floyi_cp;seidh=seidh_cp;seadh=seadh_cp;conye=conye_cp
+        conyi=conyi_cp;feiy4ord=feiy4ord_cp;feiycbo=feiycbo_cp;floxebgt=floxebgt_cp
+        feex=feex_cp;nratio=nratio_cp;feiy=feiy_cp;feix=feix_cp;floxi=floxi_cp
+        erliz=erliz_cp;w0=w0_cp;nzloc=nzloc_cp
         
         
         call OMPinitialize_ranges2d(rangechunk(ichunk,:))
@@ -2619,17 +2934,32 @@ END SUBROUTINE OMPSplitIndex
     call OmpCopyPointerfeix; call OmpCopyPointerfloxi
     call OmpCopyPointererliz; call OmpCopyPointerw0
     call OmpCopyPointernzloc
-
+    wvh_cp=wvh;prad_cp=prad;pwrzec_cp=pwrzec;eeli_cp=eeli;floxibgt_cp=floxibgt
+    vsoree_cp=vsoree;w1_cp=w1;pwrze_cp=pwrze;edisse_cp=edisse;feexy_cp=feexy
+    feeycbo_cp=feeycbo;feey4ord_cp=feey4ord;seak_cp=seak;seik_cp=seik
+    emolia_cp=emolia;ntau_cp=ntau;pradcff_cp=pradcff;pwribkg_cp=pwribkg
+    psicx_cp=psicx;floye_cp=floye;na_cp=na;feixy_cp=feixy;pradc_cp=pradc
+    pradzc_cp=pradzc;qipar_cp=qipar;pradhyd_cp=pradhyd;seid_cp=seid;conxi_cp=conxi
+    floxe_cp=floxe;sead_cp=sead;conxe_cp=conxe;seit_cp=seit;pwrebkg_cp=pwrebkg
+    pradz_cp=pradz;feey_cp=feey;seg_ue_cp=seg_ue;vsoreec_cp=vsoreec;floyi_cp=floyi
+    seidh_cp=seidh;seadh_cp=seadh;conye_cp=conye;conyi_cp=conyi;feiy4ord_cp=feiy4ord
+    feiycbo_cp=feiycbo;floxebgt_cp=floxebgt;feex_cp=feex;nratio_cp=nratio
+    feiy_cp=feiy;feix_cp=feix;floxi_cp=floxi;erliz_cp=erliz;w0_cp=w0;nzloc_cp=nzloc
   END SUBROUTINE OMPcalc_plasma_energy
 
 
   SUBROUTINE OMPcalc_gas_energy(neq, yl, yldot)
+    USE PandfCopies
     USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
     USE OMPPandf1, ONLY: NchunksPandf1, Nixychunk, ixychunk, rangechunk
     USE OmpCopybbb
     USE Rhsides, ONLY: seic, eiamoldiss
     USE Conduc, ONLY: eqpg
+    USE Conduc, ONLY: eqpg
+    USE Rhsides, ONLY: psordis,psordisg,seic,eiamoldiss
+    USE Compla, ONLY: up,ti,tg,ng,ni,pg,vy,v2,vyg,uuxg
+
     IMPLICIT NONE
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
@@ -2653,6 +2983,9 @@ END SUBROUTINE OMPSplitIndex
     !$OMP &      firstprivate(ylcopy, yldotcopy) &
     !$OMP &      REDUCTION(+:seic_tmp, eqpg_tmp, eiamoldiss_tmp)
     DO ichunk = 1, NchunksPandf1
+        up=up_cp;ti=ti_cp;tg=tg_cp;ng=ng_cp;ni=ni_cp;pg=pg_cp;vy=vy_cp;v2=v2_cp
+        psordis=psordis_cp;psordisg=psordisg_cp;seic=seic_cp;vyg=vyg_cp;uuxg=uuxg_cp
+        eqpg=eqpg_cp;eiamoldiss=eiamoldiss_cp
         
         
         call OMPinitialize_ranges2d(rangechunk(ichunk,:))
@@ -2673,11 +3006,12 @@ END SUBROUTINE OMPSplitIndex
     seic=seic_tmp; eqpg=eqpg_tmp; eiamoldiss=eiamoldiss_tmp
     call OmpCopyPointerseic; call OmpCopyPointereqpg
     call OmpCopyPointereiamoldiss
-
+    seic_cp=seic;eqpg_cp=eqpg;eiamoldiss_cp=eiamoldiss
   END SUBROUTINE OMPcalc_gas_energy
 
 
   SUBROUTINE OMPcalc_plasma_particle_residuals(neq, yl, yldot)
+    USE PandfCopies
     USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
     USE OMPPandf1, ONLY: NchunksPandf1, Nixychunk, ixychunk, rangechunk
@@ -2685,6 +3019,12 @@ END SUBROUTINE OMPSplitIndex
     USE MCN_sources, ONLY: sng_ue
     USE MCN_dim, ONLY: nfl
     USE Rhsides, ONLY: resco
+    USE MCN_sources, ONLY: sng_ue
+    USE Comflo, ONLY: fniy,fnix
+    USE Rhsides, ONLY: snic,psor,psorxr,resco
+    USE Conduc, ONLY: nuvl
+    USE Compla, ONLY: ti,ng,ni
+
     IMPLICIT NONE
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
@@ -2707,6 +3047,8 @@ END SUBROUTINE OMPSplitIndex
     !$OMP &      firstprivate(ylcopy, yldotcopy) &
     !$OMP &      REDUCTION(+:sng_ue_tmp, resco_tmp)
     DO ichunk = 1, NchunksPandf1
+        ti=ti_cp;ng=ng_cp;ni=ni_cp;nuvl=nuvl_cp;snic=snic_cp;psor=psor_cp
+        psorxr=psorxr_cp;fniy=fniy_cp;fnix=fnix_cp;sng_ue=sng_ue_cp;resco=resco_cp
         
         
         call OMPinitialize_ranges2d(rangechunk(ichunk,:))
@@ -2725,10 +3067,12 @@ END SUBROUTINE OMPSplitIndex
     ! Update global variables
     sng_ue=sng_ue_tmp; resco=resco_tmp
     call OmpCopyPointersng_ue; call OmpCopyPointerresco
-
+    sng_ue_cp=sng_ue;resco_cp=resco
   END SUBROUTINE OMPcalc_plasma_particle_residuals
 
+
   SUBROUTINE OMPcalc_gas_continuity_residuals(neq, yl, yldot)
+    USE PandfCopies
     USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
     USE OMPPandf1, ONLY: NchunksPandf1, Nixychunk, ixychunk, rangechunk
@@ -2736,6 +3080,12 @@ END SUBROUTINE OMPSplitIndex
     USE Rhsides, ONLY: resng
     USE MCN_sources, ONLY: sng_ue
     USE MCN_dim, ONLY: nfl
+    USE MCN_sources, ONLY: sng_ue
+    USE Comflo, ONLY: fngy,fngx,fnix
+    USE Conduc, ONLY: nuiz,nucx
+    USE Rhsides, ONLY: psordis,psorg,psorcxg,psorrg,resng
+    USE Compla, ONLY: ti,tg,ng
+
     IMPLICIT NONE
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
@@ -2758,6 +3108,9 @@ END SUBROUTINE OMPSplitIndex
     !$OMP &      firstprivate(ylcopy, yldotcopy) &
     !$OMP &      REDUCTION(+:resng_tmp, sng_ue_tmp)
     DO ichunk = 1, NchunksPandf1
+        ti=ti_cp;tg=tg_cp;ng=ng_cp;psordis=psordis_cp;nuiz=nuiz_cp;psorg=psorg_cp
+        psorcxg=psorcxg_cp;psorrg=psorrg_cp;nucx=nucx_cp;fngy=fngy_cp;fngx=fngx_cp
+        fnix=fnix_cp;sng_ue=sng_ue_cp;resng=resng_cp
         
         
         call OMPinitialize_ranges2d(rangechunk(ichunk,:))
@@ -2776,10 +3129,12 @@ END SUBROUTINE OMPSplitIndex
     ! Update global variables
     resng=resng_tmp; sng_ue=sng_ue_tmp
     call OmpCopyPointerresng; call OmpCopyPointersng_ue
-
+    resng_cp=resng;sng_ue_cp=sng_ue
   END SUBROUTINE OMPcalc_gas_continuity_residuals
 
+
   SUBROUTINE OMPcalc_plasma_momentum_residuals(neq, yl, yldot)
+    USE PandfCopies
     USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt, nusp
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
     USE OMPPandf1, ONLY: NchunksPandf1, Nixychunk, ixychunk, rangechunk
@@ -2787,6 +3142,13 @@ END SUBROUTINE OMPSplitIndex
     USE Wkspace, ONLY: w0, w2
     USE Cfric, ONLY: fricnrl
     USE Rhsides, ONLY: resmo
+    USE Cfric, ONLY: fricnrl
+    USE Comflo, ONLY: fmixy,fmix,fmiy
+    USE Wkspace, ONLY: w2,w0
+    USE Rhsides, ONLY: smoc,msor,msorxr,resmo
+    USE Conduc, ONLY: nurc,nuiz,nucxi,nucx,nueli
+    USE Compla, ONLY: up,ti,tg,ng,nm,ni,loglambda
+
     IMPLICIT NONE
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
@@ -2810,6 +3172,10 @@ END SUBROUTINE OMPSplitIndex
     !$OMP &      firstprivate(ylcopy, yldotcopy) &
     !$OMP &      REDUCTION(+:w0_tmp, fricnrl_tmp, resmo_tmp, w2_tmp)
     DO ichunk = 1, NchunksPandf1
+        up=up_cp;ti=ti_cp;tg=tg_cp;ng=ng_cp;nm=nm_cp;ni=ni_cp;loglambda=loglambda_cp
+        nurc=nurc_cp;smoc=smoc_cp;nuiz=nuiz_cp;nucxi=nucxi_cp;msor=msor_cp
+        msorxr=msorxr_cp;nucx=nucx_cp;nueli=nueli_cp;w2=w2_cp;fmixy=fmixy_cp
+        fmix=fmix_cp;fmiy=fmiy_cp;w0=w0_cp;fricnrl=fricnrl_cp;resmo=resmo_cp
         
         
         call OMPinitialize_ranges2d(rangechunk(ichunk,:))
@@ -2831,15 +3197,23 @@ END SUBROUTINE OMPSplitIndex
     w0=w0_tmp; fricnrl=fricnrl_tmp; resmo=resmo_tmp; w2=w2_tmp
     call OmpCopyPointerw0; call OmpCopyPointerfricnrl
     call OmpCopyPointerresmo; call OmpCopyPointerw2
-
+    w0_cp=w0;fricnrl_cp=fricnrl;resmo_cp=resmo;w2_cp=w2
   END SUBROUTINE OMPcalc_plasma_momentum_residuals
 
+
   SUBROUTINE OMPcalc_gas_energy_residuals(neq, yl, yldot)
+    USE PandfCopies
     USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
     USE OMPPandf1, ONLY: NchunksPandf1, Nixychunk, ixychunk, rangechunk
     USE OmpCopybbb
     USE Rhsides, ONLY: reseg
+    USE MCN_sources, ONLY: seg_ue
+    USE Comflo, ONLY: fegx,fegy
+    USE Conduc, ONLY: visy,visx,eqpg
+    USE Rhsides, ONLY: psordis,psorg,segc,wvh,seak,sead,seit,seadh,eiamoldiss,reseg
+    USE Compla, ONLY: up,ti,tg,ng,pg,vy,v2,upi,vyg,uuxg
+
     IMPLICIT NONE
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
@@ -2862,6 +3236,11 @@ END SUBROUTINE OMPSplitIndex
     !$OMP &      firstprivate(ylcopy, yldotcopy) &
     !$OMP &      REDUCTION(+:reseg_tmp)
     DO ichunk = 1, NchunksPandf1
+        up=up_cp;ti=ti_cp;tg=tg_cp;ng=ng_cp;pg=pg_cp;vy=vy_cp;v2=v2_cp;upi=upi_cp
+        psordis=psordis_cp;psorg=psorg_cp;vyg=vyg_cp;uuxg=uuxg_cp;visy=visy_cp
+        visx=visx_cp;segc=segc_cp;fegx=fegx_cp;fegy=fegy_cp;wvh=wvh_cp;seak=seak_cp
+        sead=sead_cp;seit=seit_cp;seg_ue=seg_ue_cp;seadh=seadh_cp;eqpg=eqpg_cp
+        eiamoldiss=eiamoldiss_cp;reseg=reseg_cp
         
         
         call OMPinitialize_ranges2d(rangechunk(ichunk,:))
@@ -2879,16 +3258,28 @@ END SUBROUTINE OMPSplitIndex
     ! Update global variables
     reseg=reseg_tmp
     call OmpCopyPointerreseg
-
+    reseg_cp=reseg
   END SUBROUTINE OMPcalc_gas_energy_residuals
 
+
   SUBROUTINE OMPcalc_plasma_energy_residuals(neq, yl, yldot)
+    USE PandfCopies
     USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt, nusp
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
     USE OMPPandf1, ONLY: NchunksPandf1, Nixychunk, ixychunk, rangechunk
     USE OmpCopybbb
     USE Wkspace, ONLY: w0
     USE Rhsides, ONLY: resei, wjdote, reseg, resee, wvh
+    USE Wkspace, ONLY: w0
+    USE MCN_sources, ONLY: seg_ue
+    USE Imprad, ONLY: pwrze
+    USE Conduc, ONLY: nuvl,nucxi,nucx,nueli,visy,visx,eqp
+    USE Rhsides, ONLY: psordis,seic,psor,seec,wvh,vsoree,seik,emolia,pwribkg,seid,seit,pwrebkg,seidh, &
+    &    resei,resee
+    USE Comflo, ONLY: fqygp,fq2,fqy,fqp,fqx,feey,feex,feiy,feix
+    USE Gradients, ONLY: ex,ey
+    USE Compla, ONLY: up,ne,phi,ti,tg,te,ng,ni,vy,v2,upi
+
     IMPLICIT NONE
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
@@ -2935,16 +3326,21 @@ END SUBROUTINE OMPSplitIndex
     call OmpCopyPointerresei
     call OmpCopyPointerreseg
     call OmpCopyPointerresee
-
+    resei_cp=resei;reseg_cp=reseg;resee_cp=resee
   END SUBROUTINE OMPcalc_plasma_energy_residuals
 
 
   SUBROUTINE OMPcalc_potential_residuals(neq, yl, yldot)
+    USE PandfCopies
     USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
     USE OMPPandf1, ONLY: NchunksPandf1, Nixychunk, ixychunk, rangechunk
     USE OmpCopybbb
     USE Rhsides, ONLY: resphi
+    USE Rhsides, ONLY: resphi
+    USE Comflo, ONLY: fqy,fqx
+    USE Compla, ONLY: phi
+
     IMPLICIT NONE
     INTEGER, INTENT(IN):: neq
     REAL, INTENT(IN):: yl(*)
@@ -2967,6 +3363,7 @@ END SUBROUTINE OMPSplitIndex
     !$OMP &      firstprivate(ylcopy, yldotcopy) &
     !$OMP &      REDUCTION(+:resphi_tmp)
     DO ichunk = 1, NchunksPandf1
+        phi=phi_cp;fqy=fqy_cp;fqx=fqx_cp;resphi=resphi_cp
         
         
         call OMPinitialize_ranges2d(rangechunk(ichunk,:))
@@ -2984,10 +3381,8 @@ END SUBROUTINE OMPSplitIndex
     ! Update global variables
     resphi=resphi_tmp
     call OmpCopyPointerresphi
-
+    resphi_cp=resphi
   END SUBROUTINE OMPcalc_potential_residuals
-
-
 
 
   SUBROUTINE OMPbouncon(neq,yl,yldot)
@@ -2999,6 +3394,7 @@ END SUBROUTINE OMPSplitIndex
     USE OMPPandf1, ONLY: Nivchunk,ivchunk,NchunksPandf1, rangechunk, &
     &       Nxchunks, Nychunks
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
+    USE PandfCopies
     USE Dim, ONLY:nx,ny,nxpt, nusp
     USE Math_problem_size, ONLY: numvar
     USE Xpoint_indices, ONLY: ixrb, ixlb, ixpt2
@@ -3009,6 +3405,15 @@ END SUBROUTINE OMPSplitIndex
     USE Indexes, ONLY: idxu
     USE Selec, ONLY: j3
     
+    USE Wkspace, ONLY: w
+    USE Conduc, ONLY: nuiz,nuix,visx
+    USE Bcond, ONLY: fqpsatrb,fqpsatlb
+    USE Poten, ONLY: dphi_iy1
+    USE Comflo, ONLY: fdiaxlb,fdiaxrb,fqym,fqyb,fqyao,fqya,fqyd,fqy,fqp,fqx,fngy,fngx,fegx,fegy,fniy, &
+    &    fniycbo,fnix,fmix,fmiy,floxibgt,feeycbo,feey,feiycbo,floxebgt,feex,feiy,feix
+    USE Gradients, ONLY: ex,ey,gpiy
+    USE Compla, ONLY: up,ne,phi,ti,tg,te,ng,nm,ni,niy1,niy0,vy,vytan,v2cd,v2ce,upi,uz,uu,vey,vex
+
     IMPLICIT NONE
  
     integer,intent(in)::neq
@@ -3047,10 +3452,8 @@ END SUBROUTINE OMPSplitIndex
         call initialize_ranges(-1,-1,2,2,2)
         call iwall_boundary(neq, yldot)
 
-    RETURN
+        RETURN
   END SUBROUTINE OMPbouncon
-
-
 
 
   SUBROUTINE OMPcalc_rhs(neq,yl,yldot)
@@ -3097,6 +3500,7 @@ END SUBROUTINE OMPSplitIndex
 
     RETURN
   END SUBROUTINE OMPcalc_rhs
+
 
   SUBROUTINE OMPrscalf(neq,yl,yldot)
     USE omp_lib
@@ -3145,8 +3549,6 @@ END SUBROUTINE OMPSplitIndex
   END SUBROUTINE OMPrscalf
 
 
-
-
   SUBROUTINE OMPadd_timestep(neq,yl,yldot)
     USE omp_lib
     USE OmpCopybbb
@@ -3193,8 +3595,6 @@ END SUBROUTINE OMPSplitIndex
 
     RETURN
   END SUBROUTINE OMPadd_timestep
-
-
 
 
   SUBROUTINE OMPPandf1Rhs(neq,time,yl,yldot)
@@ -3257,8 +3657,11 @@ END SUBROUTINE OMPSplitIndex
 !        call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
 !        SerialTime = SerialTime + tock(tserial)
 
+    ! TODO: move to initializer
+    call gchange("PandfCopies", 0)
 
     if (ijactot.gt.0) then
+    ! TODO: move to initializer
         Time1=omp_get_wtime()
         call Make2DChunks
 
@@ -3402,15 +3805,6 @@ END SUBROUTINE OMPSplitIndex
     END SUBROUTINE OMPPandf1Rhs
 
 
-
-
-
-
-
-
-
-
-
   SUBROUTINE CreateBin(ieqmin,ieqmax,ichunkmin,ichunkmax,ichunktot,Padding,iCenterBin,iLeftBin,iRightBin,inc)
     IMPLICIT NONE
     integer,intent(in):: ieqmin, ieqmax,Padding,ichunkmin,ichunkmax, ichunktot
@@ -3445,6 +3839,7 @@ END SUBROUTINE OMPSplitIndex
     endif
     RETURN
   END SUBROUTINE CreateBin
+
 
   SUBROUTINE MakeChunksPandf1()
     USE Indexes, ONLY: igyl
@@ -3581,7 +3976,6 @@ END SUBROUTINE OMPSplitIndex
     endif
     RETURN
   END SUBROUTINE MakeChunksPandf1
-#endif
 
 
   SUBROUTINE Make2DChunks
@@ -3669,4 +4063,5 @@ END SUBROUTINE OMPSplitIndex
   END SUBROUTINE Make2DChunks
 
 
+#endif
 

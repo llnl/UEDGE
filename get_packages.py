@@ -89,9 +89,12 @@ def replace_copypointer():
                 " ".join(used_pointers_new[subroutine.replace("OMP","")]), width=80,
                 break_long_words=False)]
             line.append(8*" " + "\n        ".join(variables))
-            print(subroutine)
-            print("    "+line[0].replace("\n", "\n    "))
-            lines.insert(index+1, line[0])
+            if subroutine.replace("OMP", "") == functionlist[-1]:
+                print(subroutine)
+            if subroutine.replace("OMP","") in functionlist[:]:
+                if subroutine.replace("OMP","") not in ['calc_driftterms1', 'calc_driftterms2', 'bouncon', 
+                'calc_plasma_diffusivities', 'calc_plasma_energy_residuals']:
+                    lines.insert(index+1, line[0]+"\n")
             # Insert export of defined variables
             index = [idx for idx, s in enumerate(lines) if 'END SUBROUTINE' in s][0]
             line = []
@@ -179,7 +182,6 @@ def read_pandf_subroutines():
         subroutines[blockname] = ";".join(entries)
     for sub in ['iwall_boundary', 'owall_boundary', 'right_boundary', 'left_boundary']:
         subroutines['bouncon'] = subroutines['bouncon'] + subroutines[sub]
-    subroutines['fqp'] = subroutines['fqp'] + subroutines['fqp1']
 
     return subroutines
 
