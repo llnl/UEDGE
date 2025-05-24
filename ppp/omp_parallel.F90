@@ -3665,97 +3665,50 @@ END SUBROUTINE OMPSplitIndex
         Time1=omp_get_wtime()
         call Make2DChunks
 
-        ! ============================================
-        call OMPconvsr_vo1 (neq, yl, yldot) 
-        ! ============================================
-
-        ! ============================================
-        call OMPconvsr_vo2 (neq, yl, yldot) 
-        ! ============================================
-
-        ! ============================================
-        call OMPconvsr_aux1 (neq, yl, yldot) 
-        ! ============================================
-
-        ! ============================================
-        call OMPconvsr_aux2 (neq, yl, yldot) 
-        ! ============================================
-        ! ============================================
-        call OMPcalc_driftterms2(neq, yl, yldot)
-        call OMPcalc_driftterms1(neq, yl, yldot)
+        call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
+        call convsr_vo1 (xc, yc, yl) 
+        call convsr_vo2 (xc, yc, yl) 
+        call convsr_aux1 (xc, yc)
+        call convsr_aux2 (xc, yc)
+        call calc_plasma_diffusivities
+        call initialize_driftterms  
+        call calc_driftterms1
+        call calc_driftterms2
         if(isphion+isphiofft .eq. 1) then
-            call OMPcalc_fqp1(neq, yl, yldot)
-            call OMPcalc_fqp2(neq, yl, yldot)
-            call OMPcalc_currents(neq, yl, yldot)
+            call calc_currents
+            call calc_fqp1
+            call calc_fqp2
         endif
-        call OMPcalc_plasma_diffusivities (neq, yl, yldot) 
-        call OMPinitialize_driftterms (neq, yl, yldot) 
-        call OMPcalc_volumetric_sources(neq, yl, yldot)
-        ! ============================================
-
-
-
-        ! ============================================
-        call OMPcalc_friction(neq, yl, yldot)
-        ! ============================================
-
-        ! ============================================
-        call OMPcalc_elec_velocities(neq, yl, yldot)
-        ! ============================================
-
-
-        ! ============================================
-        call OMPcalc_plasma_equipartition(neq, yl, yldot)
-        call OMPcalc_plasma_heatconductivities(neq, yl, yldot)
-        call OMPcalc_plasma_viscosities(neq, yl, yldot)
-        call OMPcalc_srcmod(neq, yl, yldot)
+        call calc_friction(xc)
+        call calc_elec_velocities
+        call calc_volumetric_sources(xc, yc)
         if (TimingPandfOn.gt.0) TimeNeudif=tick()
-        call OMPneudifpg(neq, yl, yldot)
+        call neudifpg
         if (TimingPandfOn.gt.0) TotTimeNeudif=TotTimeNeudif+tock(TimeNeudif)
-        ! ============================================
+        call calc_srcmod
+        call calc_plasma_viscosities
+        call calc_plasma_heatconductivities
+        call calc_plasma_equipartition
+        call calc_gas_heatconductivities
+        call engbalg
+        call calc_plasma_transport
+        call calc_fniycbo 
+        call calc_plasma_momentum_coeffs
+        call calc_plasma_momentum(xc, yc)
+        call calc_plasma_energy(xc, yc)
+        call calc_gas_energy
+        call calc_feeiycbo 
+        call calc_atom_seic 
 
+        call calc_plasma_particle_residuals
+        call calc_gas_continuity_residuals
+        call calc_plasma_momentum_residuals
+        call calc_plasma_energy_residuals(xc, yc)
+        call calc_gas_energy_residuals
+        if (isphion.eq.1) call calc_potential_residuals
 
-        ! ============================================
-        call OMPcalc_gas_energy(neq, yl, yldot)
-        call OMPcalc_plasma_transport(neq, yl, yldot)
-        call OMPcalc_gas_heatconductivities(neq, yl, yldot)
-        ! ============================================
-
-
-
-        ! ============================================
-        call OMPcalc_plasma_momentum_coeffs(neq, yl, yldot)
-        call OMPcalc_plasma_energy(neq, yl, yldot)
-        call OMPengbalg(neq, yl, yldot)
-        ! ============================================
-
-
-        ! ============================================
-        call OMPcalc_plasma_momentum(neq, yl, yldot) 
-        ! ============================================
-
-        ! ============================================
-        call calc_fniycbo ! Nothing much to parallelize here, just do serial
-        call calc_feeiycbo ! Nothing much to parallelize here, just do serial
-        call calc_atom_seic ! Nothing much to parallelize here, just do serial
-        call OmpCopyPointerfniycbo
-        call OmpCopyPointerfeeycbo
-        call OmpCopyPointerfeiycbo
-        call OmpCopyPointerseic
-        ! ============================================
-
-        ! ============================================
-        if (isphion.eq.1) call OMPcalc_potential_residuals(neq, yl, yldot)
-        call OMPcalc_plasma_energy_residuals(neq, yl, yldot)
-        call OMPcalc_gas_energy_residuals(neq, yl, yldot)
-        call OMPcalc_plasma_momentum_residuals(neq, yl, yldot)
-        call OMPcalc_gas_continuity_residuals(neq, yl, yldot)
-        call OMPcalc_plasma_particle_residuals(neq, yl, yldot)
-        ! ============================================
-
-
-        call OMPcalc_rhs(neq, yl, yldot)
-        call OMPbouncon(neq, yl, yldot)
+        call calc_rhs(yldot)
+        call bouncon(neq, yldot)
         if (TimingPandfOn.gt.0) & 
         &      TotTimePandf=TotTimePandf+tock(TimePandf)
 
@@ -3766,14 +3719,14 @@ END SUBROUTINE OMPSplitIndex
         ! are for d(nv)/dt, etc If isflxvar=2, variables are 
         ! ni,v,nTe,nTi,ng. Boundary equations and potential 
         ! equations are not reordered.
-        if(isflxvar.ne.1 .and. isrscalf.eq.1) call OMPrscalf(neq, yl,yldot)
+        if(isflxvar.ne.1 .and. isrscalf.eq.1) call rscalf(yl,yldot)
 
         if(dtreal < 1.e15) then
             if ( &
             &   (svrpkg=='nksol' .and. yl(neq+1)<0) &
             &   .or. svrpkg == 'petsc' &
             & ) then
-                call OMPadd_timestep(neq, yl, yldot)
+                call add_timestep(neq, yl, yldot)
             endif   !if-test on svrpkg and ylcopy(neq+1)
         endif    !if-test on dtreal
 
