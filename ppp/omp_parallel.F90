@@ -3604,8 +3604,6 @@ END SUBROUTINE OMPSplitIndex
     USE ParallelSettings, ONLY: Nthreads,CheckPandf1
     USE OMPPandf1Settings, ONLY: OMPTimeParallelPandf1,OMPTimeSerialPandf1, &
             OMPPandf1Stamp,OMPPandf1Verbose,OMPPandf1Debug
-    USE OMPPandf1, ONLY: Nivchunk,ivchunk,yincchunk,xincchunk, &
-            iychunk,ixchunk,NchunksPandf1
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
     USE Dim, ONLY: nx, ny
     USE Selec, ONLY:yinc,xrinc,xlinc, i1, i6, j1, j6
@@ -3628,8 +3626,14 @@ END SUBROUTINE OMPSplitIndex
     USE Indices_domain_dcl, ONLY: iymnbcl,iymxbcl, ixmnbcl, ixmxbcl
     USE Share, ONLY: isudsym, geometry, islimon, ix_lim, nxc
     USE Bcond, ONLY: isfixlb
-    USE OMPPandf1, ONLY: Nchunks, chunks
+    USE OMPPandf1, ONLY: Nxchunks, Nychunks
+    USE CHUNK
     IMPLICIT NONE
+    INTEGER:: Nchunks
+    INTEGER, ALLOCATABLE, DIMENSION(:,:,:):: ixychunk
+    INTEGER, ALLOCATABLE, DIMENSION(:,:)::  ivchunk, rangechunk
+    INTEGER, ALLOCATABLE, DIMENSION(:)::  Nivchunk, Nixychunk
+
  
     integer yinc_bkp,xrinc_bkp,xlinc_bkp,iv,tid
     integer,intent(in)::neq
@@ -3663,7 +3667,8 @@ END SUBROUTINE OMPSplitIndex
     if (ijactot.gt.0) then
     ! TODO: move to initializer
         Time1=omp_get_wtime()
-        call Make2DChunks
+        call Make2DChunks(Nxchunks, Nychunks, Nchunks, Nivchunk, &
+        &   ivchunk, rangechunk, ixychunk, Nixychunk)
 
         call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
         call convsr_vo1 (xc, yc, yl) 
@@ -3930,29 +3935,31 @@ END SUBROUTINE OMPSplitIndex
     RETURN
   END SUBROUTINE MakeChunksPandf1
 
-
-  SUBROUTINE Make2DChunks
+MODULE CHUNK
+CONTAINS
+  SUBROUTINE Make2DChunks(Nxchunks, Nychunks, &
+    &   N, Niv, ivchunk, rangechunk, ixychunk, Nixy)
     Use Dim, ONLY: nx, ny
     Use Indexes, ONLY: igyl
     Use Lsode, ONLY: neq
-    Use OMPPandf1, ONLY: Nxchunks, Nychunks, NchunksPandf1, Nivchunk, &
-    &   ivchunk, Nchunksmax, rangechunk, ixychunk, Nixychunk, Nixychunksmax
-
     IMPLICIT NONE
+    INTEGER, INTENT(INOUT):: N, Nxchunks, Nychunks
+    INTEGER, ALLOCATABLE, DIMENSION(:,:,:), INTENT(OUT):: ixychunk
+    INTEGER, ALLOCATABLE, DIMENSION(:,:), INTENT(OUT)::  ivchunk, rangechunk
+    INTEGER, ALLOCATABLE, DIMENSION(:), INTENT(OUT)::  Niv, Nixy
+    INTEGER:: Nmax, Nixymax
     integer:: ix, iy, nxi, nyi, ii, idx(2), idxl
     real:: dx, dy
-    integer, allocatable:: xlims(:,:), ylims(:,:), Nivchunks(:,:), Niv(:)
+    integer, allocatable:: xlims(:,:), ylims(:,:)
     Nxchunks = MAX(MIN(nx, Nxchunks),1)
     Nychunks = MAX(MIN(ny, Nychunks),1)
-!    if (Nxchunks .gt. nx) Nxchunks = nx ! Limit nx to ensure 
-    ! boundary chunks include guard cells
-!    if (Nychunks .gt. ny) Nychunks = ny ! is the same necessary for Y-chunks?
-    NchunksPandf1 = Nxchunks * Nychunks
-    Nchunksmax = neq
-    Nixychunksmax = (nx+2)*(ny+2)
+    N = Nxchunks * Nychunks
+    Nmax = neq
+    Nixymax = (nx+2)*(ny+2)
     dx = real(nx)/Nxchunks
     dy = real(ny)/Nychunks
-    allocate(xlims(Nxchunks,2), ylims(Nychunks,2))!, Nivchunks(NchunksPandf1,neq), Niv(NchunksPandf1))
+    allocate( xlims(Nxchunks,2), ylims(Nychunks,2), ixychunk(N, Nixymax, 2), &
+    &   ivchunk(N, Nmax), rangechunk(N, 4), Niv(N), Nixy(N))
     call gchange("OMPPandf1", 0)
 
 
@@ -3979,9 +3986,9 @@ END SUBROUTINE OMPSplitIndex
             rangechunk(Nxchunks*(iy-1) + ix, 4) = ylims(iy,2)
         end do
     end do
-    Nivchunk = 0
+    Niv = 0
     ivchunk = 0
-    Nixychunk = 0
+    Nixy = 0
     ixychunk = 0
     do ix = 1, Nxchunks
         do iy = 1, Nychunks
@@ -3991,30 +3998,30 @@ END SUBROUTINE OMPSplitIndex
                 if ((idx(1).ge.rangechunk(idxl,1)).and.(idx(1).le.rangechunk(idxl,2)) .and. &
                 &   (idx(2).ge.rangechunk(idxl,3)).and.(idx(2).le.rangechunk(idxl,4)) &
                 &   ) then
-                    Nivchunk(idxl) = Nivchunk(idxl) + 1
-                    ivchunk(idxl, Nivchunk(idxl)) = ii
+                    Niv(idxl) = Niv(idxl) + 1
+                    ivchunk(idxl, Niv(idxl)) = ii
                 endif
             end do    
         end do
     enddo
-    do ii = 1, NchunksPandf1
+    do ii = 1, N
         do ix = rangechunk(ii,1), rangechunk(ii,2)
             do iy = rangechunk(ii,3), rangechunk(ii,4)
-                Nixychunk(ii) = Nixychunk(ii) + 1
-                ixychunk(ii, Nixychunk(ii),1) = ix
-                ixychunk(ii, Nixychunk(ii),2) = iy
+                Nixy(ii) = Nixy(ii) + 1
+                ixychunk(ii, Nixy(ii),1) = ix
+                ixychunk(ii, Nixy(ii),2) = iy
             end do
         end do
     end do
 
 
-    Nchunksmax = MAXVAL(Nivchunk)
-    Nixychunksmax = MAXVAL(Nixychunk)
+    Nmax = MAXVAL(Niv)
+    Nixymax = MAXVAL(Nixy)
     ! Trim overly large array
     call gchange("OMPPandf1",0)
 
   END SUBROUTINE Make2DChunks
-
+END MODULE CHUNK
 
 #endif
 
