@@ -1,3 +1,221 @@
+def replace_copypointer():
+    from textwrap import wrap
+    from uetools import Case
+    c = Case()
+
+    pointers = read_pppv()
+    pandf_functions = read_pandf_subroutines()
+    omp_functions = read_omp_ppp()
+    functionlist = []
+    defined_pointers = get_copypointers()
+    used_pointers = {}
+    used_pointers_new = {}
+    use_new = {}
+    set_pointers_new = {}
+    for subroutine, code in pandf_functions.items():
+        if subroutine in omp_functions:
+            functionlist.append(subroutine)
+    # Gather pointers used in each subroutine
+    for pointer in pointers:
+        for function in functionlist:
+            if function not in used_pointers:
+                used_pointers[function] = []
+            if f"{pointer}(" in pandf_functions[function]:
+                used_pointers[function].append(pointer)
+    # Create strings gathering set pointers into copies
+    for function in functionlist:
+        set_pointers_new[function] = []
+        block = set_pointers_new[function]
+        if function == 'bouncon':
+            continue
+        for pointer in defined_pointers[function]:
+            if not pointer=="":
+                block.append(f"{pointer}_cp={pointer}")
+    # Create strings unpacking the pointers used in subroutine
+    for function in functionlist:
+        used_pointers_new[function] = []
+        use_new[function] = {}
+        block = used_pointers_new[function]
+        block_use = use_new[function]
+        for pointer in used_pointers[function]:
+            if not pointer=="":
+                block.append(f"{pointer}={pointer}_cp")
+            group = c.search.get_group(pointer)
+            if group not in block_use:
+                block_use[group] = []
+            block_use[group].append(pointer)
+    # Get all subroutines from omp_parallel
+    omp_parallel = {}
+    with open("ppp/omp_parallel.F90") as f:
+        subroutine = None
+        block = None
+        for line in f:
+            if ('subroutine' in line.lower()) and (line.split()[0].lower() == 'subroutine'):
+                subroutine = line.split()[1].split('(')[0].strip()
+                omp_parallel[subroutine] = []
+                block = omp_parallel[subroutine]
+#                block.append(line)
+            elif 'end subroutine' in line.lower():
+                block.append(line)
+                subroutine = None
+                block = None
+            if subroutine is not None:
+                block.append(line)
+    # Insert definitions into coding 
+    for subroutine, lines in omp_parallel.items():
+        if subroutine.replace("OMP","") in functionlist:
+            # Insert USE clauses
+            index = [idx for idx, s in enumerate(lines) if 'IMPLICIT NONE' in s][0]
+            line = []
+            for group in use_new[subroutine.replace("OMP","")]:
+                variables = [x.replace(" ",",") for x in wrap(
+                    " ".join(use_new[subroutine.replace("OMP","")][group]), width=80,
+                    break_long_words=False)]
+                if len(variables) > 1:
+                    variables[0] = variables[0] + ", &"
+                    for i in range(1,len(variables)-1):
+                        variables[i] = "&    " + variables[i] +  ", &"
+                    variables[-1] = "&    " + variables[-1]
+                line.append("    USE {}, ONLY: {}".format(group, "\n    ".join(variables)))
+            ii = 0
+            for subline in line:
+                lines.insert(index, subline+"\n")
+                ii += 1
+            lines.insert(index+ii,"\n")
+            # Insert thread copying
+            index = [idx for idx, s in enumerate(lines) if 'DO ichunk = 1, NchunksPandf1' in s][0]
+            line = []
+            variables = [x.replace(" ",";") for x in wrap(
+                " ".join(used_pointers_new[subroutine.replace("OMP","")]), width=80,
+                break_long_words=False)]
+            line.append(8*" " + "\n        ".join(variables))
+            lines.insert(index+1, line[0])
+            # Insert export of defined variables
+            index = [idx for idx, s in enumerate(lines) if 'END SUBROUTINE' in s][0]
+            line = []
+            variables = [x.replace(" ",";") for x in wrap(
+                " ".join(set_pointers_new[subroutine.replace("OMP","")]), width=80,
+                break_long_words=False)]
+            line.append(4*" " + "\n    ".join(variables))
+            if subroutine != 'bouncon':
+                lines.insert(index-1, line[0])
+            # Import OMPCopy group
+            index = [idx for idx, s in enumerate(lines) if 'USE Dim' in s][0]
+            lines.insert(index, "    USE PandfCopies\n")
+            
+
+    with open("omp_parallel_new.F90", 'w') as f:
+        for subroutine, lines in omp_parallel.items():
+            for line in lines:
+                f.write(line)
+            f.write("\n\n")
+            if subroutine in ["InitZeroOMP","OMPSplitIndex"]:
+                f.write("#ifdef _OPENMP\n\n")
+
+            if subroutine in ["OMPJacBuilder","Make2DChunks"]:
+                f.write("#endif\n\n")
+#    lines =  [x.replace(" ","; ").replace("!", " ") for x in wrap(
+#            " ".join([f"call!OmpCopyPointer{x}" for x in varlist]), width=70, 
+#            break_long_words=False)]
+#    outlines.append(4*" "+"\n    ".join(lines))
+
+    return used_pointers
+    
+
+
+    
+def read_omp_ppp():
+    functions = []
+    with open('ppp/omp_parallel.F90') as f:
+        for line in f:
+            if "END SUBROUTINE" in line:
+                line = line.replace("END SUBROUTINE", '')
+                functions.append(line.strip().replace("OMP","").strip())
+    return functions
+                
+
+
+def read_pandf_subroutines():
+    from os import walk
+    subroutines = {}
+    subroutine = None
+    block = None
+
+    for root, dirs, files in walk('bbb'):
+        for file in files:
+            if (("pandf_" in file) and (file[-2:]==".m")) or (file == "convert.m"):
+                with open(f"bbb/{file}") as f:
+                    for line in f:
+                        if (line[0].lower() == 'c') or (line[0] == '!') or (line[0] == '*'):
+                            continue
+                        line = line.split('#')[0]
+                        line = line.split('remark')[0]
+                        line = line.split('xerrab')[0]
+                        if ('subroutine' in line.lower()) and (line.split()[0].lower() == 'subroutine'):
+                            subroutine = line.split()[1].split('(')[0].strip()
+                            subroutines[subroutine] = []
+                            block = subroutines[subroutine]
+                        elif 'end subroutine' in line.lower():
+                            subroutine = None
+                            block = None
+                        elif len(line.strip())==0:
+                            continue
+                        elif (line.strip()[:4].lower() == 'call'):
+                            continue
+                        else:
+                            block.append(line.replace(' (','(').strip())
+
+    for blockname, entries in subroutines.items():
+        subroutines[blockname] = ";".join(entries)
+    for sub in ['iwall_boundary', 'owall_boundary', 'right_boundary', 'left_boundary']:
+        subroutines['bouncon'] = subroutines['bouncon'] + subroutines[sub]
+
+    return subroutines
+
+
+
+def read_pppv():
+    with open("ppp/ppp.v") as f:
+        pointers = []
+        ompcopy = False
+        for line in f:
+            if ompcopy:
+                pointers.append(line.split('_cp(')[0])
+            elif "PandfCopies" in line:
+                ompcopy = True
+    return pointers
+
+
+def write_pppv():
+    from uetools import Case
+    c=Case()
+    pointers = get_copypointers()
+    for pointer in pointers:
+        print("{} _real".format("{}cp{}".format(pointer, c.search.get_dimension(pointer).split('\n')[0]).ljust(45)))
+
+
+def get_copypointers():
+    subroutine_pointers = {}
+    subroutine = None
+    block = None
+    with open("ppp/omp_parallel.F90") as f:
+        for line in f:
+            if ('subroutine' in line.lower()) and (line.split()[0].lower() == 'subroutine'):
+                subroutine = line.split()[1].split('(')[0].strip()
+                subroutine_pointers[subroutine] = []
+                block = subroutine_pointers[subroutine]
+            elif 'end subroutine' in line.lower():
+                subroutine = None
+                block = None
+            elif 'OmpCopyPointer' in line:
+                l = line.replace('call OmpCopyPointer', '').strip().split(";")
+                [block.append(x.strip()) for x in l]
+    pointers = {}
+    for subroutine, pointerlist in subroutine_pointers.items():
+        if (subroutine[:3] == "OMP") and (len(pointerlist) > 0):
+            pointers[subroutine.replace("OMP","")] = pointerlist
+
+    return pointers
 
 
 def addchunks():
