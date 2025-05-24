@@ -609,8 +609,8 @@ END SUBROUTINE OMPSplitIndex
     iys1 = j1
     iyf6 = j6
 
-      xcnearrb = .TRUE.
-      xcnearlb = .TRUE.
+    xcnearrb = .TRUE.
+    xcnearlb = .TRUE.
 
   END SUBROUTINE OMPinitialize_ranges2D
 
@@ -2977,6 +2977,7 @@ END SUBROUTINE OMPSplitIndex
     USE Share, ONLY: isudsym, geometry, islimon, ix_lim, nxc
     USE Bcond, ONLY: isfixlb
     USE Indexes, ONLY: idxu
+    USE Selec, ONLY: j3
     
     IMPLICIT NONE
  
@@ -2992,10 +2993,10 @@ END SUBROUTINE OMPSplitIndex
 
         ! TODO: Figure out all these chunking issues w/ bouncon
         Nxchunks_old = Nxchunks
-        Nychunks_old = Nychunks
-        Nxchunks = 1
-        Nychunks = 1
-        call Make2DChunks
+!        Nychunks_old = Nychunks
+!        Nxchunks = min(Nxchunks, int(nx/3.8))
+!        Nychunks = 1
+!        if (Nxchunks_old.ne.Nxchunks)  call Make2DChunks
         
 
         !$OMP    PARALLEL DO &
@@ -3007,6 +3008,7 @@ END SUBROUTINE OMPSplitIndex
         DO ichunk = 1, NchunksPandf1
             ! TODO: Figure out more generalized chunking routines for BCs
             call OMPinitialize_ranges2D(rangechunk(ichunk,:))
+            if (rangechunk(ichunk,3).eq.0) j3=0
             call bouncon(neq, yldotcopy)
 
             do ii=1,Nivchunk(ichunk)
@@ -3017,9 +3019,17 @@ END SUBROUTINE OMPSplitIndex
         !$OMP END PARALLEL DO
         yldot(1:neq) = yldottot(1:neq)
 
-        Nxchunks = Nxchunks_old
-        Nychunks = Nychunks_old
-        call Make2DChunks
+!        call initialize_ranges(-1,-1,2,2,2)
+!        call iwall_boundary_patch(neq, yldot)
+!        call owall_boundary(neq, yldot)
+!        call left_boundary(neq, yldot)
+!        call right_boundary(neq, yldot)
+!        write(*,*) rangechunk(1,1:2), rangechunk(NchunksPandf1, 1:2)
+!        if (Nxchunks_old.ne.Nxchunks) then
+!            Nxchunks = Nxchunks_old
+!            call Make2DChunks
+!        endif
+!        Nychunks = Nychunks_old
 
     RETURN
   END SUBROUTINE OMPbouncon

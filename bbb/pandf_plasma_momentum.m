@@ -583,9 +583,10 @@ c  -- it is included in frici from mombal or mombalni
       Use(Bfield)
       Use(Bcond)
       Use(Jacobian_restore)
+      Use(Conduc)
       integer xc, yc
       integer iy, ix, ix2, ix1, jx, ifld, ixt0, ixt, ixt1
-      real nbarx, ltmax, lmfpe, flxlimf, pondomfpare_use, nexface, 
+      real nbarx, ltmax, lmfpe, flxlimf, nexface, 
      .cutlo3, tsimp, argx, ueb
       real tick
       cutlo3 = cutlo**0.3
