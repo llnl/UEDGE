@@ -1370,7 +1370,7 @@ END SUBROUTINE OMPSplitIndex
 
   END SUBROUTINE OMPcalc_currents
 
-  SUBROUTINE OMPcalc_fqp(neq, yl, yldot)
+  SUBROUTINE OMPcalc_fqp1(neq, yl, yldot)
     USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
     USE OMPPandf1, ONLY: NchunksPandf1, Nixychunk, ixychunk, rangechunk
@@ -1387,15 +1387,10 @@ END SUBROUTINE OMPSplitIndex
     INTEGER:: ichunk, xc, yc, ii, jx
     REAL:: yldotcopy(1:neq), ylcopy(1:neq+2)
 ! Define local variables
-    real:: dphi_iy1_tmp(0:nx+1), vy_tmp(0:nx+1,0:ny+1,1:nisp), &
-    &      netap_tmp(0:nx+1,0:ny+1), fqpsatrb_tmp(0:ny+1,nxpt), &
-    &      vyavis_tmp(0:nx+1,0:ny+1,1:nisp), fqp_tmp(0:nx+1,0:ny+1), &
-    &      fqx_tmp(0:nx+1,0:ny+1), fqpsatlb_tmp(0:ny+1,nxpt), &
-    &      fqxb_tmp(0:nx+1,0:ny+1)
+    real:: netap_tmp(0:nx+1,0:ny+1), fqp_tmp(0:nx+1,0:ny+1)
 
     ! Initialize arrays to zero
-    dphi_iy1_tmp=0.; vy_tmp=0.; netap_tmp=0.; fqpsatrb_tmp=0.; vyavis_tmp=0.
-    fqp_tmp=0.; fqx_tmp=0.; fqpsatlb_tmp=0.; fqxb_tmp=0.
+    netap_tmp=0.; fqp_tmp=0.; 
 
     ylcopy(1:neq+1)=yl(1:neq+1); yldotcopy=0
 
@@ -1422,14 +1417,47 @@ END SUBROUTINE OMPSplitIndex
     END DO
     !$OMP END PARALLEL DO
     fqp=fqp_tmp;netap=netap_tmp
-    fqp_tmp = 0;netap_tmp=0
     call OmpCopyPointernetap; call OmpCopyPointerfqp
+
+  END SUBROUTINE OMPcalc_fqp1
+
+
+
+  SUBROUTINE OMPcalc_fqp2(neq, yl, yldot)
+    USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt
+    USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
+    USE OMPPandf1, ONLY: NchunksPandf1, Nixychunk, ixychunk, rangechunk
+    USE OmpCopybbb
+    USE Poten, ONLY: dphi_iy1
+    USE Compla, ONLY: vy, netap, vyavis
+    USE Bcond, ONLY: fqpsatrb, fqpsatlb
+    USE Comflo, ONLY: fqp, fqx, fqxb
+    USE Xpoint_indices, ONLY: ixlb, ixrb
+    IMPLICIT NONE
+    INTEGER, INTENT(IN):: neq
+    REAL, INTENT(IN):: yl(*)
+    REAL, INTENT(OUT):: yldot(*)
+    INTEGER:: ichunk, xc, yc, ii, jx
+    REAL:: yldotcopy(1:neq), ylcopy(1:neq+2)
+! Define local variables
+    real:: dphi_iy1_tmp(0:nx+1), vy_tmp(0:nx+1,0:ny+1,1:nisp), &
+    &      fqpsatrb_tmp(0:ny+1,nxpt), &
+    &      vyavis_tmp(0:nx+1,0:ny+1,1:nisp), fqp_tmp(0:nx+1,0:ny+1), &
+    &      fqx_tmp(0:nx+1,0:ny+1), fqpsatlb_tmp(0:ny+1,nxpt), &
+    &      fqxb_tmp(0:nx+1,0:ny+1)
+
+    ! Initialize arrays to zero
+    dphi_iy1_tmp=0.; vy_tmp=0.; fqpsatrb_tmp=0.; vyavis_tmp=0.
+    fqp_tmp=0.; fqx_tmp=0.; fqpsatlb_tmp=0.; fqxb_tmp=0.
+
+    ylcopy(1:neq+1)=yl(1:neq+1); yldotcopy=0
+
     !$OMP    PARALLEL DO &
     !$OMP &      default(shared) &
     !$OMP &      schedule(dynamic,OMPPandf1LoopNchunk) &
     !$OMP &      private(ichunk,xc,yc) &
     !$OMP &      firstprivate(ylcopy, yldotcopy) &
-    !$OMP &      REDUCTION(+:dphi_iy1_tmp, vy_tmp, netap_tmp, fqpsatrb_tmp, vyavis_tmp, fqp_tmp, fqx_tmp, &
+    !$OMP &      REDUCTION(+:dphi_iy1_tmp, vy_tmp, fqpsatrb_tmp, vyavis_tmp, fqp_tmp, fqx_tmp, &
     !$OMP &         fqpsatlb_tmp, fqxb_tmp)
     DO ichunk = 1, NchunksPandf1
         
@@ -1438,7 +1466,10 @@ END SUBROUTINE OMPSplitIndex
         call calc_fqp2
 
         do ii = 1, Nixychunk(ichunk)
-    
+   
+         xc = ixychunk(ichunk,ii,1)
+         yc = ixychunk(ichunk,ii,2)
+ 
         if (yc .eq. 1) &
         & dphi_iy1_tmp(xc)=dphi_iy1_tmp(xc)+dphi_iy1(xc)
 
@@ -1450,8 +1481,6 @@ END SUBROUTINE OMPSplitIndex
         end do
 
 
-         xc = ixychunk(ichunk,ii,1)
-         yc = ixychunk(ichunk,ii,2)
          ! Update locally calculated variables
         vy_tmp(xc,yc,:)=vy_tmp(xc,yc,:)+vy(xc,yc,:)
         vyavis_tmp(xc,yc,:)=vyavis_tmp(xc,yc,:)+vyavis(xc,yc,:)
@@ -1472,7 +1501,7 @@ END SUBROUTINE OMPSplitIndex
     call OmpCopyPointerfqx; call OmpCopyPointerfqpsatlb
     call OmpCopyPointerfqxb
 
-  END SUBROUTINE OMPcalc_fqp
+  END SUBROUTINE OMPcalc_fqp2
 
 
   SUBROUTINE OMPcalc_friction(neq, yl, yldot)
@@ -3252,7 +3281,8 @@ END SUBROUTINE OMPSplitIndex
         call OMPcalc_driftterms2(neq, yl, yldot)
         call OMPcalc_driftterms1(neq, yl, yldot)
         if(isphion+isphiofft .eq. 1) then
-            call OMPcalc_fqp(neq, yl, yldot)
+            call OMPcalc_fqp1(neq, yl, yldot)
+            call OMPcalc_fqp2(neq, yl, yldot)
             call OMPcalc_currents(neq, yl, yldot)
         endif
         call OMPcalc_plasma_diffusivities (neq, yl, yldot) 

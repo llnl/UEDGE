@@ -89,7 +89,9 @@ def replace_copypointer():
                 " ".join(used_pointers_new[subroutine.replace("OMP","")]), width=80,
                 break_long_words=False)]
             line.append(8*" " + "\n        ".join(variables))
-#            lines.insert(index+1, line[0])
+            print(subroutine)
+            print("    "+line[0].replace("\n", "\n    "))
+            lines.insert(index+1, line[0])
             # Insert export of defined variables
             index = [idx for idx, s in enumerate(lines) if 'END SUBROUTINE' in s][0]
             line = []
@@ -177,6 +179,7 @@ def read_pandf_subroutines():
         subroutines[blockname] = ";".join(entries)
     for sub in ['iwall_boundary', 'owall_boundary', 'right_boundary', 'left_boundary']:
         subroutines['bouncon'] = subroutines['bouncon'] + subroutines[sub]
+    subroutines['fqp'] = subroutines['fqp'] + subroutines['fqp1']
 
     return subroutines
 
