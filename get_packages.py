@@ -46,7 +46,7 @@ def replace_copypointer():
             block_use[group].append(pointer)
     # Get all subroutines from omp_parallel
     omp_parallel = {}
-    with open("ppp/omp_parallel.F90") as f:
+    with open("omp_parallel.F90") as f:
         subroutine = None
         block = None
         for line in f:
@@ -89,7 +89,7 @@ def replace_copypointer():
                 " ".join(used_pointers_new[subroutine.replace("OMP","")]), width=80,
                 break_long_words=False)]
             line.append(8*" " + "\n        ".join(variables))
-            lines.insert(index+1, line[0])
+#            lines.insert(index+1, line[0])
             # Insert export of defined variables
             index = [idx for idx, s in enumerate(lines) if 'END SUBROUTINE' in s][0]
             line = []
@@ -102,17 +102,17 @@ def replace_copypointer():
             # Import OMPCopy group
             index = [idx for idx, s in enumerate(lines) if 'USE Dim' in s][0]
             lines.insert(index, "    USE PandfCopies\n")
-            if subroutine == "OMPPandf1Rhs":
-                # Allocate space
-                index = [idx for idx, s in enumerate(lines) if 'if (ijactot.gt.0) then' in s][0]
-                lines.insert(index-1, '    gchange("PandfCopies, 0")\n')
-                lines.insert(index-1, '    ! TODO: move to initializer\n')
-                index = [idx for idx, s in enumerate(lines) if 'icall Make2DChunk' in s][0]
-                lines.insert(index-1, '    ! TODO: move to initializer\n')
+        if subroutine == "OMPPandf1Rhs":
+            # Allocate space
+            index = [idx for idx, s in enumerate(lines) if 'if (ijactot.gt.0) then' in s][0]
+            lines.insert(index-1, '    call gchange("PandfCopies", 0)\n')
+            lines.insert(index-1, '    ! TODO: move to initializer\n')
+            index = [idx for idx, s in enumerate(lines) if 'call Make2DChunk' in s][0]
+            lines.insert(index-1, '    ! TODO: move to initializer\n')
                 
             
 
-    with open("omp_parallel_new.F90", 'w') as f:
+    with open("ppp/omp_parallel.F90", 'w') as f:
         for subroutine, lines in omp_parallel.items():
             for line in lines:
                 f.write(line)
