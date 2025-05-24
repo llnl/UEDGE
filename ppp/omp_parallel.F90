@@ -2992,12 +2992,6 @@ END SUBROUTINE OMPSplitIndex
         yldottot = 0
 
         ! TODO: Figure out all these chunking issues w/ bouncon
-        Nxchunks_old = Nxchunks
-!        Nychunks_old = Nychunks
-!        Nxchunks = min(Nxchunks, int(nx/3.8))
-!        Nychunks = 1
-!        if (Nxchunks_old.ne.Nxchunks)  call Make2DChunks
-        
 
         !$OMP    PARALLEL DO &
         !$OMP &      default(shared) &
@@ -3019,17 +3013,9 @@ END SUBROUTINE OMPSplitIndex
         !$OMP END PARALLEL DO
         yldot(1:neq) = yldottot(1:neq)
 
-!        call initialize_ranges(-1,-1,2,2,2)
-!        call iwall_boundary_patch(neq, yldot)
-!        call owall_boundary(neq, yldot)
-!        call left_boundary(neq, yldot)
-!        call right_boundary(neq, yldot)
-!        write(*,*) rangechunk(1,1:2), rangechunk(NchunksPandf1, 1:2)
-!        if (Nxchunks_old.ne.Nxchunks) then
-!            Nxchunks = Nxchunks_old
-!            call Make2DChunks
-!        endif
-!        Nychunks = Nychunks_old
+        ! TODO: Resolve these issues with the core boundary...
+        call initialize_ranges(-1,-1,2,2,2)
+        call iwall_boundary(neq, yldot)
 
     RETURN
   END SUBROUTINE OMPbouncon
