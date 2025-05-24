@@ -102,6 +102,14 @@ def replace_copypointer():
             # Import OMPCopy group
             index = [idx for idx, s in enumerate(lines) if 'USE Dim' in s][0]
             lines.insert(index, "    USE PandfCopies\n")
+            if subroutine == "OMPPandf1Rhs":
+                # Allocate space
+                index = [idx for idx, s in enumerate(lines) if 'if (ijactot.gt.0) then' in s][0]
+                lines.insert(index-1, '    gchange("PandfCopies, 0")\n')
+                lines.insert(index-1, '    ! TODO: move to initializer\n')
+                index = [idx for idx, s in enumerate(lines) if 'icall Make2DChunk' in s][0]
+                lines.insert(index-1, '    ! TODO: move to initializer\n')
+                
             
 
     with open("omp_parallel_new.F90", 'w') as f:
