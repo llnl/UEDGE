@@ -3248,15 +3248,7 @@ END SUBROUTINE OMPSplitIndex
         call OMPcalc_friction(neq, yl, yldot)
         call OMPcalc_elec_velocities(neq, yl, yldot)
 
-!        tpara = tick()
         call OMPcalc_volumetric_sources(neq, yl, yldot)
-!        ParaTime = ParaTime + tock(tpara)
-
-!        call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
-!        tserial = tick()
-!        call calc_volumetric_sources(xc, yc)
-!        SerialTime = SerialTime + tock(tserial)
-
         if (TimingPandfOn.gt.0) TimeNeudif=tick()
         call OMPneudifpg(neq, yl, yldot)
         if (TimingPandfOn.gt.0) TotTimeNeudif=TotTimeNeudif+tock(TimeNeudif)
@@ -3306,11 +3298,7 @@ END SUBROUTINE OMPSplitIndex
             &   (svrpkg=='nksol' .and. yl(neq+1)<0) &
             &   .or. svrpkg == 'petsc' &
             & ) then
-                yldot1 = yldot(1:neq)
                 call OMPadd_timestep(neq, yl, yldot)
-    ParallelPandfCall = 0
-!                call add_timestep(neq, yl, yldot)
-    ParallelPandfCall = 1
             endif   !if-test on svrpkg and ylcopy(neq+1)
         endif    !if-test on dtreal
 
