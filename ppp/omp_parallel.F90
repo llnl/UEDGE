@@ -3629,10 +3629,12 @@ END SUBROUTINE OMPSplitIndex
     USE OMPPandf1, ONLY: Nxchunks, Nychunks
     USE CHUNK
     IMPLICIT NONE
-    INTEGER:: Nchunks
-    INTEGER, ALLOCATABLE, DIMENSION(:,:,:):: ixychunk
-    INTEGER, ALLOCATABLE, DIMENSION(:,:)::  ivchunk, rangechunk
-    INTEGER, ALLOCATABLE, DIMENSION(:)::  Nivchunk, Nixychunk
+    INTEGER:: Nchunks, Nchunks_convert
+    INTEGER, ALLOCATABLE, DIMENSION(:,:,:):: ixychunk, ixychunk_convert
+    INTEGER, ALLOCATABLE, DIMENSION(:,:)::  ivchunk, rangechunk, ivchunk_convert, &
+    &   rangechunk_convert
+    INTEGER, ALLOCATABLE, DIMENSION(:)::  Nivchunk, Nixychunk, Nivchunk_convert, &
+    &   Nixychunk_convert
 
  
     integer yinc_bkp,xrinc_bkp,xlinc_bkp,iv,tid
@@ -3669,6 +3671,10 @@ END SUBROUTINE OMPSplitIndex
         Time1=omp_get_wtime()
         call Make2DChunks(Nxchunks, Nychunks, Nchunks, Nivchunk, &
         &   ivchunk, rangechunk, ixychunk, Nixychunk)
+
+        call Make2DChunks(nx, ny, Nchunks_convert, Nivchunk_convert, &
+        &   ivchunk_convert, rangechunk_convert, ixychunk_convert, & 
+        &   Nixychunk_convert)
 
         call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
         call convsr_vo1 (xc, yc, yl) 
