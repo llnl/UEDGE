@@ -3889,9 +3889,7 @@ END SUBROUTINE OMPSplitIndex
                 psordis = 0
                 do icut = 1, 2
                     ! Only one chunk for the time being
-                    ! This obviously won't work as each separate part of 
-                    ! Pandf needs to be executed serially twice on the same thread
-                    call OMPPandf(neq, ylcopy, yldotcopy, rangexptchunk(ixpt, icut, 1,:))
+                    call OMPPandf_XPT(neq, ylcopy, yldotcopy, rangexptchunk(ixpt, icut, :,:))
                 end do
 
                 do iv=1,Nivxptchunk(ixpt, ichunk)
@@ -3924,6 +3922,12 @@ END SUBROUTINE OMPSplitIndex
             !$OMP END TEAMS
 
         yldot(:neq) = yldottot !+ yldotcut
+        do ii = 1, neq
+            if (yldotcut(ii).gt.0) then
+                if (ABS((yldottot(ii)-yldotcut(ii))/yldottot(ii)).gt.1e-6) &
+                &   write(*,*) yldotcut(ii), yldottot(ii)
+            endif
+        end do
             
         
         ParaTime = ParaTime + tock(tpara)
@@ -3950,7 +3954,9 @@ END SUBROUTINE OMPSplitIndex
     ParallelPandfCall = 0
     RETURN
 
+    ! TODO: add serial pandf call outside of loops to update all arrays
     END SUBROUTINE OMPPandf1Rhs
+
 
     SUBROUTINE OMPPandf(neq, yl, yldot, range)
       USE UEpar, ONLY: isphion, svrpkg, isphiofft
@@ -4044,11 +4050,224 @@ END SUBROUTINE OMPSplitIndex
                 call add_timestep(neq, yl, yldot)
             endif   !if-test on svrpkg and ylcopy(neq+1)
         endif    !if-test on dtreal
-
-
-
-
     END SUBROUTINE OMPPandf
+
+
+    SUBROUTINE OMPPandf_XPT(neq, yl, yldot, ranges)
+      USE UEpar, ONLY: isphion, svrpkg, isphiofft
+      USE PandfTiming, ONLY: TimePandf, TotTimePandf, TimingPandfOn, &
+      &     TimeNeudif, TotTimeNeudif
+      USE Ynorm, ONLY: isflxvar, isrscalf
+      USE Time_dep_nwt, ONLY: dtreal
+      USE Selec, ONLY: yinc, xrinc, xlinc
+      IMPLICIT NONE
+      INTEGER, INTENT(IN) :: neq
+      INTEGER, INTENT(IN), DIMENSION(2,4) :: ranges
+      REAL, INTENT(IN), DIMENSION(neq+2) :: yl
+      REAL, INTENT(OUT), DIMENSION(neq) :: yldot
+      INTEGER :: ichunk, xc, yc, ii
+      REAL :: tick,tock!, tsfe, tsjf, ttotfe, ttotjf, tserial, tpara
+        ! Initialize local thread ranges
+        xc=-1; yc=-1
+!        call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
+
+        ! Calculate plasma variables from yl
+        do ii = 1, 2
+            call OMPinitialize_ranges2d(ranges(ii,:))
+            call convsr_vo1 (xc, yc, yl)
+        end do
+        do ii = 1, 2
+            call OMPinitialize_ranges2d(ranges(ii,:))
+            call convsr_vo2 (xc, yc, yl) 
+        end do
+            ! Calculate derived quantities frequently used
+        do ii = 1, 2
+            call OMPinitialize_ranges2d(ranges(ii,:))
+            call convsr_aux1 (xc, yc)
+        end do
+        do ii = 1, 2
+            call OMPinitialize_ranges2d(ranges(ii,:))
+            call convsr_aux2 (xc, yc)
+        end do
+            ! Calculate the plasma diffusivities and drift velocities
+        do ii = 1, 2
+            call OMPinitialize_ranges2d(ranges(ii,:))
+            call calc_plasma_diffusivities
+        end do
+        do ii = 1, 2
+            call OMPinitialize_ranges2d(ranges(ii,:))
+            call initialize_driftterms  
+        end do
+        do ii = 1, 2
+            call OMPinitialize_ranges2d(ranges(ii,:))
+            call calc_driftterms1
+        end do
+        do ii = 1, 2
+            call OMPinitialize_ranges2d(ranges(ii,:))
+            call calc_driftterms2
+        end do
+        do ii = 1, 2
+            call OMPinitialize_ranges2d(ranges(ii,:))
+        end do
+            ! Calculate currents and potential
+        if(isphion+isphiofft .eq. 1) then
+            do ii = 1, 2
+                call OMPinitialize_ranges2d(ranges(ii,:))
+                call calc_currents
+            end do
+            do ii = 1, 2
+                call OMPinitialize_ranges2d(ranges(ii,:))
+                call calc_fqp1
+            end do
+            do ii = 1, 2
+                call OMPinitialize_ranges2d(ranges(ii,:))
+                call calc_fqp2
+            end do
+        endif
+            ! Get friction and electron velocities
+        do ii = 1, 2
+            call OMPinitialize_ranges2d(ranges(ii,:))
+            call calc_friction(xc)
+        end do
+        do ii = 1, 2
+            call OMPinitialize_ranges2d(ranges(ii,:))
+            call calc_elec_velocities
+        end do
+            ! Volumetric plasma and gas sinks & sources
+        do ii = 1, 2
+            call OMPinitialize_ranges2d(ranges(ii,:))
+            call calc_volumetric_sources(xc, yc)
+        end do
+        if (TimingPandfOn.gt.0) TimeNeudif=tick()
+            do ii = 1, 2
+                call OMPinitialize_ranges2d(ranges(ii,:))
+                call neudifpg
+            end do
+        if (TimingPandfOn.gt.0) TotTimeNeudif=TotTimeNeudif+tock(TimeNeudif)
+        do ii = 1, 2
+            call OMPinitialize_ranges2d(ranges(ii,:))
+            call calc_srcmod
+        end do
+            ! Calculate plasma & gas conductivities etc.
+        do ii = 1, 2
+            call OMPinitialize_ranges2d(ranges(ii,:))
+            call calc_plasma_viscosities
+        end do
+        do ii = 1, 2
+            call OMPinitialize_ranges2d(ranges(ii,:))
+            call calc_plasma_heatconductivities
+        end do
+        do ii = 1, 2
+            call OMPinitialize_ranges2d(ranges(ii,:))
+            call calc_plasma_equipartition
+        end do
+        do ii = 1, 2
+            call OMPinitialize_ranges2d(ranges(ii,:))
+            call calc_gas_heatconductivities
+        end do
+        do ii = 1, 2
+            call OMPinitialize_ranges2d(ranges(ii,:))
+            call engbalg
+        end do
+        do ii = 1, 2
+            call OMPinitialize_ranges2d(ranges(ii,:))
+            call calc_plasma_transport
+        end do
+
+        do ii = 1, 2
+            call OMPinitialize_ranges2d(ranges(ii,:))
+            call calc_fniycbo 
+        end do
+        do ii = 1, 2
+            call OMPinitialize_ranges2d(ranges(ii,:))
+            call calc_plasma_momentum_coeffs
+        end do
+        do ii = 1, 2
+            call OMPinitialize_ranges2d(ranges(ii,:))
+            call calc_plasma_momentum(xc, yc)
+        end do
+        do ii = 1, 2
+            call OMPinitialize_ranges2d(ranges(ii,:))
+            call calc_plasma_energy(xc, yc)
+        end do
+        do ii = 1, 2
+            call OMPinitialize_ranges2d(ranges(ii,:))
+            call calc_gas_energy
+        end do
+        do ii = 1, 2
+            call OMPinitialize_ranges2d(ranges(ii,:))
+            call calc_feeiycbo 
+        end do
+        do ii = 1, 2
+            call OMPinitialize_ranges2d(ranges(ii,:))
+            call calc_atom_seic 
+        end do
+
+        do ii = 1, 2
+            call OMPinitialize_ranges2d(ranges(ii,:))
+            call calc_plasma_particle_residuals
+        end do
+        do ii = 1, 2
+            call OMPinitialize_ranges2d(ranges(ii,:))
+            call calc_gas_continuity_residuals
+        end do
+        do ii = 1, 2
+            call OMPinitialize_ranges2d(ranges(ii,:))
+            call calc_plasma_momentum_residuals
+        end do
+        do ii = 1, 2
+            call OMPinitialize_ranges2d(ranges(ii,:))
+            call calc_plasma_energy_residuals(xc, yc)
+        end do
+        do ii = 1, 2
+            call OMPinitialize_ranges2d(ranges(ii,:))
+            call calc_gas_energy_residuals
+        end do
+        do ii = 1, 2
+            call OMPinitialize_ranges2d(ranges(ii,:))
+            if (isphion.eq.1) call calc_potential_residuals
+        end do
+
+            ! Calculate yldot vector
+        do ii = 1, 2
+            call OMPinitialize_ranges2d(ranges(ii,:))
+            call calc_rhs(yldot)
+        end do
+            ! Set boundary conditions directly in yldot
+        do ii = 1, 2
+            call OMPinitialize_ranges2d(ranges(ii,:))
+            call bouncon(neq, yldot)
+        end do
+            if (TimingPandfOn.gt.0) & 
+            &      TotTimePandf=TotTimePandf+tock(TimePandf)
+
+            ! ================ BEGIN OLD PANDF1 ===================
+
+            ! If isflxvar=0, we use ni,v,Te,Ti,ng as variables, and
+            ! the ODEs need to be modified as original equations 
+            ! are for d(nv)/dt, etc If isflxvar=2, variables are 
+            ! ni,v,nTe,nTi,ng. Boundary equations and potential 
+            ! equations are not reordered.
+        do ii = 1, 2
+            call OMPinitialize_ranges2d(ranges(ii,:))
+            if(isflxvar.ne.1 .and. isrscalf.eq.1) call rscalf(yl,yldot)
+        end do
+
+        if(dtreal < 1.e15) then
+            if ( &
+            &   (svrpkg=='nksol' .and. yl(neq+1)<0) &
+            &   .or. svrpkg == 'petsc' &
+            & ) then
+                do ii = 1, 2
+                    call OMPinitialize_ranges2d(ranges(ii,:))
+                    call add_timestep(neq, yl, yldot)
+                end do
+            endif   !if-test on svrpkg and ylcopy(neq+1)
+        endif    !if-test on dtreal
+
+    END SUBROUTINE OMPPandf_XPT
+
+
 
 
   SUBROUTINE CreateBin(ieqmin,ieqmax,ichunkmin,ichunkmax,ichunktot,Padding,iCenterBin,iLeftBin,iRightBin,inc)
