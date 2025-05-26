@@ -116,6 +116,7 @@ CONTAINS
                     & ) then
                         Nivxpt(ixpt,iix) = Nivxpt(ixpt,iix) + 1
                         ivxptchunk(ixpt,iix,Nivxpt(ixpt,iix)) = ii
+! TODO: remove comment when to test X-point cut
 !                        iscut=1
                     endif
                 end do
@@ -3792,7 +3793,7 @@ END SUBROUTINE OMPSplitIndex
     USE OMPPandf1Settings, ONLY: OMPTimeParallelPandf1,OMPTimeSerialPandf1, &
             OMPPandf1Stamp,OMPPandf1Verbose,OMPPandf1Debug
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
-    USE Dim, ONLY: nx, ny, ngsp, nisp
+    USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt
     USE Grid, ONLY:ijactot
     USE Cdv, ONLY: comnfe
     USE Rhsides, ONLY: psorcxg, psorrg, psordis
@@ -3828,14 +3829,14 @@ END SUBROUTINE OMPSplitIndex
  
     integer yinc_bkp,xrinc_bkp,xlinc_bkp,iv
     integer,intent(in)::neq
-    real,intent(in)::yl(*)
-    real,intent(out)::yldot(*)
+    real,intent(in)::yl(neq+1)
+    real,intent(out)::yldot(neq)
     real,intent(in)::time
-    real::yldotcopy(1:neq)
+    real::yldotcopy(1:neq),yldotcut(1:neq) 
     real yldotsave(1:neq),ylcopy(1:neq+2), yldottot(1:neq)
     character*80 ::FileName
     real time1,time2
-    INTEGER:: ichunk, xc, yc, ii
+    INTEGER:: ichunk, xc, yc, ii, icut, ixpt
     real tmp_prad(0:nx+1, 0:ny+1)
     real tick,tock, tsfe, tsjf, ttotfe, ttotjf, tserial, tpara
     external tick, tock
@@ -3877,34 +3878,52 @@ END SUBROUTINE OMPSplitIndex
 
 
         if(tid .eq. 0) then
-!            !$OMP PARALLEL
-!            write(*,*) "TASK1"!, omp_get_thread_num()
-!            !$OMP END PARALLEL
+            !$OMP PARALLEL
+            !$OMP DO    PRIVATE(ixpt) SCHEDULE(dynamic) &
+            !$OMP &      FIRSTPRIVATE(ylcopy, yldotcopy) REDUCTION(+:yldotcut)
+            ! Do parallel loop over each X-point: this way it is ensured 
+            ! Each X-point gets allocated to a single core
+            DO ixpt = 1, nxpt
+                psorcxg = 0
+                psorrg = 0
+                psordis = 0
+                do icut = 1, 2
+                    ! Only one chunk for the time being
+                    ! This obviously won't work as each separate part of 
+                    ! Pandf needs to be executed serially twice on the same thread
+                    call OMPPandf(neq, ylcopy, yldotcopy, rangexptchunk(ixpt, icut, 1,:))
+                end do
 
+                do iv=1,Nivxptchunk(ixpt, ichunk)
+                    yldotcut(ivxptchunk(ixpt,1,iv)) = yldotcut(ivxptchunk(ixpt,1,iv)) &
+                    &       + yldotcopy(ivxptchunk(ixpt,1,iv))
+                enddo
+
+            END DO
+            !$OMP END DO
+            !$OMP END PARALLEL
         else 
             !$OMP PARALLEL
-            !$OMP DO    PRIVATE(ichunk, xc, yc) SCHEDULE(dynamic) &
+            !$OMP DO    PRIVATE(ichunk) SCHEDULE(dynamic) &
             !$OMP &      FIRSTPRIVATE(ylcopy, yldotcopy) REDUCTION(+:yldottot)
             DO ichunk= 1, Nchunks
 
                 psorcxg = 0
                 psorrg = 0
                 psordis = 0
-                call OMPinitialize_ranges2d(rangechunk(ichunk,:))
-                call OMPPandf(neq, ylcopy, yldotcopy)
+                call OMPPandf(neq, ylcopy, yldotcopy,rangechunk(ichunk,:))
 
                 do iv=1,Nivchunk(ichunk)
                     yldottot(ivchunk(ichunk,iv)) = yldottot(ivchunk(ichunk,iv)) &
                     &       + yldotcopy(ivchunk(ichunk,iv))
                 enddo
-!                write(*,*) "TASK2", omp_get_thread_num(), ichunk
             END DO
             !$OMP END DO
             !$OMP END PARALLEL
             END IF
             !$OMP END TEAMS
 
-        yldot(:neq) = yldottot
+        yldot(:neq) = yldottot !+ yldotcut
             
         
         ParaTime = ParaTime + tock(tpara)
@@ -3933,7 +3952,7 @@ END SUBROUTINE OMPSplitIndex
 
     END SUBROUTINE OMPPandf1Rhs
 
-    SUBROUTINE OMPPandf(neq, yl, yldot)
+    SUBROUTINE OMPPandf(neq, yl, yldot, range)
       USE UEpar, ONLY: isphion, svrpkg, isphiofft
       USE PandfTiming, ONLY: TimePandf, TotTimePandf, TimingPandfOn, &
       &     TimeNeudif, TotTimeNeudif
@@ -3942,11 +3961,13 @@ END SUBROUTINE OMPSplitIndex
       USE Selec, ONLY: yinc, xrinc, xlinc
       IMPLICIT NONE
       INTEGER, INTENT(IN) :: neq
+      INTEGER, INTENT(IN), DIMENSION(4) :: range
       REAL, INTENT(IN), DIMENSION(neq+2) :: yl
       REAL, INTENT(OUT), DIMENSION(neq) :: yldot
       INTEGER :: ichunk, xc, yc, ii
       REAL :: tick,tock!, tsfe, tsjf, ttotfe, ttotjf, tserial, tpara
         ! Initialize local thread ranges
+        call OMPinitialize_ranges2d(range)
         xc=-1; yc=-1
 !        call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
 
