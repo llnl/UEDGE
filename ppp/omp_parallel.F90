@@ -1,32 +1,74 @@
 MODULE CHUNK
 CONTAINS
   SUBROUTINE Make2DChunks(Nxchunks, Nychunks, &
-    &   N, Niv, ivchunk, rangechunk)!, ixychunk, Nixy)
-    Use Dim, ONLY: nx, ny
+    &   N, Niv, ivchunk, rangechunk, Nxptchunks, Nivxpt, &
+    &   ivxptchunk, rangexptchunk)!, ixychunk, Nixy)
+    Use Dim, ONLY: nx, ny, nxpt
     Use Indexes, ONLY: igyl
     Use Lsode, ONLY: neq
+    Use Xpoint_indices, ONLY: iysptrx1, ixpt1, ixpt2
     IMPLICIT NONE
-    INTEGER, INTENT(INOUT):: N, Nxchunks, Nychunks
+    INTEGER, INTENT(INOUT):: N, Nxptchunks, Nxchunks, Nychunks
 !    INTEGER, ALLOCATABLE, DIMENSION(:,:,:), INTENT(OUT):: ixychunk
-    INTEGER, ALLOCATABLE, DIMENSION(:,:), INTENT(OUT)::  ivchunk, rangechunk
-    INTEGER, ALLOCATABLE, DIMENSION(:), INTENT(OUT)::  Niv!, Nixy
+    INTEGER, ALLOCATABLE, DIMENSION(:,:,:,:), INTENT(OUT):: rangexptchunk
+    INTEGER, ALLOCATABLE, DIMENSION(:,:,:), INTENT(OUT)::  ivxptchunk
+    INTEGER, ALLOCATABLE, DIMENSION(:,:), INTENT(OUT)::  ivchunk, &
+    &               rangechunk, Nivxpt
+    INTEGER, ALLOCATABLE, DIMENSION(:), INTENT(OUT)::  Niv !, Nixy
     INTEGER:: Nmax!, Nixymax
-    integer:: ix, iy, nxi, nyi, ii, idx(2), idxl
+    integer:: ix, iy, nxi, nyi, ii, idx(2), idxl, ixpt, iix, iicut, iscut
     real:: dx, dy
-    integer, allocatable:: xlims(:,:), ylims(:,:)
+    integer, allocatable:: xlims(:,:), ylims(:,:), xlimsxpt(:,:,:,:), ylimsxpt(:,:,:,:)
+    ! TODO: Resize & use local variables, allocate real variables at last step only 
+
     ! Ensure chunking setup is valid: between 1 and n(x/y) chunks
     Nxchunks = MAX(MIN(nx, Nxchunks),1)
     Nychunks = MAX(MIN(ny, Nychunks),1)
     ! Calculate the number of chunks needed maximum
     N = Nxchunks * Nychunks
+    Nxptchunks = 1 ! Number of X-point chunks
     Nmax = neq
 !    Nixymax = (nx+2)*(ny+2)
     ! Get the dx/dy per chunk
     dx = real(nx)/Nxchunks
     dy = real(ny)/Nychunks
     ! Allocate the necassary arrays
-    allocate( xlims(Nxchunks,2), ylims(Nychunks,2), &!ixychunk(N, Nixymax, 2), &
-    &   ivchunk(N, Nmax), rangechunk(N, 4), Niv(N))!, Nixy(N))
+    allocate( xlims(Nxchunks,2), ylims(Nychunks,2), xlimsxpt(nxpt, 2, Nxptchunks,2), &!ixychunk(N, Nixymax, 2), &
+    &   ivchunk(N, Nmax), rangechunk(N, 4), Niv(N), ylimsxpt(nxpt, 2, Nxptchunks,2), &
+    &   ivxptchunk(nxpt,Nxptchunks,Nmax), Nivxpt(nxpt,Nxptchunks), &
+    &   rangexptchunk(nxpt,2,Nxptchunks,4))!, Nixy(N))
+    ! Calculate X- & Y-chunks here once needed - start with Y-chunks
+    ! Calculate poloidal X-point intervals
+    do ixpt = 1, nxpt ! Separate teams for each X-point
+        do iix = 1, Nxptchunks ! Number of threads per Xpt - 1 for now
+            ! Left cut
+            xlimsxpt(ixpt, 1, iix, 1) = ixpt1(ixpt)-1
+            xlimsxpt(ixpt, 1, iix, 2) = ixpt1(ixpt)+2
+            ylimsxpt(ixpt, 1, iix, 1) = 0
+            ylimsxpt(ixpt, 1, iix, 2) = iysptrx1(ixpt)+2
+            ! Right cut
+            xlimsxpt(ixpt, 2, iix, 1) = ixpt2(ixpt)-1
+            xlimsxpt(ixpt, 2, iix, 2) = ixpt2(ixpt)+2
+            ylimsxpt(ixpt, 2, iix, 1) = 0
+            ylimsxpt(ixpt, 2, iix, 2) = iysptrx1(ixpt)+2
+        end do
+        ! Create ranges - setup for potential future chunking
+        do ix = 1, 1
+            do iy = 1, 1
+                ! Left cut
+                rangexptchunk(ixpt, 1, ix*iy, 1) = xlimsxpt(ixpt, 1, ix*iy, 1)
+                rangexptchunk(ixpt, 1, ix*iy, 2) = xlimsxpt(ixpt, 1, ix*iy, 2)
+                rangexptchunk(ixpt, 1, ix*iy, 3) = ylimsxpt(ixpt, 1, ix*iy, 1)
+                rangexptchunk(ixpt, 1, ix*iy, 4) = ylimsxpt(ixpt, 1, ix*iy, 2)
+                ! Right cut
+                rangexptchunk(ixpt, 2, ix*iy, 1) = xlimsxpt(ixpt, 2, ix*iy, 1)
+                rangexptchunk(ixpt, 2, ix*iy, 2) = xlimsxpt(ixpt, 2, ix*iy, 2)
+                rangexptchunk(ixpt, 2, ix*iy, 3) = ylimsxpt(ixpt, 2, ix*iy, 1)
+                rangexptchunk(ixpt, 2, ix*iy, 4) = ylimsxpt(ixpt, 2, ix*iy, 2)
+            end do
+        end do
+    end do
+
     ! Calculate poloidal chunking intervals
     ! Include protections for boundaries
     xlims(1,1) = 0; xlims(1,2)=max(1,int(dx))
@@ -56,21 +98,43 @@ CONTAINS
     end do
     ! Get the yldot-indices for the chunks 
     Niv = 0
+    Nivxpt = 0
     ivchunk = 0
-    do ix = 1, Nxchunks
-        do iy = 1, Nychunks
-            idxl = Nxchunks*(iy-1) + ix
-            do ii = 1, neq
-                idx = igyl(ii,:)
+    ivxptchunk = 0
+    iscut = 0
+    do ii = 1, neq
+        idx = igyl(ii,:)
+        ! Get the X-point cut jacobian indices
+        ! These loops will typically be much smaller than the main chunks
+        do iix = 1, Nxptchunks
+            do iicut = 1, 2 
+                do ixpt = 1, nxpt
+                    if (    (idx(1).ge.rangexptchunk(ixpt,iicut,iix,1)) &
+                    &  .and.(idx(1).le.rangexptchunk(ixpt,iicut,iix,2)) &
+                    &  .and.(idx(2).ge.rangexptchunk(ixpt,iicut,iix,3)) &
+                    &  .and.(idx(2).le.rangexptchunk(ixpt,iicut,iix,4)) &
+                    & ) then
+                        Nivxpt(ixpt,iix) = Nivxpt(ixpt,iix) + 1
+                        ivxptchunk(ixpt,iix,Nivxpt(ixpt,iix)) = ii
+!                        iscut=1
+                    endif
+                end do
+            end do
+        end do
+        do ix = 1, Nxchunks
+            do iy = 1, Nychunks
+                idxl = Nxchunks*(iy-1) + ix
                 if ((idx(1).ge.rangechunk(idxl,1)).and.(idx(1).le.rangechunk(idxl,2)) .and. &
                 &   (idx(2).ge.rangechunk(idxl,3)).and.(idx(2).le.rangechunk(idxl,4)) &
-                &   ) then
+                &   .and.(iscut.ne.1)) then
                     Niv(idxl) = Niv(idxl) + 1
                     ivchunk(idxl, Niv(idxl)) = ii
                 endif
             end do    
         end do
+        iscut=0
     enddo
+    write(*,*) SUM(Nivxpt)+SUM(Niv), MAXVAL(Niv), MAXVAL(Nivxpt)
     ! Do spatial chunking - no longer needed
 !    Nixy = 0
 !    ixychunk = 0
@@ -84,7 +148,7 @@ CONTAINS
 !        end do
 !    end do
     ! Update max array size required
-    Nmax = MAXVAL(Niv)
+!    Nmax = MAXVAL(Niv)
 !    Nixymax = MAXVAL(Nixy)
 !    ! Trim overly large array
 !    allocate( xlims(Nxchunks,2), ylims(Nychunks,2), ixychunk(N, Nixymax, 2), &
@@ -3750,11 +3814,13 @@ END SUBROUTINE OMPSplitIndex
     USE OMPPandf1, ONLY: Nxchunks, Nychunks
     USE CHUNK
     IMPLICIT NONE
-    INTEGER:: Nchunks, Nchunks_convert
+    INTEGER:: Nchunks, Nxptchunks, Nchunks_convert
 !    INTEGER, ALLOCATABLE, DIMENSION(:,:,:):: ixychunk, ixychunk_convert
-    INTEGER, ALLOCATABLE, DIMENSION(:,:)::  ivchunk, rangechunk, ivchunk_convert, &
-    &   rangechunk_convert
-    INTEGER, ALLOCATABLE, DIMENSION(:)::  Nivchunk, Nivchunk_convert
+    INTEGER, ALLOCATABLE, DIMENSION(:,:,:,:) :: rangexptchunk
+    INTEGER, ALLOCATABLE, DIMENSION(:,:,:) ::  ivxptchunk
+    INTEGER, ALLOCATABLE, DIMENSION(:,:) ::  ivchunk, rangechunk, ivchunk_convert, &
+    &   rangechunk_convert, Nivxptchunk
+    INTEGER, ALLOCATABLE, DIMENSION(:) ::  Nivchunk, Nivchunk_convert
 !    &   Nixychunk_convert
 !    INTEGER, ALLOCATABLE, DIMENSION(:)::  Nivchunk, Nixychunk, Nivchunk_convert, &
     INTEGER tid
@@ -3792,7 +3858,10 @@ END SUBROUTINE OMPSplitIndex
     ! TODO: move to initializer
         Time1=omp_get_wtime()
         call Make2DChunks(Nxchunks, Nychunks, Nchunks, Nivchunk, &
-        &   ivchunk, rangechunk)!, ixychunk, Nixychunk)
+        &   ivchunk, rangechunk, Nxptchunks, Nivxptchunk, ivxptchunk, &
+        &   rangexptchunk)
+
+!, ixychunk, Nixychunk)
 
 !        call Make2DChunks(Nxchunks, Nychunks, Nchunks, Nivchunk, &
 !        &   ivchunk, rangechunk, ixychunk, Nixychunk)
@@ -3821,7 +3890,8 @@ END SUBROUTINE OMPSplitIndex
                 psorcxg = 0
                 psorrg = 0
                 psordis = 0
-                call OMPPandf(neq, ylcopy, yldotcopy, rangechunk(ichunk,:))
+                call OMPinitialize_ranges2d(rangechunk(ichunk,:))
+                call OMPPandf(neq, ylcopy, yldotcopy)
 
                 do iv=1,Nivchunk(ichunk)
                     yldottot(ivchunk(ichunk,iv)) = yldottot(ivchunk(ichunk,iv)) &
@@ -3863,7 +3933,7 @@ END SUBROUTINE OMPSplitIndex
 
     END SUBROUTINE OMPPandf1Rhs
 
-    SUBROUTINE OMPPandf(neq, yl, yldot, range)
+    SUBROUTINE OMPPandf(neq, yl, yldot)
       USE UEpar, ONLY: isphion, svrpkg, isphiofft
       USE PandfTiming, ONLY: TimePandf, TotTimePandf, TimingPandfOn, &
       &     TimeNeudif, TotTimeNeudif
@@ -3872,13 +3942,11 @@ END SUBROUTINE OMPSplitIndex
       USE Selec, ONLY: yinc, xrinc, xlinc
       IMPLICIT NONE
       INTEGER, INTENT(IN) :: neq
-      INTEGER, INTENT(IN), DIMENSION(4) :: range
       REAL, INTENT(IN), DIMENSION(neq+2) :: yl
       REAL, INTENT(OUT), DIMENSION(neq) :: yldot
       INTEGER :: ichunk, xc, yc, ii
       REAL :: tick,tock!, tsfe, tsjf, ttotfe, ttotjf, tserial, tpara
         ! Initialize local thread ranges
-        call OMPinitialize_ranges2d(range)
         xc=-1; yc=-1
 !        call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
 
