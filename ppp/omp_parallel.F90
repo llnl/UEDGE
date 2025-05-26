@@ -3697,14 +3697,12 @@ END SUBROUTINE OMPSplitIndex
             OMPPandf1Stamp,OMPPandf1Verbose,OMPPandf1Debug
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
     USE Dim, ONLY: nx, ny, ngsp, nisp
-    USE Selec, ONLY:yinc,xrinc,xlinc, i1, i6, j1, j6
     USE Grid, ONLY:ijactot
     USE Cdv, ONLY: comnfe
     USE Rhsides, ONLY: psorcxg, psorrg, psordis
     USE Time_dep_nwt, ONLY: dtreal, nufak
     USE Ynorm, ONLY: isflxvar, isrscalf
     USE MCN_sources, ONLY: ismcnon
-    USE UEpar, ONLY: isphion, svrpkg, isphiofft
     USE PandfTiming, ONLY: TimePandf, TotTimePandf, TimingPandfOn, TimeNeudif, &
     &   TotTimeNeudif
     USE OMPTiming, ONLY: ParaTime, SerialTime
@@ -3743,13 +3741,8 @@ END SUBROUTINE OMPSplitIndex
     real tick,tock, tsfe, tsjf, ttotfe, ttotjf, tserial, tpara
     external tick, tock
     real yldot1(1:neq), yldot2(1:neq)
-    REAL, DIMENSION(0:nx+1,0:ny+1) :: neloc, philoc, tiloc, &
-    &       teloc, nitloc, nz2loc, test
-    REAL, DIMENSION(0:nx+1,0:ny+1,ngsp) :: tgloc, ngloc, lngloc
-    REAL, DIMENSION(0:nx+1,0:ny+1,nisp) :: nmloc, niloc
 
     ParallelPandfCall = 1
-    xc=-1; yc=-1
     ylcopy = yl(:neq)
     yldotcopy = yldot(:neq)
 
@@ -3760,8 +3753,6 @@ END SUBROUTINE OMPSplitIndex
 !        call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
 !        SerialTime = SerialTime + tock(tserial)
 
-    neloc=0;philoc=0;tiloc=0;tgloc=0;teloc=0;nitloc=0;nz2loc=0;ngloc=0
-    nmloc=0;lngloc=0;niloc=0
     if (ijactot.gt.0) then
     ! TODO: move to initializer
         Time1=omp_get_wtime()
@@ -3773,7 +3764,6 @@ END SUBROUTINE OMPSplitIndex
         &   Nixychunk_convert)
 
         tpara = tick()
-        write(*,*) "==============="
         !$OMP TEAMS NUM_TEAMS(2) PRIVATE(tid)
         tid = omp_get_team_num()
         if ( omp_get_num_teams() .ne. 2 ) stop "Too few teams allocated"
@@ -3781,14 +3771,14 @@ END SUBROUTINE OMPSplitIndex
 
         if(tid .eq. 0) then
 !            !$OMP PARALLEL
-            write(*,*) "TASK1"!, omp_get_thread_num()
+!            write(*,*) "TASK1"!, omp_get_thread_num()
 !            !$OMP END PARALLEL
 
         else 
             !$OMP PARALLEL
             !$OMP DO PRIVATE(ichunk, xc, yc) SCHEDULE(static) 
             DO ichunk= 1, 100
-                write(*,*) "TASK2", omp_get_thread_num(), ichunk
+!                write(*,*) "TASK2", omp_get_thread_num(), ichunk
             END DO
             !$OMP END DO
             !$OMP END PARALLEL
@@ -3799,36 +3789,83 @@ END SUBROUTINE OMPSplitIndex
         
         ParaTime = ParaTime + tock(tpara)
 
-        call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
-        tserial = tick()
-        call convsr_vo1 (xc, yc, yl)
-        SerialTime = SerialTime + tock(tserial)
+        call OMPPandf(neq, yl, yldot, rangechunk(1,:))
+        Time1=omp_get_wtime()-Time1
 
+        OMPTimeParallelPandf1=Time1+OMPTimeParallelPandf1
+        if (CheckPandf1.gt.0) then
+            Time2=omp_get_wtime()
+            call pandf (-1, -1, neq, time, ylcopy, yldotsave)
+            Time2=omp_get_wtime()-Time2
+            OMPTimeSerialPandf1=Time2+OMPTimeSerialPandf1
+            if (OMPPandf1Verbose.gt.0) then
+                write(*,*) "Timing Pandf1 serial:",OMPTimeSerialPandf1, &
+                    "(",Time2,")/parallel:",OMPTimeParallelPandf1,'(',Time1,')'
+            endif
+            call Compare(yldot,yldotsave,neq)
+            write(*,'(a,i4)') "  Serial and parallel pandf are identical for nfe = ", comnfe
+        endif
+    else
+       call pandf (-1,-1, neq, time, yl, yldot)
+    endif
+    ParallelPandfCall = 0
+    RETURN
+
+    END SUBROUTINE OMPPandf1Rhs
+
+    SUBROUTINE OMPPandf(neq, yl, yldot, range)
+      USE UEpar, ONLY: isphion, svrpkg, isphiofft
+      USE PandfTiming, ONLY: TimePandf, TotTimePandf, TimingPandfOn, &
+      &     TimeNeudif, TotTimeNeudif
+      USE Ynorm, ONLY: isflxvar, isrscalf
+      USE Time_dep_nwt, ONLY: dtreal
+      USE Selec, ONLY: yinc, xrinc, xlinc
+      IMPLICIT NONE
+      INTEGER, INTENT(IN) :: neq
+      INTEGER, INTENT(IN), DIMENSION(4) :: range
+      REAL, INTENT(IN), DIMENSION(neq+2) :: yl
+      REAL, INTENT(OUT), DIMENSION(neq) :: yldot
+      INTEGER :: ichunk, xc, yc, ii
+      REAL :: tick,tock!, tsfe, tsjf, ttotfe, ttotjf, tserial, tpara
+        ! Initialize local thread ranges
+!        call OMPinitialize_ranges2d(range)
+        xc=-1; yc=-1
+        call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
+
+        ! Calculate plasma variables from yl
+        call convsr_vo1 (xc, yc, yl)
         call convsr_vo2 (xc, yc, yl) 
+        ! Calculate derived quantities frequently used
         call convsr_aux1 (xc, yc)
         call convsr_aux2 (xc, yc)
+        ! Calculate the plasma diffusivities and drift velocities
         call calc_plasma_diffusivities
         call initialize_driftterms  
         call calc_driftterms1
         call calc_driftterms2
+        ! Calculate currents and potential
         if(isphion+isphiofft .eq. 1) then
             call calc_currents
             call calc_fqp1
             call calc_fqp2
         endif
+        ! Get friction and electron velocities
         call calc_friction(xc)
         call calc_elec_velocities
+        ! Volumetric plasma and gas sinks & sources
         call calc_volumetric_sources(xc, yc)
         if (TimingPandfOn.gt.0) TimeNeudif=tick()
         call neudifpg
         if (TimingPandfOn.gt.0) TotTimeNeudif=TotTimeNeudif+tock(TimeNeudif)
         call calc_srcmod
+        ! Calculate plasma & gas conductivities etc.
         call calc_plasma_viscosities
         call calc_plasma_heatconductivities
         call calc_plasma_equipartition
         call calc_gas_heatconductivities
         call engbalg
         call calc_plasma_transport
+
         call calc_fniycbo 
         call calc_plasma_momentum_coeffs
         call calc_plasma_momentum(xc, yc)
@@ -3844,7 +3881,9 @@ END SUBROUTINE OMPSplitIndex
         call calc_gas_energy_residuals
         if (isphion.eq.1) call calc_potential_residuals
 
+        ! Calculate yldot vector
         call calc_rhs(yldot)
+        ! Set boundary conditions directly in yldot
         call bouncon(neq, yldot)
         if (TimingPandfOn.gt.0) & 
         &      TotTimePandf=TotTimePandf+tock(TimePandf)
@@ -3869,30 +3908,8 @@ END SUBROUTINE OMPSplitIndex
 
 
 
-        Time1=omp_get_wtime()-Time1
 
-        OMPTimeParallelPandf1=Time1+OMPTimeParallelPandf1
-
-
-        if (CheckPandf1.gt.0) then
-            Time2=omp_get_wtime()
-            call pandf (-1, -1, neq, time, ylcopy, yldotsave)
-            Time2=omp_get_wtime()-Time2
-            OMPTimeSerialPandf1=Time2+OMPTimeSerialPandf1
-            if (OMPPandf1Verbose.gt.0) then
-                write(*,*) "Timing Pandf1 serial:",OMPTimeSerialPandf1, &
-                    "(",Time2,")/parallel:",OMPTimeParallelPandf1,'(',Time1,')'
-            endif
-            call Compare(yldot,yldotsave,neq)
-            write(*,'(a,i4)') "  Serial and parallel pandf are identical for nfe = ", comnfe
-        endif
-    else
-       call pandf (-1,-1, neq, time, yl, yldot)
-    endif
-    ParallelPandfCall = 0
-    RETURN
-
-    END SUBROUTINE OMPPandf1Rhs
+    END SUBROUTINE OMPPandf
 
 
   SUBROUTINE CreateBin(ieqmin,ieqmax,ichunkmin,ichunkmax,ichunktot,Padding,iCenterBin,iLeftBin,iRightBin,inc)
