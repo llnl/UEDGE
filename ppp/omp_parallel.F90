@@ -1,31 +1,34 @@
 MODULE CHUNK
 CONTAINS
   SUBROUTINE Make2DChunks(Nxchunks, Nychunks, &
-    &   N, Niv, ivchunk, rangechunk, ixychunk, Nixy)
+    &   N, Niv, ivchunk, rangechunk)!, ixychunk, Nixy)
     Use Dim, ONLY: nx, ny
     Use Indexes, ONLY: igyl
     Use Lsode, ONLY: neq
     IMPLICIT NONE
     INTEGER, INTENT(INOUT):: N, Nxchunks, Nychunks
-    INTEGER, ALLOCATABLE, DIMENSION(:,:,:), INTENT(OUT):: ixychunk
+!    INTEGER, ALLOCATABLE, DIMENSION(:,:,:), INTENT(OUT):: ixychunk
     INTEGER, ALLOCATABLE, DIMENSION(:,:), INTENT(OUT)::  ivchunk, rangechunk
-    INTEGER, ALLOCATABLE, DIMENSION(:), INTENT(OUT)::  Niv, Nixy
-    INTEGER:: Nmax, Nixymax
+    INTEGER, ALLOCATABLE, DIMENSION(:), INTENT(OUT)::  Niv!, Nixy
+    INTEGER:: Nmax!, Nixymax
     integer:: ix, iy, nxi, nyi, ii, idx(2), idxl
     real:: dx, dy
     integer, allocatable:: xlims(:,:), ylims(:,:)
+    ! Ensure chunking setup is valid: between 1 and n(x/y) chunks
     Nxchunks = MAX(MIN(nx, Nxchunks),1)
     Nychunks = MAX(MIN(ny, Nychunks),1)
+    ! Calculate the number of chunks needed maximum
     N = Nxchunks * Nychunks
     Nmax = neq
-    Nixymax = (nx+2)*(ny+2)
+!    Nixymax = (nx+2)*(ny+2)
+    ! Get the dx/dy per chunk
     dx = real(nx)/Nxchunks
     dy = real(ny)/Nychunks
-    allocate( xlims(Nxchunks,2), ylims(Nychunks,2), ixychunk(N, Nixymax, 2), &
-    &   ivchunk(N, Nmax), rangechunk(N, 4), Niv(N), Nixy(N))
-    call gchange("OMPPandf1", 0)
-
-
+    ! Allocate the necassary arrays
+    allocate( xlims(Nxchunks,2), ylims(Nychunks,2), &!ixychunk(N, Nixymax, 2), &
+    &   ivchunk(N, Nmax), rangechunk(N, 4), Niv(N))!, Nixy(N))
+    ! Calculate poloidal chunking intervals
+    ! Include protections for boundaries
     xlims(1,1) = 0; xlims(1,2)=max(1,int(dx))
     do ix = 2, Nxchunks-1
         xlims(ix,1) = xlims(ix-1,2)+1
@@ -33,6 +36,8 @@ CONTAINS
     end do
     if (Nxchunks .gt. 1) xlims(Nxchunks,1) = xlims(Nxchunks-1,2)+1
     xlims(Nxchunks,2) = nx+1
+    ! Calculate radial chunking intervals
+    ! Include protections for boundaries
     ylims(1,1) = 0; ylims(1,2)=max(1,int(dy))
     do iy = 2, Nychunks-1
         ylims(iy,1) = ylims(iy-1,2)+1
@@ -40,7 +45,7 @@ CONTAINS
     end do
     if (Nychunks .gt. 1) ylims(Nychunks,1) = ylims(Nychunks-1,2)+1
     ylims(Nychunks,2) = ny+1
-
+    ! Ravel the ranges into chunks 
     do ix = 1, Nxchunks
         do iy = 1, Nychunks
             rangechunk(Nxchunks*(iy-1) + ix, 1) = xlims(ix,1)
@@ -49,10 +54,9 @@ CONTAINS
             rangechunk(Nxchunks*(iy-1) + ix, 4) = ylims(iy,2)
         end do
     end do
+    ! Get the yldot-indices for the chunks 
     Niv = 0
     ivchunk = 0
-    Nixy = 0
-    ixychunk = 0
     do ix = 1, Nxchunks
         do iy = 1, Nychunks
             idxl = Nxchunks*(iy-1) + ix
@@ -67,21 +71,24 @@ CONTAINS
             end do    
         end do
     enddo
-    do ii = 1, N
-        do ix = rangechunk(ii,1), rangechunk(ii,2)
-            do iy = rangechunk(ii,3), rangechunk(ii,4)
-                Nixy(ii) = Nixy(ii) + 1
-                ixychunk(ii, Nixy(ii),1) = ix
-                ixychunk(ii, Nixy(ii),2) = iy
-            end do
-        end do
-    end do
-
-
+    ! Do spatial chunking - no longer needed
+!    Nixy = 0
+!    ixychunk = 0
+!    do ii = 1, N
+!        do ix = rangechunk(ii,1), rangechunk(ii,2)
+!            do iy = rangechunk(ii,3), rangechunk(ii,4)
+!                Nixy(ii) = Nixy(ii) + 1
+!                ixychunk(ii, Nixy(ii),1) = ix
+!                ixychunk(ii, Nixy(ii),2) = iy
+!            end do
+!        end do
+!    end do
+    ! Update max array size required
     Nmax = MAXVAL(Niv)
-    Nixymax = MAXVAL(Nixy)
-    ! Trim overly large array
-    call gchange("OMPPandf1",0)
+!    Nixymax = MAXVAL(Nixy)
+!    ! Trim overly large array
+!    allocate( xlims(Nxchunks,2), ylims(Nychunks,2), ixychunk(N, Nixymax, 2), &
+!    &   ivchunk(N, Nmax), rangechunk(N, 4), Niv(N), Nixy(N))
 
   END SUBROUTINE Make2DChunks
 END MODULE CHUNK
@@ -3744,11 +3751,12 @@ END SUBROUTINE OMPSplitIndex
     USE CHUNK
     IMPLICIT NONE
     INTEGER:: Nchunks, Nchunks_convert
-    INTEGER, ALLOCATABLE, DIMENSION(:,:,:):: ixychunk, ixychunk_convert
+!    INTEGER, ALLOCATABLE, DIMENSION(:,:,:):: ixychunk, ixychunk_convert
     INTEGER, ALLOCATABLE, DIMENSION(:,:)::  ivchunk, rangechunk, ivchunk_convert, &
     &   rangechunk_convert
-    INTEGER, ALLOCATABLE, DIMENSION(:)::  Nivchunk, Nixychunk, Nivchunk_convert, &
-    &   Nixychunk_convert
+    INTEGER, ALLOCATABLE, DIMENSION(:)::  Nivchunk, Nivchunk_convert
+!    &   Nixychunk_convert
+!    INTEGER, ALLOCATABLE, DIMENSION(:)::  Nivchunk, Nixychunk, Nivchunk_convert, &
     INTEGER tid
 
  
@@ -3784,7 +3792,7 @@ END SUBROUTINE OMPSplitIndex
     ! TODO: move to initializer
         Time1=omp_get_wtime()
         call Make2DChunks(Nxchunks, Nychunks, Nchunks, Nivchunk, &
-        &   ivchunk, rangechunk, ixychunk, Nixychunk)
+        &   ivchunk, rangechunk)!, ixychunk, Nixychunk)
 
 !        call Make2DChunks(Nxchunks, Nychunks, Nchunks, Nivchunk, &
 !        &   ivchunk, rangechunk, ixychunk, Nixychunk)
