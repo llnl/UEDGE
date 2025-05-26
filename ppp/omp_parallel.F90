@@ -42,13 +42,13 @@ CONTAINS
     do ixpt = 1, nxpt ! Separate teams for each X-point
         do iix = 1, Nxptchunks ! Number of threads per Xpt - 1 for now
             ! Left cut
-            xlimsxpt(ixpt, 1, iix, 1) = ixpt1(ixpt)-1
-            xlimsxpt(ixpt, 1, iix, 2) = ixpt1(ixpt)+2
+            xlimsxpt(ixpt, 1, iix, 1) = 4!ixpt1(ixpt)-1
+            xlimsxpt(ixpt, 1, iix, 2) = 10!ixpt1(ixpt)+2
             ylimsxpt(ixpt, 1, iix, 1) = 0
             ylimsxpt(ixpt, 1, iix, 2) = iysptrx1(ixpt)+2
             ! Right cut
-            xlimsxpt(ixpt, 2, iix, 1) = ixpt2(ixpt)-1
-            xlimsxpt(ixpt, 2, iix, 2) = ixpt2(ixpt)+2
+            xlimsxpt(ixpt, 2, iix, 1) = 47!ixpt2(ixpt)-1
+            xlimsxpt(ixpt, 2, iix, 2) = 50!ixpt2(ixpt)+2
             ylimsxpt(ixpt, 2, iix, 1) = 0
             ylimsxpt(ixpt, 2, iix, 2) = iysptrx1(ixpt)+2
         end do
@@ -135,7 +135,7 @@ CONTAINS
         end do
         iscut=0
     enddo
-    write(*,*) SUM(Nivxpt)+SUM(Niv), MAXVAL(Niv), MAXVAL(Nivxpt)
+!    write(*,*) SUM(Nivxpt)+SUM(Niv), MAXVAL(Niv), MAXVAL(Nivxpt)
     ! Do spatial chunking - no longer needed
 !    Nixy = 0
 !    ixychunk = 0
@@ -3814,6 +3814,8 @@ END SUBROUTINE OMPSplitIndex
     USE Bcond, ONLY: isfixlb
     USE OMPPandf1, ONLY: Nxchunks, Nychunks
     USE CHUNK
+
+    USE Indexes, ONLY: igyl
     IMPLICIT NONE
     INTEGER:: Nchunks, Nxptchunks, Nchunks_convert
 !    INTEGER, ALLOCATABLE, DIMENSION(:,:,:):: ixychunk, ixychunk_convert
@@ -3832,7 +3834,7 @@ END SUBROUTINE OMPSplitIndex
     real,intent(in)::yl(neq+1)
     real,intent(out)::yldot(neq)
     real,intent(in)::time
-    real::yldotcopy(1:neq),yldotcut(1:neq) 
+    real::yldotcopy(1:neq),yldotcut(1:neq), ylcut(neq+2)
     real yldotsave(1:neq),ylcopy(1:neq+2), yldottot(1:neq)
     character*80 ::FileName
     real time1,time2
@@ -3841,11 +3843,18 @@ END SUBROUTINE OMPSplitIndex
     real tick,tock, tsfe, tsjf, ttotfe, ttotjf, tserial, tpara
     external tick, tock
     real yldot1(1:neq), yldot2(1:neq)
+    integer dummy(4)
+    dummy(1) = 0
+    dummy(2) = nx+1
+    dummy(3) = 0
+    dummy(4) = ny+1
 
     ParallelPandfCall = 1
-    ylcopy = yl(:neq)
-    yldotcopy = yldot(:neq)
+    ylcopy = yl
+    ylcut = yl
+    yldotcopy = yldot
     yldottot = 0
+    yldotcut = 0
 
 !        tpara = tick()
 !        ParaTime = ParaTime + tock(tpara)
@@ -3878,31 +3887,30 @@ END SUBROUTINE OMPSplitIndex
 
 
         if(tid .eq. 0) then
-            !$OMP PARALLEL
-            !$OMP DO    PRIVATE(ixpt) SCHEDULE(dynamic) &
-            !$OMP &      FIRSTPRIVATE(ylcopy, yldotcopy) REDUCTION(+:yldotcut)
+!            !$OMP PARALLEL
+!            !$OMP DO    PRIVATE(ixpt) SCHEDULE(dynamic) &
+!            !$OMP &      FIRSTPRIVATE(ylcopy, yldotcopy) REDUCTION(+:yldotcut)
             ! Do parallel loop over each X-point: this way it is ensured 
             ! Each X-point gets allocated to a single core
             DO ixpt = 1, nxpt
                 psorcxg = 0
                 psorrg = 0
                 psordis = 0
-                do icut = 1, 2
-                    ! Only one chunk for the time being
-                    call OMPPandf_XPT(neq, ylcopy, yldotcopy, rangexptchunk(ixpt, icut, :,:))
-                end do
+                ! Only one chunk for the time being
+                call OMPPandf_XPT(neq, ylcut, yldotcut, rangexptchunk(ixpt, :, 1,:))
+!                call OMPPandf(neq, ylcopy, yldotcut, dummy)
 
-                do iv=1,Nivxptchunk(ixpt, ichunk)
-                    yldotcut(ivxptchunk(ixpt,1,iv)) = yldotcut(ivxptchunk(ixpt,1,iv)) &
-                    &       + yldotcopy(ivxptchunk(ixpt,1,iv))
-                enddo
+!                do iv=1,Nivxptchunk(ixpt, 1)
+!                    yldotcut(ivxptchunk(ixpt,1,iv)) = yldotcut(ivxptchunk(ixpt,1,iv)) &
+!                    &       + yldotcopy(ivxptchunk(ixpt,1,iv))
+!                enddo
 
             END DO
-            !$OMP END DO
-            !$OMP END PARALLEL
+!            !$OMP END DO
+!            !$OMP END PARALLEL
         else 
             !$OMP PARALLEL
-            !$OMP DO    PRIVATE(ichunk) SCHEDULE(dynamic) &
+            !$OMP DO    PRIVATE(ichunk, iv) SCHEDULE(dynamic) &
             !$OMP &      FIRSTPRIVATE(ylcopy, yldotcopy) REDUCTION(+:yldottot)
             DO ichunk= 1, Nchunks
 
@@ -3921,13 +3929,16 @@ END SUBROUTINE OMPSplitIndex
             END IF
             !$OMP END TEAMS
 
-        yldot(:neq) = yldottot !+ yldotcut
-        do ii = 1, neq
-            if (yldotcut(ii).gt.0) then
-                if (ABS((yldottot(ii)-yldotcut(ii))/yldottot(ii)).gt.1e-6) &
-                &   write(*,*) yldotcut(ii), yldottot(ii)
-            endif
-        end do
+        yldot = yldottot !+ yldotcut
+        write(*,*) "===========", Nivxptchunk(1,1)
+        do ixpt = 1, nxpt
+            do ii=1,Nivxptchunk(ixpt, 1)
+                    iv = ivxptchunk(ixpt,1,ii)
+!                    write(*,*) iv, ii
+                    if (ABS((yldottot(iv)-yldotcut(iv))/yldottot(iv)).gt.1e-6) &
+                    &   write(*,*) igyl(iv,:), iv!yldotcut(iv), yldottot(iv)
+            end do
+        enddo
             
         
         ParaTime = ParaTime + tock(tpara)
@@ -3965,6 +3976,8 @@ END SUBROUTINE OMPSplitIndex
       USE Ynorm, ONLY: isflxvar, isrscalf
       USE Time_dep_nwt, ONLY: dtreal
       USE Selec, ONLY: yinc, xrinc, xlinc
+
+        Use Compla, Only: ni
       IMPLICIT NONE
       INTEGER, INTENT(IN) :: neq
       INTEGER, INTENT(IN), DIMENSION(4) :: range
@@ -4060,6 +4073,9 @@ END SUBROUTINE OMPSplitIndex
       USE Ynorm, ONLY: isflxvar, isrscalf
       USE Time_dep_nwt, ONLY: dtreal
       USE Selec, ONLY: yinc, xrinc, xlinc
+      USE Indices_domain_dcl, ONLY: iymnbcl
+
+        Use Compla, Only: ni
       IMPLICIT NONE
       INTEGER, INTENT(IN) :: neq
       INTEGER, INTENT(IN), DIMENSION(2,4) :: ranges
@@ -4070,7 +4086,6 @@ END SUBROUTINE OMPSplitIndex
         ! Initialize local thread ranges
         xc=-1; yc=-1
 !        call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
-
         ! Calculate plasma variables from yl
         do ii = 1, 2
             call OMPinitialize_ranges2d(ranges(ii,:))
@@ -4080,7 +4095,7 @@ END SUBROUTINE OMPSplitIndex
             call OMPinitialize_ranges2d(ranges(ii,:))
             call convsr_vo2 (xc, yc, yl) 
         end do
-            ! Calculate derived quantities frequently used
+        ! Calculate derived quantities frequently used
         do ii = 1, 2
             call OMPinitialize_ranges2d(ranges(ii,:))
             call convsr_aux1 (xc, yc)
@@ -4089,7 +4104,7 @@ END SUBROUTINE OMPSplitIndex
             call OMPinitialize_ranges2d(ranges(ii,:))
             call convsr_aux2 (xc, yc)
         end do
-            ! Calculate the plasma diffusivities and drift velocities
+        ! Calculate the plasma diffusivities and drift velocities
         do ii = 1, 2
             call OMPinitialize_ranges2d(ranges(ii,:))
             call calc_plasma_diffusivities
@@ -4106,15 +4121,11 @@ END SUBROUTINE OMPSplitIndex
             call OMPinitialize_ranges2d(ranges(ii,:))
             call calc_driftterms2
         end do
-        do ii = 1, 2
-            call OMPinitialize_ranges2d(ranges(ii,:))
-        end do
-            ! Calculate currents and potential
         if(isphion+isphiofft .eq. 1) then
-            do ii = 1, 2
-                call OMPinitialize_ranges2d(ranges(ii,:))
-                call calc_currents
-            end do
+            call initialize_ranges(xc, yc, 2, 2, 2)
+            ! TODO: FIX CURRENTS AND POTENTIALS
+            ! Calculate currents and potential
+            call calc_currents
             do ii = 1, 2
                 call OMPinitialize_ranges2d(ranges(ii,:))
                 call calc_fqp1
@@ -4124,7 +4135,7 @@ END SUBROUTINE OMPSplitIndex
                 call calc_fqp2
             end do
         endif
-            ! Get friction and electron velocities
+        ! Get friction and electron velocities
         do ii = 1, 2
             call OMPinitialize_ranges2d(ranges(ii,:))
             call calc_friction(xc)
@@ -4133,7 +4144,7 @@ END SUBROUTINE OMPSplitIndex
             call OMPinitialize_ranges2d(ranges(ii,:))
             call calc_elec_velocities
         end do
-            ! Volumetric plasma and gas sinks & sources
+        ! Volumetric plasma and gas sinks & sources
         do ii = 1, 2
             call OMPinitialize_ranges2d(ranges(ii,:))
             call calc_volumetric_sources(xc, yc)
@@ -4148,7 +4159,7 @@ END SUBROUTINE OMPSplitIndex
             call OMPinitialize_ranges2d(ranges(ii,:))
             call calc_srcmod
         end do
-            ! Calculate plasma & gas conductivities etc.
+        ! Calculate plasma & gas conductivities etc.
         do ii = 1, 2
             call OMPinitialize_ranges2d(ranges(ii,:))
             call calc_plasma_viscosities
@@ -4165,19 +4176,14 @@ END SUBROUTINE OMPSplitIndex
             call OMPinitialize_ranges2d(ranges(ii,:))
             call calc_gas_heatconductivities
         end do
-        do ii = 1, 2
-            call OMPinitialize_ranges2d(ranges(ii,:))
-            call engbalg
-        end do
+        ! TODO: Fix ENGBALG
+        call initialize_ranges(xc, yc, 2, 2, 2)
+        call engbalg
         do ii = 1, 2
             call OMPinitialize_ranges2d(ranges(ii,:))
             call calc_plasma_transport
         end do
-
-        do ii = 1, 2
-            call OMPinitialize_ranges2d(ranges(ii,:))
-            call calc_fniycbo 
-        end do
+        call calc_fniycbo 
         do ii = 1, 2
             call OMPinitialize_ranges2d(ranges(ii,:))
             call calc_plasma_momentum_coeffs
@@ -4194,52 +4200,32 @@ END SUBROUTINE OMPSplitIndex
             call OMPinitialize_ranges2d(ranges(ii,:))
             call calc_gas_energy
         end do
-        do ii = 1, 2
-            call OMPinitialize_ranges2d(ranges(ii,:))
-            call calc_feeiycbo 
-        end do
-        do ii = 1, 2
-            call OMPinitialize_ranges2d(ranges(ii,:))
-            call calc_atom_seic 
-        end do
-
+        call calc_feeiycbo 
+        ! TODO: FIX THIS 
+        call initialize_ranges(xc, yc, 2, 2, 2)
+        call calc_atom_seic 
         do ii = 1, 2
             call OMPinitialize_ranges2d(ranges(ii,:))
             call calc_plasma_particle_residuals
-        end do
-        do ii = 1, 2
-            call OMPinitialize_ranges2d(ranges(ii,:))
             call calc_gas_continuity_residuals
-        end do
-        do ii = 1, 2
-            call OMPinitialize_ranges2d(ranges(ii,:))
             call calc_plasma_momentum_residuals
-        end do
-        do ii = 1, 2
-            call OMPinitialize_ranges2d(ranges(ii,:))
             call calc_plasma_energy_residuals(xc, yc)
-        end do
-        do ii = 1, 2
-            call OMPinitialize_ranges2d(ranges(ii,:))
             call calc_gas_energy_residuals
-        end do
-        do ii = 1, 2
-            call OMPinitialize_ranges2d(ranges(ii,:))
             if (isphion.eq.1) call calc_potential_residuals
         end do
-
-            ! Calculate yldot vector
+        ! Calculate yldot vector
         do ii = 1, 2
             call OMPinitialize_ranges2d(ranges(ii,:))
             call calc_rhs(yldot)
         end do
-            ! Set boundary conditions directly in yldot
+        ! Set boundary conditions directly in yldot
         do ii = 1, 2
             call OMPinitialize_ranges2d(ranges(ii,:))
             call bouncon(neq, yldot)
         end do
-            if (TimingPandfOn.gt.0) & 
-            &      TotTimePandf=TotTimePandf+tock(TimePandf)
+
+        if (TimingPandfOn.gt.0) & 
+        &      TotTimePandf=TotTimePandf+tock(TimePandf)
 
             ! ================ BEGIN OLD PANDF1 ===================
 
@@ -4252,7 +4238,6 @@ END SUBROUTINE OMPSplitIndex
             call OMPinitialize_ranges2d(ranges(ii,:))
             if(isflxvar.ne.1 .and. isrscalf.eq.1) call rscalf(yl,yldot)
         end do
-
         if(dtreal < 1.e15) then
             if ( &
             &   (svrpkg=='nksol' .and. yl(neq+1)<0) &
