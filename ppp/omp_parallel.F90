@@ -675,7 +675,6 @@ END SUBROUTINE OMPSplitIndex
       nfsp = nisp
       if (isimpon .eq. 3 .or. isimpon .eq. 4) nfsp = nhsp
 
-
     i1 = max(0, xs)
     i2 = max(1, xs)
     i2p = max(1, xs)
@@ -699,6 +698,32 @@ END SUBROUTINE OMPSplitIndex
     j6p = min(ny+1, ye)
     j7 = ye
     j8 = min(ny+1, ye)
+
+
+
+    i1 = max(0, xs-3)
+    i2 = max(1, xs-2)
+    i2p = max(1, xs-3)
+    i3 = xs-2
+    i4 = max(0, xs-2)
+    i5 = min(nx, xe+2)
+    i5m = min(nx-1, xe+2)
+    i6 = min(nx+1, xe+3)
+    i7 = xe+2
+    i8 = min(nx+1, xe+2)
+    j1 = max(0, ys-3)
+    j2 = max(1, ys-2)
+    j1p = max(0, ys-4)
+    j2p = max(1, ys-3)
+    j3 = ys-2
+    j4 = max(0, ys-2)
+    j5 = min(ny, ye+2)
+    j5m = min(ny-1, ye+2)
+    j6 = min(ny+1, ye+2)
+    j5p = min(ny, ye+3)
+    j6p = min(ny+1, ye+3)
+    j7 = ye+2
+    j8 = min(ny+1, ye+2)
 
     ixs = i2
     ixf = i5
@@ -3745,6 +3770,7 @@ END SUBROUTINE OMPSplitIndex
     ParallelPandfCall = 1
     ylcopy = yl(:neq)
     yldotcopy = yldot(:neq)
+    yldottot = 0
 
 !        tpara = tick()
 !        ParaTime = ParaTime + tock(tpara)
@@ -3753,15 +3779,19 @@ END SUBROUTINE OMPSplitIndex
 !        call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
 !        SerialTime = SerialTime + tock(tserial)
 
+    Nxchunks = 1
     if (ijactot.gt.0) then
     ! TODO: move to initializer
         Time1=omp_get_wtime()
         call Make2DChunks(Nxchunks, Nychunks, Nchunks, Nivchunk, &
         &   ivchunk, rangechunk, ixychunk, Nixychunk)
 
-        call Make2DChunks(nx, ny, Nchunks_convert, Nivchunk_convert, &
-        &   ivchunk_convert, rangechunk_convert, ixychunk_convert, & 
-        &   Nixychunk_convert)
+!        call Make2DChunks(Nxchunks, Nychunks, Nchunks, Nivchunk, &
+!        &   ivchunk, rangechunk, ixychunk, Nixychunk)
+
+!        call Make2DChunks(nx, ny, Nchunks_convert, Nivchunk_convert, &
+!        &   ivchunk_convert, rangechunk_convert, ixychunk_convert, & 
+!        &   Nixychunk_convert)
 
         tpara = tick()
         !$OMP TEAMS NUM_TEAMS(2) PRIVATE(tid)
@@ -3776,8 +3806,19 @@ END SUBROUTINE OMPSplitIndex
 
         else 
             !$OMP PARALLEL
-            !$OMP DO PRIVATE(ichunk, xc, yc) SCHEDULE(static) 
-            DO ichunk= 1, 100
+            !$OMP DO    PRIVATE(ichunk, xc, yc) SCHEDULE(dynamic) &
+            !$OMP &      FIRSTPRIVATE(ylcopy, yldotcopy) REDUCTION(+:yldottot)
+            DO ichunk= 1, Nchunks
+
+                psorcxg = 0
+                psorrg = 0
+                psordis = 0
+                call OMPPandf(neq, ylcopy, yldotcopy, rangechunk(ichunk,:))
+
+                do iv=1,Nivchunk(ichunk)
+                    yldottot(ivchunk(ichunk,iv)) = yldottot(ivchunk(ichunk,iv)) &
+                    &       + yldotcopy(ivchunk(ichunk,iv))
+                enddo
 !                write(*,*) "TASK2", omp_get_thread_num(), ichunk
             END DO
             !$OMP END DO
@@ -3785,11 +3826,12 @@ END SUBROUTINE OMPSplitIndex
             END IF
             !$OMP END TEAMS
 
+        yldot(:neq) = yldottot
             
         
         ParaTime = ParaTime + tock(tpara)
 
-        call OMPPandf(neq, yl, yldot, rangechunk(1,:))
+!        call OMPPandf(neq, yl, yldot, rangechunk(1,:))
         Time1=omp_get_wtime()-Time1
 
         OMPTimeParallelPandf1=Time1+OMPTimeParallelPandf1
@@ -3828,9 +3870,9 @@ END SUBROUTINE OMPSplitIndex
       INTEGER :: ichunk, xc, yc, ii
       REAL :: tick,tock!, tsfe, tsjf, ttotfe, ttotjf, tserial, tpara
         ! Initialize local thread ranges
-!        call OMPinitialize_ranges2d(range)
+        call OMPinitialize_ranges2d(range)
         xc=-1; yc=-1
-        call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
+!        call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
 
         ! Calculate plasma variables from yl
         call convsr_vo1 (xc, yc, yl)
