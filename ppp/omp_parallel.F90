@@ -8,7 +8,7 @@ CONTAINS
     Use Lsode, ONLY: neq
     Use Xpoint_indices, ONLY: iysptrx1, ixpt1, ixpt2
     IMPLICIT NONE
-    INTEGER, INTENT(INOUT):: N, Nxptchunks(2), Nxchunks, Nychunks
+    INTEGER, INTENT(INOUT):: N, Nxptchunks(nxpt), Nxchunks, Nychunks
 !    INTEGER, ALLOCATABLE, DIMENSION(:,:,:), INTENT(OUT):: ixychunk
     INTEGER, ALLOCATABLE, DIMENSION(:,:,:,:), INTENT(OUT):: rangexptchunk
     INTEGER, ALLOCATABLE, DIMENSION(:,:,:), INTENT(OUT)::  ivxptchunk
@@ -17,7 +17,7 @@ CONTAINS
     INTEGER, ALLOCATABLE, DIMENSION(:), INTENT(OUT)::  Niv !, Nixy
     INTEGER:: Nmax!, Nixymax
     integer:: ix, iy, nxi, nyi, ii, idx(2), idxl, ixpt, iix, iicut, iscut
-    real:: dx, dy
+    real:: dx, dy, dyxpt(2)
     integer, allocatable:: xlims(:,:), ylims(:,:), xlimsxpt(:,:,:,:), ylimsxpt(:,:,:,:)
     ! TODO: Resize & use local variables, allocate real variables at last step only 
 
@@ -27,8 +27,10 @@ CONTAINS
     ! Calculate the number of chunks needed maximum
     N = Nxchunks * Nychunks
     do ixpt = 1, nxpt
-        Nxptchunks(ixpt) = 1 ! Number of X-point chunks
+        Nxptchunks(ixpt) = MIN(Nxptchunks(ixpt),iysptrx1(ixpt)-1) ! Number of X-point chunks
+        dyxpt(ixpt) = real(iysptrx1(ixpt)-1)/(Nxptchunks(ixpt)+1)
     end do
+    write(*,*) Nxptchunks(:)
     Nmax = neq
 !    Nixymax = (nx+2)*(ny+2)
     ! Get the dx/dy per chunk
@@ -39,35 +41,46 @@ CONTAINS
     &   ivchunk(N, Nmax), rangechunk(N, 4), Niv(N), ylimsxpt(nxpt, 2, MAXVAL(Nxptchunks),2), &
     &   ivxptchunk(nxpt,MAXVAL(Nxptchunks),Nmax), Nivxpt(nxpt,MAXVAL(Nxptchunks)), &
     &   rangexptchunk(nxpt,2,MAXVAL(Nxptchunks),4))!, Nixy(N))
-    ! Calculate X- & Y-chunks here once needed - start with Y-chunks
     ! Calculate poloidal X-point intervals
     do ixpt = 1, nxpt ! Separate teams for each X-point
-        do iix = 1, Nxptchunks(ixpt) ! Number of threads per Xpt - 1 for now
+        ! Calculate Y-chunks
+        ylimsxpt(ixpt,1,1,1) = 2; ylimsxpt(ixpt,1,1,2)=1+max(1,int(dyxpt(ixpt)))
+        ylimsxpt(ixpt,2,1,1) = 2; ylimsxpt(ixpt,2,1,2)=1+max(1,int(dyxpt(ixpt)))
+        do iix = 2, Nxptchunks(ixpt)-1 ! Number of threads per Xpt - 1 for now
+            ! Left cut
+            ylimsxpt(ixpt, 1, iix, 1) = ylimsxpt(ixpt, 1, iix-1, 2)+1
+            ylimsxpt(ixpt, 1, iix, 2) = 2+int(dyxpt(ixpt)*iix)
+            ! Right cut
+            ylimsxpt(ixpt, 2, iix, 1) = ylimsxpt(ixpt, 2, iix-1, 2)+1
+            ylimsxpt(ixpt, 2, iix, 2) = 2+int(dyxpt(ixpt)*iix)
+        end do
+        if (Nxptchunks(ixpt) .gt. 1) then
+            ylimsxpt(ixpt, 1, Nxptchunks(ixpt),1) = ylimsxpt(ixpt,1,Nxptchunks(ixpt)-1,2)+1
+            ylimsxpt(ixpt, 2, Nxptchunks(ixpt),1) = ylimsxpt(ixpt,2,Nxptchunks(ixpt)-1,2)+1
+        endif
+        ylimsxpt(ixpt, 1, Nxptchunks(ixpt),2) = iysptrx1(ixpt)
+        ylimsxpt(ixpt, 2, Nxptchunks(ixpt),2) = iysptrx1(ixpt)
+        ! Set X-chunks
+        do iix = 1, Nxptchunks(ixpt)
             ! Left cut
             xlimsxpt(ixpt, 1, iix, 1) = ixpt1(ixpt)
             xlimsxpt(ixpt, 1, iix, 2) = ixpt1(ixpt)+1
-            ylimsxpt(ixpt, 1, iix, 1) = 2
-            ylimsxpt(ixpt, 1, iix, 2) = iysptrx1(ixpt)
             ! Right cut
             xlimsxpt(ixpt, 2, iix, 1) = ixpt2(ixpt)
             xlimsxpt(ixpt, 2, iix, 2) = ixpt2(ixpt)+1
-            ylimsxpt(ixpt, 2, iix, 1) = 2
-            ylimsxpt(ixpt, 2, iix, 2) = iysptrx1(ixpt)
         end do
-        ! Create ranges - setup for potential future chunking
-        do ix = 1, 1
-            do iy = 1, 1
+        ! Create ranges 
+        do iix = 1, Nxptchunks(ixpt)
                 ! Left cut
-                rangexptchunk(ixpt, 1, ix*iy, 1) = xlimsxpt(ixpt, 1, ix*iy, 1)
-                rangexptchunk(ixpt, 1, ix*iy, 2) = xlimsxpt(ixpt, 1, ix*iy, 2)
-                rangexptchunk(ixpt, 1, ix*iy, 3) = ylimsxpt(ixpt, 1, ix*iy, 1)
-                rangexptchunk(ixpt, 1, ix*iy, 4) = ylimsxpt(ixpt, 1, ix*iy, 2)
+                rangexptchunk(ixpt, 1, iix, 1) = xlimsxpt(ixpt, 1, iix, 1)
+                rangexptchunk(ixpt, 1, iix, 2) = xlimsxpt(ixpt, 1, iix, 2)
+                rangexptchunk(ixpt, 1, iix, 3) = ylimsxpt(ixpt, 1, iix, 1)
+                rangexptchunk(ixpt, 1, iix, 4) = ylimsxpt(ixpt, 1, iix, 2)
                 ! Right cut
-                rangexptchunk(ixpt, 2, ix*iy, 1) = xlimsxpt(ixpt, 2, ix*iy, 1)
-                rangexptchunk(ixpt, 2, ix*iy, 2) = xlimsxpt(ixpt, 2, ix*iy, 2)
-                rangexptchunk(ixpt, 2, ix*iy, 3) = ylimsxpt(ixpt, 2, ix*iy, 1)
-                rangexptchunk(ixpt, 2, ix*iy, 4) = ylimsxpt(ixpt, 2, ix*iy, 2)
-            end do
+                rangexptchunk(ixpt, 2, iix, 1) = xlimsxpt(ixpt, 2, iix, 1)
+                rangexptchunk(ixpt, 2, iix, 2) = xlimsxpt(ixpt, 2, iix, 2)
+                rangexptchunk(ixpt, 2, iix, 3) = ylimsxpt(ixpt, 2, iix, 1)
+                rangexptchunk(ixpt, 2, iix, 4) = ylimsxpt(ixpt, 2, iix, 2)
         end do
     end do
     ! TODO: Ensure one parallel chunk spans the whole iy=0 boundary!
@@ -3865,6 +3878,7 @@ END SUBROUTINE OMPSplitIndex
 !        SerialTime = SerialTime + tock(tserial)
 
     Nxchunks = 1
+    Nxptchunks(1) = 1
     if (ijactot.gt.0) then
     ! TODO: move to initializer
         Time1=omp_get_wtime()
