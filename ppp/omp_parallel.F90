@@ -3885,10 +3885,6 @@ END SUBROUTINE OMPSplitIndex
         &   ivchunk, rangechunk, Nxptchunks, Nivxptchunk, ivxptchunk, &
         &   rangexptchunk)
 
-        do ii = 1, Nchunks
-            write(*,*) rangechunk(ii,:)
-        end do
-!, ixychunk, Nixychunk)
 
 !        call Make2DChunks(Nxchunks, Nychunks, Nchunks, Nivchunk, &
 !        &   ivchunk, rangechunk, ixychunk, Nixychunk)
@@ -4015,25 +4011,49 @@ END SUBROUTINE OMPSplitIndex
       &     TimeNeudif, TotTimeNeudif
       USE Ynorm, ONLY: isflxvar, isrscalf
       USE Time_dep_nwt, ONLY: dtreal
-      USE Selec, ONLY: yinc, xrinc, xlinc
-
-        Use Compla, Only: ni
-        USE Rhsides, ONLY: resco
+      USE Dim, ONLY: nxpt, nx
+      USE Xpoint_indices, ONLY: ixpt1, ixpt2, iysptrx1
       IMPLICIT NONE
       INTEGER, INTENT(IN) :: neq
       INTEGER, INTENT(IN), DIMENSION(4) :: range
       REAL, INTENT(IN), DIMENSION(neq+2) :: yl
       REAL, INTENT(OUT), DIMENSION(neq) :: yldot
-      INTEGER :: ichunk, xc, yc, ii
+      INTEGER :: ichunk, xc, yc, ii, locrange(4), ixpt
       REAL :: tick,tock!, tsfe, tsjf, ttotfe, ttotjf, tserial, tpara
+
+        ! Patch cells that locally intercept the X-point
+        locrange = range
+        do ixpt = 1, nxpt
+            ! Chunk spanning left cut
+            if (     (locrange(1).lt.ixpt1(ixpt)) &
+            &   .and.(locrange(2).gt.ixpt1(ixpt)) &
+            &   .and.(locrange(2).le.ixpt2(ixpt)) &
+            &   .and.(locrange(3).le.iysptrx1(ixpt))) then
+                locrange(2) = ixpt2(ixpt)
+                locrange(4) = iysptrx1(ixpt)
+                ! This clause should catch any chunks fully in the core region
+                locrange(1) = min(locrange(1), ixpt1(ixpt)+1)
+            ! Chunk spanning right cut
+            elseif ( (locrange(1).lt.ixpt2(ixpt)) &
+            &   .and.(locrange(2).gt.ixpt2(ixpt)) &
+            &   .and.(locrange(1).gt.ixpt1(ixpt)) &
+            &   .and.(locrange(3).le.iysptrx1(ixpt))) then
+                locrange(1) = ixpt1(ixpt)+1
+                locrange(4) = iysptrx1(ixpt)
+            endif
+            call OMPinitialize_ranges2d(locrange)
+            call convsr_vo1 (xc, yc, yl)
+        end do
+
+
         ! Initialize local thread ranges
-        call OMPinitialize_ranges2d(range)
+        call OMPinitialize_ranges2d(locrange)
         xc=-1; yc=-1
-!        call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
 
         ! Calculate plasma variables from yl
         call convsr_vo1 (xc, yc, yl)
         call initialize_ranges(xc, yc, 2,2,2)
+
         call convsr_vo2 (xc, yc, yl) 
         ! Calculate derived quantities frequently used
         call convsr_aux1 (xc, yc)
