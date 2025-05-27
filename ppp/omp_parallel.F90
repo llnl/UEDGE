@@ -8,7 +8,7 @@ CONTAINS
     Use Lsode, ONLY: neq
     Use Xpoint_indices, ONLY: iysptrx1, ixpt1, ixpt2
     IMPLICIT NONE
-    INTEGER, INTENT(INOUT):: N, Nxptchunks, Nxchunks, Nychunks
+    INTEGER, INTENT(INOUT):: N, Nxptchunks(2), Nxchunks, Nychunks
 !    INTEGER, ALLOCATABLE, DIMENSION(:,:,:), INTENT(OUT):: ixychunk
     INTEGER, ALLOCATABLE, DIMENSION(:,:,:,:), INTENT(OUT):: rangexptchunk
     INTEGER, ALLOCATABLE, DIMENSION(:,:,:), INTENT(OUT)::  ivxptchunk
@@ -26,21 +26,23 @@ CONTAINS
     Nychunks = MAX(MIN(ny, Nychunks),1)
     ! Calculate the number of chunks needed maximum
     N = Nxchunks * Nychunks
-    Nxptchunks = 1 ! Number of X-point chunks
+    do ixpt = 1, nxpt
+        Nxptchunks(ixpt) = 1 ! Number of X-point chunks
+    end do
     Nmax = neq
 !    Nixymax = (nx+2)*(ny+2)
     ! Get the dx/dy per chunk
     dx = real(nx)/Nxchunks
     dy = real(ny)/Nychunks
     ! Allocate the necassary arrays
-    allocate( xlims(Nxchunks,2), ylims(Nychunks,2), xlimsxpt(nxpt, 2, Nxptchunks,2), &!ixychunk(N, Nixymax, 2), &
-    &   ivchunk(N, Nmax), rangechunk(N, 4), Niv(N), ylimsxpt(nxpt, 2, Nxptchunks,2), &
-    &   ivxptchunk(nxpt,Nxptchunks,Nmax), Nivxpt(nxpt,Nxptchunks), &
-    &   rangexptchunk(nxpt,2,Nxptchunks,4))!, Nixy(N))
+    allocate( xlims(Nxchunks,2), ylims(Nychunks,2), xlimsxpt(nxpt, 2, MAXVAL(Nxptchunks),2), &!ixychunk(N, Nixymax, 2), &
+    &   ivchunk(N, Nmax), rangechunk(N, 4), Niv(N), ylimsxpt(nxpt, 2, MAXVAL(Nxptchunks),2), &
+    &   ivxptchunk(nxpt,MAXVAL(Nxptchunks),Nmax), Nivxpt(nxpt,MAXVAL(Nxptchunks)), &
+    &   rangexptchunk(nxpt,2,MAXVAL(Nxptchunks),4))!, Nixy(N))
     ! Calculate X- & Y-chunks here once needed - start with Y-chunks
     ! Calculate poloidal X-point intervals
     do ixpt = 1, nxpt ! Separate teams for each X-point
-        do iix = 1, Nxptchunks ! Number of threads per Xpt - 1 for now
+        do iix = 1, Nxptchunks(ixpt) ! Number of threads per Xpt - 1 for now
             ! Left cut
             xlimsxpt(ixpt, 1, iix, 1) = ixpt1(ixpt)
             xlimsxpt(ixpt, 1, iix, 2) = ixpt1(ixpt)+1
@@ -106,9 +108,9 @@ CONTAINS
         idx = igyl(ii,:)
         ! Get the X-point cut jacobian indices
         ! These loops will typically be much smaller than the main chunks
-        do iix = 1, Nxptchunks
-            do iicut = 1, 2 
-                do ixpt = 1, nxpt
+        do ixpt = 1, nxpt
+            do iix = 1, Nxptchunks(ixpt)
+                do iicut = 1, 2 
                     if (    (idx(1).ge.rangexptchunk(ixpt,iicut,iix,1)) &
                     &  .and.(idx(1).le.rangexptchunk(ixpt,iicut,iix,2)) &
                     &  .and.(idx(2).ge.rangexptchunk(ixpt,iicut,iix,3)) &
@@ -3816,7 +3818,7 @@ END SUBROUTINE OMPSplitIndex
 
     USE Indexes, ONLY: igyl
     IMPLICIT NONE
-    INTEGER:: Nchunks, Nxptchunks, Nchunks_convert
+    INTEGER:: Nchunks, Nchunks_convert
 !    INTEGER, ALLOCATABLE, DIMENSION(:,:,:):: ixychunk, ixychunk_convert
     INTEGER, ALLOCATABLE, DIMENSION(:,:,:,:) :: rangexptchunk
     INTEGER, ALLOCATABLE, DIMENSION(:,:,:) ::  ivxptchunk
@@ -3825,7 +3827,7 @@ END SUBROUTINE OMPSplitIndex
     INTEGER, ALLOCATABLE, DIMENSION(:) ::  Nivchunk, Nivchunk_convert
 !    &   Nixychunk_convert
 !    INTEGER, ALLOCATABLE, DIMENSION(:)::  Nivchunk, Nixychunk, Nivchunk_convert, &
-    INTEGER tid
+    INTEGER tid, Nxptchunks(nxpt)
 
  
     integer yinc_bkp,xrinc_bkp,xlinc_bkp,iv
@@ -3852,7 +3854,8 @@ END SUBROUTINE OMPSplitIndex
     ylcopy = yl
     yldotcopy = yldot
     yldottot = 0
-    yldotxpt1 = yldot
+    yldotxpt1 = 0
+    yldotxpt2 = 0
 
 !        tpara = tick()
 !        ParaTime = ParaTime + tock(tpara)
@@ -3884,35 +3887,40 @@ END SUBROUTINE OMPSplitIndex
         if ( omp_get_num_teams() .ne. nxpt+1 ) stop "Too few teams allocated"
         ! Do the first X-point - assumed to always be present
         if(tid .eq. 0) then
-!        !$OMP PARALLEL DO PRIVATE(ichunk) SCHEDULE(dynamic) &
-!        !$OMP &      FIRSTPRIVATE(ylcopy, yldotcopy) REDUCTION(+:yldotxpt1)
-!            DO ichunk = 1, Nxptchunks
+        !$OMP PARALLEL DO PRIVATE(ichunk) SCHEDULE(dynamic) &
+        !$OMP &      FIRSTPRIVATE(ylcopy, yldotcopy) REDUCTION(+:yldotxpt1)
+            DO ichunk = 1, Nxptchunks(1)
                 psorcxg = 0
                 psorrg = 0
                 psordis = 0
                 ! Only one chunk for the time being
-!                call OMPPandf_XPT(neq, ylcopy, yldotcopy, rangexptchunk(1, :, ichunk,:))
-                call OMPPandf_XPT(neq, ylcopy, yldotxpt1, rangexptchunk(1, :, 1,:))
+                call OMPPandf_XPT(neq, ylcopy, yldotcopy, rangexptchunk(1, :, ichunk,:))
 
-!                do iv=1,Nivxptchunk(1, ichunk)
-!                    yldotxpt1(ivxptchunk(1,ichunk,iv)) = yldotxpt1(ivxptchunk(1,ichunk,iv)) &
-!                    &       + yldotcopy(ivxptchunk(1,ichunk,iv))
-!                enddo
-!            END DO
-
-!            !$OMP END PARALLEL DO
+                do iv=1,Nivxptchunk(1, ichunk)
+                    yldotxpt1(ivxptchunk(1,ichunk,iv)) = yldotxpt1(ivxptchunk(1,ichunk,iv)) &
+                    &       + yldotcopy(ivxptchunk(1,ichunk,iv))
+                enddo
+            END DO
+        !$OMP END PARALLEL DO
         ! Do the second X-point if present
         elseif ((nxpt.eq.2).and.(tid.eq.1)) then
-            psorcxg = 0
-            psorrg = 0
-            psordis = 0
-            ! Only one chunk for the time being
-            call OMPPandf_XPT(neq, ylcopy, yldotxpt2, rangexptchunk(2, :, 1,:))
+        !$OMP PARALLEL DO PRIVATE(ichunk) SCHEDULE(dynamic) &
+        !$OMP &      FIRSTPRIVATE(ylcopy, yldotcopy) REDUCTION(+:yldotxpt1)
+            DO ichunk = 1, Nxptchunks(2)
+                psorcxg = 0
+                psorrg = 0
+                psordis = 0
+                ! Only one chunk for the time being
+                call OMPPandf_XPT(neq, ylcopy, yldotcopy, rangexptchunk(2, :, ichunk,:))
 
-!                do iv=1,Nivxptchunk(ixpt, 1)
-!                    yldotcut(ivxptchunk(ixpt,1,iv)) = yldotcut(ivxptchunk(ixpt,1,iv)) &
-!                    &       + yldotcopy(ivxptchunk(ixpt,1,iv))
-!                enddo
+                do iv=1,Nivxptchunk(2, ichunk)
+                    yldotxpt1(ivxptchunk(2,ichunk,iv)) = yldotxpt1(ivxptchunk(2,ichunk,iv)) &
+                    &       + yldotcopy(ivxptchunk(2,ichunk,iv))
+                enddo
+            END DO
+        !$OMP END PARALLEL DO
+
+
         else 
             !$OMP PARALLEL
             !$OMP DO    PRIVATE(ichunk, iv) SCHEDULE(dynamic) &
