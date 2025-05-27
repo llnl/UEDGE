@@ -3886,6 +3886,10 @@ END SUBROUTINE OMPSplitIndex
         &   rangexptchunk)
 
 
+!        write(*,*) '==========='
+!        do ii = 1, Nchunks
+!            write(*,*) rangechunk(ii,:)
+!        end do
 !        call Make2DChunks(Nxchunks, Nychunks, Nchunks, Nivchunk, &
 !        &   ivchunk, rangechunk, ixychunk, Nixychunk)
 
@@ -4018,31 +4022,56 @@ END SUBROUTINE OMPSplitIndex
       INTEGER, INTENT(IN), DIMENSION(4) :: range
       REAL, INTENT(IN), DIMENSION(neq+2) :: yl
       REAL, INTENT(OUT), DIMENSION(neq) :: yldot
-      INTEGER :: ichunk, xc, yc, ii, locrange(4), ixpt
+      INTEGER :: ichunk, xc, yc, ii, locrange(4), ixpt, corechunk = 1
       REAL :: tick,tock!, tsfe, tsjf, ttotfe, ttotjf, tserial, tpara
 
         ! Patch cells that locally intercept the X-point
+        corechunk = 0
         locrange = range
         do ixpt = 1, nxpt
             ! Chunk spanning left cut
-            if (     (locrange(1).lt.ixpt1(ixpt)) &
-            &   .and.(locrange(2).gt.ixpt1(ixpt)) &
-            &   .and.(locrange(2).le.ixpt2(ixpt)) &
-            &   .and.(locrange(3).le.iysptrx1(ixpt))) then
-                locrange(2) = ixpt2(ixpt)
-                locrange(4) = iysptrx1(ixpt)
-                ! This clause should catch any chunks fully in the core region
-                locrange(1) = min(locrange(1), ixpt1(ixpt)+1)
-            ! Chunk spanning right cut
-            elseif ( (locrange(1).lt.ixpt2(ixpt)) &
-            &   .and.(locrange(2).gt.ixpt2(ixpt)) &
-            &   .and.(locrange(1).gt.ixpt1(ixpt)) &
-            &   .and.(locrange(3).le.iysptrx1(ixpt))) then
-                locrange(1) = ixpt1(ixpt)+1
-                locrange(4) = iysptrx1(ixpt)
+            if (locrange(3).le.iysptrx1(ixpt)) then
+                ! This is likely required by the potential equation:
+                ! Investigate whether the equation can be collapsed
+                ! to avoid unnexxesary repeats of the whole core region
+                locrange(4) = max(locrange(4), iysptrx1(ixpt))
+                if (     (locrange(1).lt.ixpt1(ixpt)) &
+                &   .and.(locrange(2).gt.ixpt1(ixpt)) &
+                &   .and.(locrange(2).le.ixpt2(ixpt)) ) then
+                    locrange(2) = ixpt2(ixpt)
+                    corechunk = 1
+                ! Chunk spanning right cut
+                elseif ( (locrange(1).lt.ixpt2(ixpt)) &
+                &   .and.(locrange(2).gt.ixpt2(ixpt)) &
+                &   .and.(locrange(1).gt.ixpt1(ixpt)) ) then
+                    locrange(1) = ixpt1(ixpt)+1
+                    corechunk = 2
+                elseif ( (locrange(1).gt.ixpt1(ixpt)) &
+                &   .and.(locrange(2).le.ixpt2(ixpt)) ) then
+                    locrange(1) = ixpt1(ixpt)+1
+                    locrange(2) = ixpt2(ixpt)
+                    corechunk = 3
+                ! Not sure why the core region is needed for legs: potential again?
+                elseif (    (locrange(2).le.ixpt1(ixpt)) &
+                &       .or.(locrange(1).gt.ixpt2(ixpt)) ) then
+                    corechunk = -2
+                endif
             endif
-            call OMPinitialize_ranges2d(locrange)
-            call convsr_vo1 (xc, yc, yl)
+            ! Core-intersecting chunks
+            if (corechunk.gt.0) then
+                call OMPinitialize_ranges2d(locrange)
+                call convsr_vo1 (xc, yc, yl)
+            ! PF-intersecting chunks
+            elseif (corechunk.eq.-2) then
+                locrange(1) = 0
+                locrange(2) = ixpt1(ixpt) 
+                call OMPinitialize_ranges2d(locrange)
+                call convsr_vo1 (xc, yc, yl)
+                locrange(1) = ixpt2(ixpt)+1
+                locrange(2) = nx+1
+                call OMPinitialize_ranges2d(locrange)
+                call convsr_vo1 (xc, yc, yl)
+            end if
         end do
 
 
