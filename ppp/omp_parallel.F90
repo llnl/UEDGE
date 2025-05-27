@@ -42,15 +42,15 @@ CONTAINS
     do ixpt = 1, nxpt ! Separate teams for each X-point
         do iix = 1, Nxptchunks ! Number of threads per Xpt - 1 for now
             ! Left cut
-            xlimsxpt(ixpt, 1, iix, 1) = ixpt1(ixpt)-1
-            xlimsxpt(ixpt, 1, iix, 2) = ixpt1(ixpt)+2
-            ylimsxpt(ixpt, 1, iix, 1) = 0
-            ylimsxpt(ixpt, 1, iix, 2) = iysptrx1(ixpt)+2
+            xlimsxpt(ixpt, 1, iix, 1) = ixpt1(ixpt)
+            xlimsxpt(ixpt, 1, iix, 2) = ixpt1(ixpt)+1
+            ylimsxpt(ixpt, 1, iix, 1) = 2
+            ylimsxpt(ixpt, 1, iix, 2) = iysptrx1(ixpt)
             ! Right cut
-            xlimsxpt(ixpt, 2, iix, 1) = ixpt2(ixpt)-1
-            xlimsxpt(ixpt, 2, iix, 2) = ixpt2(ixpt)+2
-            ylimsxpt(ixpt, 2, iix, 1) = 0
-            ylimsxpt(ixpt, 2, iix, 2) = iysptrx1(ixpt)+2
+            xlimsxpt(ixpt, 2, iix, 1) = ixpt2(ixpt)
+            xlimsxpt(ixpt, 2, iix, 2) = ixpt2(ixpt)+1
+            ylimsxpt(ixpt, 2, iix, 1) = 2
+            ylimsxpt(ixpt, 2, iix, 2) = iysptrx1(ixpt)
         end do
         ! Create ranges - setup for potential future chunking
         do ix = 1, 1
@@ -68,7 +68,7 @@ CONTAINS
             end do
         end do
     end do
-
+    ! TODO: Ensure one parallel chunk spans the whole iy=0 boundary!
     ! Calculate poloidal chunking intervals
     ! Include protections for boundaries
     xlims(1,1) = 0; xlims(1,2)=max(1,int(dx))
@@ -116,8 +116,7 @@ CONTAINS
                     & ) then
                         Nivxpt(ixpt,iix) = Nivxpt(ixpt,iix) + 1
                         ivxptchunk(ixpt,iix,Nivxpt(ixpt,iix)) = ii
-! TODO: remove comment when to test X-point cut
-!                        iscut=1
+                        iscut=1
                     endif
                 end do
             end do
@@ -3930,13 +3929,14 @@ END SUBROUTINE OMPSplitIndex
             !$OMP END TEAMS
 
         yldot = yldottot !+ yldotcut
-        write(*,*) "===========", Nivxptchunk(1,1)
+        write(*,*) "===========", SUM(Nivchunk),Nivxptchunk(1,1)
         do ixpt = 1, nxpt
             do ii=1,Nivxptchunk(ixpt, 1)
                     iv = ivxptchunk(ixpt,1,ii)
+                    yldot(iv) = yldotcut(iv)
 !                    write(*,*) iv, ii
-                    if (ABS((yldottot(iv)-yldotcut(iv))/yldottot(iv)).gt.1e-6) &
-                    &   write(*,*) igyl(iv,:), iv!yldotcut(iv), yldottot(iv)
+!                    if (ABS((yldottot(iv)-yldotcut(iv))/yldottot(iv)).gt.1e-6) &
+!                    &   write(*,*) igyl(iv,:), iv!yldotcut(iv), yldottot(iv)
             end do
         enddo
             
@@ -4043,12 +4043,8 @@ END SUBROUTINE OMPSplitIndex
 
         ! Calculate yldot vector
         call calc_rhs(yldot)
-        if ((43.ge.range(1)).and.(43.le.range(2)).and.(range(3).eq.0)) &
-        &   write(*,*) "P1", yldot(646), yldot(661)
         ! Set boundary conditions directly in yldot
         call bouncon(neq, yldot)
-        if ((43.ge.range(1)).and.(43.le.range(2)).and.(range(3).eq.0)) &
-        &   write(*,*) "P2", yldot(646), yldot(661)
         if (TimingPandfOn.gt.0) & 
         &      TotTimePandf=TotTimePandf+tock(TimePandf)
 
@@ -4088,10 +4084,15 @@ END SUBROUTINE OMPSplitIndex
       INTEGER, INTENT(IN), DIMENSION(2,4) :: ranges
       REAL, INTENT(IN), DIMENSION(neq+2) :: yl
       REAL, INTENT(OUT), DIMENSION(neq) :: yldot
+      INTEGER, DIMENSION(4) :: corerange
       INTEGER :: ichunk, xc, yc, ii
       REAL :: tick,tock!, tsfe, tsjf, ttotfe, ttotjf, tserial, tpara
         ! Initialize local thread ranges
         xc=-1; yc=-1
+        corerange(1) = ranges(1,1)
+        corerange(2) = ranges(2,2)
+        corerange(3) = ranges(1,3)
+        corerange(4) = ranges(2,4)
 !        call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
         ! Calculate plasma variables from yl
         do ii = 1, 2
@@ -4129,9 +4130,9 @@ END SUBROUTINE OMPSplitIndex
             call calc_driftterms2
         end do
         if(isphion+isphiofft .eq. 1) then
-            call initialize_ranges(xc, yc, 2, 2, 2)
-            ! TODO: FIX CURRENTS AND POTENTIALS
             ! Calculate currents and potential
+            ! The potential is required over the whole core area
+            call OMPinitialize_ranges2d(corerange)
             call calc_currents
             do ii = 1, 2
                 call OMPinitialize_ranges2d(ranges(ii,:))
@@ -4184,7 +4185,7 @@ END SUBROUTINE OMPSplitIndex
             call calc_gas_heatconductivities
         end do
         ! TODO: Fix ENGBALG
-        call initialize_ranges(xc, yc, 2, 2, 2)
+        call OMPinitialize_ranges2d(corerange)
         call engbalg
         do ii = 1, 2
             call OMPinitialize_ranges2d(ranges(ii,:))
@@ -4208,8 +4209,8 @@ END SUBROUTINE OMPSplitIndex
             call calc_gas_energy
         end do
         call calc_feeiycbo 
-        ! TODO: FIX THIS 
-        call initialize_ranges(xc, yc, 2, 2, 2)
+        ! TODO: FIX ATOM_SEIC 
+        call OMPinitialize_ranges2d(corerange)
         call calc_atom_seic 
         do ii = 1, 2
             call OMPinitialize_ranges2d(ranges(ii,:))
@@ -4226,15 +4227,14 @@ END SUBROUTINE OMPSplitIndex
             call OMPinitialize_ranges2d(ranges(ii,:))
             call calc_rhs(yldot)
         end do
-        write(*,*) "S1", yldot(646), yldot(661)
-        ! Set boundary conditions directly in yldot
-        do ii = 1, 2
-            call OMPinitialize_ranges2d(ranges(ii,:))
-            if (iymnbcl .ne. 0) call iwall_boundary(neq, yldot)
-        end do
-        call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
-        if (iymnbcl .ne. 0) call iwall_boundary(neq, yldot)
-        write(*,*) "S2", yldot(646), yldot(661)
+        ! TODO: Use separate parallel chunk to set core boundary
+!        ! Set boundary conditions directly in yldot
+!        do ii = 1, 2
+!            call OMPinitialize_ranges2d(ranges(ii,:))
+!            if (iymnbcl .ne. 0) call iwall_boundary(neq, yldot)
+!        end do
+!        call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
+!        if (iymnbcl .ne. 0) call iwall_boundary(neq, yldot)
 
         if (TimingPandfOn.gt.0) & 
         &      TotTimePandf=TotTimePandf+tock(TimePandf)
