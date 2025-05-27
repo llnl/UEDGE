@@ -3833,15 +3833,15 @@ END SUBROUTINE OMPSplitIndex
     real,intent(in)::yl(neq+1)
     real,intent(out)::yldot(neq)
     real,intent(in)::time
-    real::yldotcopy(1:neq),yldotcut(1:neq), ylcut(neq+2)
-    real yldotsave(1:neq),ylcopy(1:neq+2), yldottot(1:neq)
+    real:: yldotcopy(neq),yldotxpt1(neq),yldotxpt2(neq) 
+    real:: yldottot(neq), yldotxpt1tot(neq), yldotxpt2tot(neq) 
+    real yldotsave(neq),ylcopy(neq+2)
     character*80 ::FileName
     real time1,time2
     INTEGER:: ichunk, xc, yc, ii, icut, ixpt
     real tmp_prad(0:nx+1, 0:ny+1)
     real tick,tock, tsfe, tsjf, ttotfe, ttotjf, tserial, tpara
     external tick, tock
-    real yldot1(1:neq), yldot2(1:neq)
     integer dummy(4)
     dummy(1) = 0
     dummy(2) = nx+1
@@ -3850,10 +3850,9 @@ END SUBROUTINE OMPSplitIndex
 
     ParallelPandfCall = 1
     ylcopy = yl
-    ylcut = yl
     yldotcopy = yldot
     yldottot = 0
-    yldotcut = yldot
+    yldotxpt1 = yldot
 
 !        tpara = tick()
 !        ParaTime = ParaTime + tock(tpara)
@@ -3880,33 +3879,40 @@ END SUBROUTINE OMPSplitIndex
 !        &   Nixychunk_convert)
 
         tpara = tick()
-        !$OMP TEAMS NUM_TEAMS(2) PRIVATE(tid)
+        !$OMP TEAMS NUM_TEAMS(nxpt+1) PRIVATE(tid)
         tid = omp_get_team_num()
-        if ( omp_get_num_teams() .ne. 2 ) stop "Too few teams allocated"
-
-
+        if ( omp_get_num_teams() .ne. nxpt+1 ) stop "Too few teams allocated"
+        ! Do the first X-point - assumed to always be present
         if(tid .eq. 0) then
-!            !$OMP PARALLEL
-!            !$OMP DO    PRIVATE(ixpt) SCHEDULE(dynamic) &
-!            !$OMP &      FIRSTPRIVATE(ylcopy, yldotcopy) REDUCTION(+:yldotcut)
-            ! Do parallel loop over each X-point: this way it is ensured 
-            ! Each X-point gets allocated to a single core
-            DO ixpt = 1, nxpt
+!        !$OMP PARALLEL DO PRIVATE(ichunk) SCHEDULE(dynamic) &
+!        !$OMP &      FIRSTPRIVATE(ylcopy, yldotcopy) REDUCTION(+:yldotxpt1)
+!            DO ichunk = 1, Nxptchunks
                 psorcxg = 0
                 psorrg = 0
                 psordis = 0
                 ! Only one chunk for the time being
-                call OMPPandf_XPT(neq, ylcut, yldotcut, rangexptchunk(ixpt, :, 1,:))
-!                call OMPPandf(neq, ylcopy, yldotcut, dummy)
+!                call OMPPandf_XPT(neq, ylcopy, yldotcopy, rangexptchunk(1, :, ichunk,:))
+                call OMPPandf_XPT(neq, ylcopy, yldotxpt1, rangexptchunk(1, :, 1,:))
+
+!                do iv=1,Nivxptchunk(1, ichunk)
+!                    yldotxpt1(ivxptchunk(1,ichunk,iv)) = yldotxpt1(ivxptchunk(1,ichunk,iv)) &
+!                    &       + yldotcopy(ivxptchunk(1,ichunk,iv))
+!                enddo
+!            END DO
+
+!            !$OMP END PARALLEL DO
+        ! Do the second X-point if present
+        elseif ((nxpt.eq.2).and.(tid.eq.1)) then
+            psorcxg = 0
+            psorrg = 0
+            psordis = 0
+            ! Only one chunk for the time being
+            call OMPPandf_XPT(neq, ylcopy, yldotxpt2, rangexptchunk(2, :, 1,:))
 
 !                do iv=1,Nivxptchunk(ixpt, 1)
 !                    yldotcut(ivxptchunk(ixpt,1,iv)) = yldotcut(ivxptchunk(ixpt,1,iv)) &
 !                    &       + yldotcopy(ivxptchunk(ixpt,1,iv))
 !                enddo
-
-            END DO
-!            !$OMP END DO
-!            !$OMP END PARALLEL
         else 
             !$OMP PARALLEL
             !$OMP DO    PRIVATE(ichunk, iv) SCHEDULE(dynamic) &
@@ -3930,10 +3936,20 @@ END SUBROUTINE OMPSplitIndex
 
         yldot = yldottot !+ yldotcut
         write(*,*) "===========", SUM(Nivchunk),Nivxptchunk(1,1)
+        do ii=1,Nivxptchunk(1, 1)
+            iv = ivxptchunk(1,1,ii)
+            yldot(iv) = yldotxpt1(iv)
+        end do
+        if (nxpt.eq.2) then
+            do ii=1,Nivxptchunk(2, 1)
+                iv = ivxptchunk(2,1,ii)
+                yldot(iv) = yldotxpt1(iv)
+            end do
+        endif
         do ixpt = 1, nxpt
             do ii=1,Nivxptchunk(ixpt, 1)
                     iv = ivxptchunk(ixpt,1,ii)
-                    yldot(iv) = yldotcut(iv)
+                    yldot(iv) = yldotxpt1(iv)
 !                    write(*,*) iv, ii
 !                    if (ABS((yldottot(iv)-yldotcut(iv))/yldottot(iv)).gt.1e-6) &
 !                    &   write(*,*) igyl(iv,:), iv!yldotcut(iv), yldottot(iv)
