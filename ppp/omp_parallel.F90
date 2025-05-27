@@ -23,19 +23,18 @@ CONTAINS
 
     ! Ensure chunking setup is valid: between 1 and n(x/y) chunks
     Nxchunks = MAX(MIN(nx, Nxchunks),1)
-    Nychunks = MAX(MIN(ny, Nychunks),1)
+    Nychunks = MAX(MIN(ny-1, Nychunks),1)
     ! Calculate the number of chunks needed maximum
-    N = Nxchunks * Nychunks
+    N = Nxchunks * Nychunks + 1
     do ixpt = 1, nxpt
         Nxptchunks(ixpt) = MIN(Nxptchunks(ixpt),iysptrx1(ixpt)-1) ! Number of X-point chunks
         dyxpt(ixpt) = real(iysptrx1(ixpt)-1)/(Nxptchunks(ixpt)+1)
     end do
-    write(*,*) Nxptchunks(:)
     Nmax = neq
 !    Nixymax = (nx+2)*(ny+2)
     ! Get the dx/dy per chunk
-    dx = real(nx)/Nxchunks
-    dy = real(ny)/Nychunks
+    dx = real(nx)/(Nxchunks)
+    dy = real(ny-1)/(Nychunks+1)
     ! Allocate the necassary arrays
     allocate( xlims(Nxchunks,2), ylims(Nychunks,2), xlimsxpt(nxpt, 2, MAXVAL(Nxptchunks),2), &!ixychunk(N, Nixymax, 2), &
     &   ivchunk(N, Nmax), rangechunk(N, 4), Niv(N), ylimsxpt(nxpt, 2, MAXVAL(Nxptchunks),2), &
@@ -95,20 +94,24 @@ CONTAINS
     xlims(Nxchunks,2) = nx+1
     ! Calculate radial chunking intervals
     ! Include protections for boundaries
-    ylims(1,1) = 0; ylims(1,2)=max(1,int(dy))
+    ylims(1,1) = 2; ylims(1,2)=2+int(dy)
     do iy = 2, Nychunks-1
         ylims(iy,1) = ylims(iy-1,2)+1
-        ylims(iy,2) = int(dy*iy)
+        ylims(iy,2) = 2+int(dy*iy)
     end do
     if (Nychunks .gt. 1) ylims(Nychunks,1) = ylims(Nychunks-1,2)+1
     ylims(Nychunks,2) = ny+1
     ! Ravel the ranges into chunks 
+    rangechunk(1,1) =   0
+    rangechunk(1,2) =   nx+1
+    rangechunk(1,3) =   0
+    rangechunk(1,4) =   1
     do ix = 1, Nxchunks
         do iy = 1, Nychunks
-            rangechunk(Nxchunks*(iy-1) + ix, 1) = xlims(ix,1)
-            rangechunk(Nxchunks*(iy-1) + ix, 2) = xlims(ix,2)
-            rangechunk(Nxchunks*(iy-1) + ix, 3) = ylims(iy,1)
-            rangechunk(Nxchunks*(iy-1) + ix, 4) = ylims(iy,2)
+            rangechunk(Nxchunks*(iy-1) + ix + 1, 1) = xlims(ix,1)
+            rangechunk(Nxchunks*(iy-1) + ix + 1, 2) = xlims(ix,2)
+            rangechunk(Nxchunks*(iy-1) + ix + 1, 3) = ylims(iy,1)
+            rangechunk(Nxchunks*(iy-1) + ix + 1, 4) = ylims(iy,2)
         end do
     end do
     ! Get the yldot-indices for the chunks 
@@ -136,16 +139,13 @@ CONTAINS
                 end do
             end do
         end do
-        do ix = 1, Nxchunks
-            do iy = 1, Nychunks
-                idxl = Nxchunks*(iy-1) + ix
-                if ((idx(1).ge.rangechunk(idxl,1)).and.(idx(1).le.rangechunk(idxl,2)) .and. &
-                &   (idx(2).ge.rangechunk(idxl,3)).and.(idx(2).le.rangechunk(idxl,4)) &
-                &   .and.(iscut.ne.1)) then
-                    Niv(idxl) = Niv(idxl) + 1
-                    ivchunk(idxl, Niv(idxl)) = ii
-                endif
-            end do    
+        do iix = 1, N
+            if ((idx(1).ge.rangechunk(iix,1)).and.(idx(1).le.rangechunk(iix,2)) .and. &
+            &   (idx(2).ge.rangechunk(iix,3)).and.(idx(2).le.rangechunk(iix,4)) &
+            &   .and.(iscut.ne.1)) then
+                Niv(iix) = Niv(iix) + 1
+                ivchunk(iix, Niv(iix)) = ii
+            endif
         end do
         iscut=0
     enddo
@@ -3877,7 +3877,6 @@ END SUBROUTINE OMPSplitIndex
 !        call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
 !        SerialTime = SerialTime + tock(tserial)
 
-    Nxchunks = 1
     Nxptchunks(1) = 1
     if (ijactot.gt.0) then
     ! TODO: move to initializer
@@ -3886,6 +3885,9 @@ END SUBROUTINE OMPSplitIndex
         &   ivchunk, rangechunk, Nxptchunks, Nivxptchunk, ivxptchunk, &
         &   rangexptchunk)
 
+        do ii = 1, Nchunks
+            write(*,*) rangechunk(ii,:)
+        end do
 !, ixychunk, Nixychunk)
 
 !        call Make2DChunks(Nxchunks, Nychunks, Nchunks, Nivchunk, &
@@ -3957,7 +3959,7 @@ END SUBROUTINE OMPSplitIndex
             !$OMP END TEAMS
 
         yldot = yldottot !+ yldotcut
-        write(*,*) "===========", SUM(Nivchunk),Nivxptchunk(1,1)
+!        write(*,*) "===========", SUM(Nivchunk),SUM(Nivxptchunk)
         do ii=1,Nivxptchunk(1, 1)
             iv = ivxptchunk(1,1,ii)
             yldot(iv) = yldotxpt1(iv)
@@ -4031,6 +4033,7 @@ END SUBROUTINE OMPSplitIndex
 
         ! Calculate plasma variables from yl
         call convsr_vo1 (xc, yc, yl)
+        call initialize_ranges(xc, yc, 2,2,2)
         call convsr_vo2 (xc, yc, yl) 
         ! Calculate derived quantities frequently used
         call convsr_aux1 (xc, yc)
