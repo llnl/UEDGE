@@ -4016,7 +4016,7 @@ END SUBROUTINE OMPSplitIndex
       USE Ynorm, ONLY: isflxvar, isrscalf
       USE Time_dep_nwt, ONLY: dtreal
       USE Dim, ONLY: nxpt, nx
-      USE Xpoint_indices, ONLY: ixpt1, ixpt2, iysptrx1
+      USE Xpoint_indices, ONLY: ixpt1, ixpt2, iysptrx1, ixlb, ixrb
       IMPLICIT NONE
       INTEGER, INTENT(IN) :: neq
       INTEGER, INTENT(IN), DIMENSION(4) :: range
@@ -4061,16 +4061,28 @@ END SUBROUTINE OMPSplitIndex
             if (corechunk.gt.0) then
                 call OMPinitialize_ranges2d(locrange)
                 call convsr_vo1 (xc, yc, yl)
+                call convsr_vo2 (xc, yc, yl) 
+                call convsr_aux1 (xc, yc)
+                call convsr_aux2 (xc, yc)
             ! PF-intersecting chunks
             elseif (corechunk.eq.-2) then
-                locrange(1) = 0
+                ! Inner leg
+                locrange(1) = ixlb(ixpt)
                 locrange(2) = ixpt1(ixpt) 
                 call OMPinitialize_ranges2d(locrange)
                 call convsr_vo1 (xc, yc, yl)
+                call convsr_vo2 (xc, yc, yl) 
+                call convsr_aux1 (xc, yc)
+                call convsr_aux2 (xc, yc)
+
+                ! Outer leg
                 locrange(1) = ixpt2(ixpt)+1
-                locrange(2) = nx+1
+                locrange(2) = ixrb(ixpt)+1
                 call OMPinitialize_ranges2d(locrange)
                 call convsr_vo1 (xc, yc, yl)
+                call convsr_vo2 (xc, yc, yl) 
+                call convsr_aux1 (xc, yc)
+                call convsr_aux2 (xc, yc)
             end if
         end do
 
@@ -4081,11 +4093,11 @@ END SUBROUTINE OMPSplitIndex
 
         ! Calculate plasma variables from yl
         call convsr_vo1 (xc, yc, yl)
-        call initialize_ranges(xc, yc, 2,2,2)
-
         call convsr_vo2 (xc, yc, yl) 
+
         ! Calculate derived quantities frequently used
         call convsr_aux1 (xc, yc)
+        call initialize_ranges(xc, yc, 2,2,2)
         call convsr_aux2 (xc, yc)
         ! Calculate the plasma diffusivities and drift velocities
         call calc_plasma_diffusivities
