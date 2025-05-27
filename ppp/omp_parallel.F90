@@ -4038,18 +4038,18 @@ END SUBROUTINE OMPSplitIndex
                 if (     (locrange(1).lt.ixpt1(ixpt)) &
                 &   .and.(locrange(2).gt.ixpt1(ixpt)) &
                 &   .and.(locrange(2).le.ixpt2(ixpt)) ) then
-                    locrange(2) = ixpt2(ixpt)
+                    locrange(2) = ixpt2(ixpt)+1
                     corechunk = 1
                 ! Chunk spanning right cut
                 elseif ( (locrange(1).lt.ixpt2(ixpt)) &
                 &   .and.(locrange(2).gt.ixpt2(ixpt)) &
                 &   .and.(locrange(1).gt.ixpt1(ixpt)) ) then
-                    locrange(1) = ixpt1(ixpt)+1
+                    locrange(1) = ixpt1(ixpt)
                     corechunk = 2
                 elseif ( (locrange(1).gt.ixpt1(ixpt)) &
                 &   .and.(locrange(2).le.ixpt2(ixpt)) ) then
-                    locrange(1) = ixpt1(ixpt)+1
-                    locrange(2) = ixpt2(ixpt)
+                    locrange(1) = ixpt1(ixpt)
+                    locrange(2) = ixpt2(ixpt)+1
                     corechunk = 3
                 ! Not sure why the core region is needed for legs: potential again?
                 elseif (    (locrange(2).le.ixpt1(ixpt)) &
@@ -4063,27 +4063,30 @@ END SUBROUTINE OMPSplitIndex
                 call convsr_vo1 (xc, yc, yl)
                 call convsr_vo2 (xc, yc, yl) 
                 call convsr_aux1 (xc, yc)
-                call convsr_aux2 (xc, yc)
             ! PF-intersecting chunks
             elseif (corechunk.eq.-2) then
                 ! Inner leg
                 locrange(1) = ixlb(ixpt)
-                locrange(2) = ixpt1(ixpt) 
+                locrange(2) = ixpt1(ixpt)+1 
                 call OMPinitialize_ranges2d(locrange)
                 call convsr_vo1 (xc, yc, yl)
                 call convsr_vo2 (xc, yc, yl) 
                 call convsr_aux1 (xc, yc)
-                call convsr_aux2 (xc, yc)
 
                 ! Outer leg
-                locrange(1) = ixpt2(ixpt)+1
+                locrange(1) = ixpt2(ixpt)
                 locrange(2) = ixrb(ixpt)+1
                 call OMPinitialize_ranges2d(locrange)
                 call convsr_vo1 (xc, yc, yl)
                 call convsr_vo2 (xc, yc, yl) 
                 call convsr_aux1 (xc, yc)
-                call convsr_aux2 (xc, yc)
             end if
+            ! TODO: not sure why whole core region is
+            ! necessary - likely related to the potentials
+            locrange(1) = ixlb(ixpt)
+            locrange(2) = ixrb(ixpt)+1
+            call OMPinitialize_ranges2d(locrange)
+            call convsr_aux2 (xc, yc)
         end do
 
 
@@ -4097,7 +4100,6 @@ END SUBROUTINE OMPSplitIndex
 
         ! Calculate derived quantities frequently used
         call convsr_aux1 (xc, yc)
-        call initialize_ranges(xc, yc, 2,2,2)
         call convsr_aux2 (xc, yc)
         ! Calculate the plasma diffusivities and drift velocities
         call calc_plasma_diffusivities
