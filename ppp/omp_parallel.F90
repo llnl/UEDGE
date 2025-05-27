@@ -42,13 +42,13 @@ CONTAINS
     do ixpt = 1, nxpt ! Separate teams for each X-point
         do iix = 1, Nxptchunks ! Number of threads per Xpt - 1 for now
             ! Left cut
-            xlimsxpt(ixpt, 1, iix, 1) = 4!ixpt1(ixpt)-1
-            xlimsxpt(ixpt, 1, iix, 2) = 10!ixpt1(ixpt)+2
+            xlimsxpt(ixpt, 1, iix, 1) = ixpt1(ixpt)-1
+            xlimsxpt(ixpt, 1, iix, 2) = ixpt1(ixpt)+2
             ylimsxpt(ixpt, 1, iix, 1) = 0
             ylimsxpt(ixpt, 1, iix, 2) = iysptrx1(ixpt)+2
             ! Right cut
-            xlimsxpt(ixpt, 2, iix, 1) = 47!ixpt2(ixpt)-1
-            xlimsxpt(ixpt, 2, iix, 2) = 50!ixpt2(ixpt)+2
+            xlimsxpt(ixpt, 2, iix, 1) = ixpt2(ixpt)-1
+            xlimsxpt(ixpt, 2, iix, 2) = ixpt2(ixpt)+2
             ylimsxpt(ixpt, 2, iix, 1) = 0
             ylimsxpt(ixpt, 2, iix, 2) = iysptrx1(ixpt)+2
         end do
@@ -3854,7 +3854,7 @@ END SUBROUTINE OMPSplitIndex
     ylcut = yl
     yldotcopy = yldot
     yldottot = 0
-    yldotcut = 0
+    yldotcut = yldot
 
 !        tpara = tick()
 !        ParaTime = ParaTime + tock(tpara)
@@ -3978,6 +3978,7 @@ END SUBROUTINE OMPSplitIndex
       USE Selec, ONLY: yinc, xrinc, xlinc
 
         Use Compla, Only: ni
+        USE Rhsides, ONLY: resco
       IMPLICIT NONE
       INTEGER, INTENT(IN) :: neq
       INTEGER, INTENT(IN), DIMENSION(4) :: range
@@ -4039,10 +4040,15 @@ END SUBROUTINE OMPSplitIndex
         call calc_gas_energy_residuals
         if (isphion.eq.1) call calc_potential_residuals
 
+
         ! Calculate yldot vector
         call calc_rhs(yldot)
+        if ((43.ge.range(1)).and.(43.le.range(2)).and.(range(3).eq.0)) &
+        &   write(*,*) "P1", yldot(646), yldot(661)
         ! Set boundary conditions directly in yldot
         call bouncon(neq, yldot)
+        if ((43.ge.range(1)).and.(43.le.range(2)).and.(range(3).eq.0)) &
+        &   write(*,*) "P2", yldot(646), yldot(661)
         if (TimingPandfOn.gt.0) & 
         &      TotTimePandf=TotTimePandf+tock(TimePandf)
 
@@ -4072,10 +4078,11 @@ END SUBROUTINE OMPSplitIndex
       &     TimeNeudif, TotTimeNeudif
       USE Ynorm, ONLY: isflxvar, isrscalf
       USE Time_dep_nwt, ONLY: dtreal
-      USE Selec, ONLY: yinc, xrinc, xlinc
+      USE Selec, ONLY: yinc, xrinc, xlinc, j3, i4, i8
       USE Indices_domain_dcl, ONLY: iymnbcl
+      USE Dim, ONLY: nx
 
-        Use Compla, Only: ni
+        USE Rhsides, ONLY: resco
       IMPLICIT NONE
       INTEGER, INTENT(IN) :: neq
       INTEGER, INTENT(IN), DIMENSION(2,4) :: ranges
@@ -4093,7 +4100,7 @@ END SUBROUTINE OMPSplitIndex
         end do
         do ii = 1, 2
             call OMPinitialize_ranges2d(ranges(ii,:))
-            call convsr_vo2 (xc, yc, yl) 
+            call convsr_vo2 (xc, yc, yl)
         end do
         ! Calculate derived quantities frequently used
         do ii = 1, 2
@@ -4213,16 +4220,21 @@ END SUBROUTINE OMPSplitIndex
             call calc_gas_energy_residuals
             if (isphion.eq.1) call calc_potential_residuals
         end do
+
         ! Calculate yldot vector
         do ii = 1, 2
             call OMPinitialize_ranges2d(ranges(ii,:))
             call calc_rhs(yldot)
         end do
+        write(*,*) "S1", yldot(646), yldot(661)
         ! Set boundary conditions directly in yldot
         do ii = 1, 2
             call OMPinitialize_ranges2d(ranges(ii,:))
-            call bouncon(neq, yldot)
+            if (iymnbcl .ne. 0) call iwall_boundary(neq, yldot)
         end do
+        call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
+        if (iymnbcl .ne. 0) call iwall_boundary(neq, yldot)
+        write(*,*) "S2", yldot(646), yldot(661)
 
         if (TimingPandfOn.gt.0) & 
         &      TotTimePandf=TotTimePandf+tock(TimePandf)
@@ -4249,6 +4261,8 @@ END SUBROUTINE OMPSplitIndex
                 end do
             endif   !if-test on svrpkg and ylcopy(neq+1)
         endif    !if-test on dtreal
+
+
 
     END SUBROUTINE OMPPandf_XPT
 
