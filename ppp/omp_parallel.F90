@@ -57,16 +57,16 @@ CONTAINS
             ylimsxpt(ixpt, 1, Nxptchunks(ixpt),1) = ylimsxpt(ixpt,1,Nxptchunks(ixpt)-1,2)+1
             ylimsxpt(ixpt, 2, Nxptchunks(ixpt),1) = ylimsxpt(ixpt,2,Nxptchunks(ixpt)-1,2)+1
         endif
-        ylimsxpt(ixpt, 1, Nxptchunks(ixpt),2) = iysptrx1(ixpt)
-        ylimsxpt(ixpt, 2, Nxptchunks(ixpt),2) = iysptrx1(ixpt)
+        ylimsxpt(ixpt, 1, Nxptchunks(ixpt),2) = iysptrx1(ixpt)+1
+        ylimsxpt(ixpt, 2, Nxptchunks(ixpt),2) = iysptrx1(ixpt)+1
         ! Set X-chunks
         do iix = 1, Nxptchunks(ixpt)
             ! Left cut
-            xlimsxpt(ixpt, 1, iix, 1) = ixpt1(ixpt)
-            xlimsxpt(ixpt, 1, iix, 2) = ixpt1(ixpt)+1
+            xlimsxpt(ixpt, 1, iix, 1) = ixpt1(ixpt)-1
+            xlimsxpt(ixpt, 1, iix, 2) = ixpt1(ixpt)+2
             ! Right cut
-            xlimsxpt(ixpt, 2, iix, 1) = ixpt2(ixpt)
-            xlimsxpt(ixpt, 2, iix, 2) = ixpt2(ixpt)+1
+            xlimsxpt(ixpt, 2, iix, 1) = ixpt2(ixpt)-1
+            xlimsxpt(ixpt, 2, iix, 2) = ixpt2(ixpt)+2
         end do
         ! Create ranges 
         do iix = 1, Nxptchunks(ixpt)
@@ -4027,88 +4027,39 @@ END SUBROUTINE OMPSplitIndex
       INTEGER :: ichunk, xc, yc, ii, locrange(4), ixpt, corechunk = 1
       REAL :: tick,tock!, tsfe, tsjf, ttotfe, ttotjf, tserial, tpara
 
-        ! Patch cells that locally intercept the X-point
-        corechunk = 0
         locrange = range
+        ! Deal with X-point xut here: shouldn't really be an issue!
         do ixpt = 1, nxpt
-!            if (1.eq.0) then
-            ! Chunk spanning left cut
             if (locrange(3).le.iysptrx1(ixpt)) then
-                if (     (locrange(1).lt.ixpt1(ixpt)) &
-                &   .and.(locrange(2).gt.ixpt1(ixpt)) &
-                &   .and.(locrange(2).le.ixpt2(ixpt)) ) then
-                    locrange(2) = ixpt2(ixpt)+1
-                    corechunk = 1
-                ! Chunk spanning right cut
-                elseif ( (locrange(1).lt.ixpt2(ixpt)) &
-                &   .and.(locrange(2).gt.ixpt2(ixpt)) &
-                &   .and.(locrange(1).gt.ixpt1(ixpt)) ) then
-                    locrange(1) = ixpt1(ixpt)
-                    corechunk = 2
-                elseif ( (locrange(1).gt.ixpt1(ixpt)) &
-                &   .and.(locrange(2).le.ixpt2(ixpt)) ) then
-                    locrange(1) = ixpt1(ixpt)
-                    locrange(2) = ixpt2(ixpt)+1
-                    corechunk = 3
-                ! Not sure why the core region is needed for legs: potential again?
-                elseif (    (locrange(2).le.ixpt1(ixpt)) &
-                &       .or.(locrange(1).gt.ixpt2(ixpt)) ) then
-                    corechunk = -2
-                endif
-            endif
-            ! Core-intersecting chunks
-            if (corechunk.gt.0) then
-                call OMPinitialize_ranges2d(locrange)
-                call convsr_vo1 (xc, yc, yl)
-                call convsr_vo2 (xc, yc, yl) 
-                call convsr_aux1 (xc, yc)
-            ! PF-intersecting chunks
-            elseif (corechunk.eq.-2) then
-                ! Inner leg
-                locrange(1) = ixlb(ixpt)
-                locrange(2) = ixpt1(ixpt)+1 
-                call OMPinitialize_ranges2d(locrange)
-                call convsr_vo1 (xc, yc, yl)
-                call convsr_vo2 (xc, yc, yl) 
-                call convsr_aux1 (xc, yc)
-
-                ! Outer leg
-                locrange(1) = ixpt2(ixpt)
-                locrange(2) = ixrb(ixpt)+1
-                call OMPinitialize_ranges2d(locrange)
-                call convsr_vo1 (xc, yc, yl)
-                call convsr_vo2 (xc, yc, yl) 
-                call convsr_aux1 (xc, yc)
+!                locrange(1) = ixlb(ixpt)
+!                locrange(2) = ixrb(ixpt)+1
             end if
-!            end if
-            ! TODO: not sure why whole core region is
-            ! necessary - likely related to the potentials
-            locrange(1) = ixlb(ixpt)
-            locrange(2) = ixrb(ixpt)+1
-            call OMPinitialize_ranges2d(locrange)
-!                call convsr_vo1 (xc, yc, yl)
-!                call convsr_vo2 (xc, yc, yl) 
-!                call convsr_aux1 (xc, yc)
-            call convsr_aux2 (xc, yc)
         end do
 
 
+
+
+
+
         ! Initialize local thread ranges
-        call OMPinitialize_ranges2d(range)
         xc=-1; yc=-1
 
+        
+        call OMPinitialize_ranges2d(range)
         ! Calculate plasma variables from yl
         call convsr_vo1 (xc, yc, yl)
+        call initialize_ranges(xc, yc, 2,2,2)
         call convsr_vo2 (xc, yc, yl) 
-
         ! Calculate derived quantities frequently used
         call convsr_aux1 (xc, yc)
         call convsr_aux2 (xc, yc)
         ! Calculate the plasma diffusivities and drift velocities
+!        call OMPinitialize_ranges2d(range)
         call calc_plasma_diffusivities
         call initialize_driftterms  
         call calc_driftterms1
         call calc_driftterms2
+!        call OMPinitialize_ranges2d(locrange)
         ! Calculate currents and potential
         if(isphion+isphiofft .eq. 1) then
             call calc_currents
@@ -4118,16 +4069,11 @@ END SUBROUTINE OMPSplitIndex
         ! Get friction and electron velocities
         call calc_friction(xc)
         call calc_elec_velocities
-        ! TODO: FIX THIS 
         ! Volumetric plasma and gas sinks & sources
-        call OMPinitialize_ranges2d(locrange)
         call calc_volumetric_sources(xc, yc)
-        call OMPinitialize_ranges2d(range)
         if (TimingPandfOn.gt.0) TimeNeudif=tick()
         call neudifpg
         if (TimingPandfOn.gt.0) TotTimeNeudif=TotTimeNeudif+tock(TimeNeudif)
-
-        call OMPinitialize_ranges2d(locrange)
         call calc_srcmod
         ! Calculate plasma & gas conductivities etc.
         call calc_plasma_viscosities
@@ -4145,12 +4091,13 @@ END SUBROUTINE OMPSplitIndex
         call calc_feeiycbo 
         call calc_atom_seic 
 
+        if (isphion.eq.1) call calc_potential_residuals
+!        call OMPinitialize_ranges2d(range)
         call calc_plasma_particle_residuals
         call calc_gas_continuity_residuals
         call calc_plasma_momentum_residuals
         call calc_plasma_energy_residuals(xc, yc)
         call calc_gas_energy_residuals
-        if (isphion.eq.1) call calc_potential_residuals
 
 
         ! Calculate yldot vector
