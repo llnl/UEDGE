@@ -4033,10 +4033,6 @@ END SUBROUTINE OMPSplitIndex
         do ixpt = 1, nxpt
             ! Chunk spanning left cut
             if (locrange(3).le.iysptrx1(ixpt)) then
-                ! This is likely required by the potential equation:
-                ! Investigate whether the equation can be collapsed
-                ! to avoid unnexxesary repeats of the whole core region
-                locrange(4) = max(locrange(4), iysptrx1(ixpt))
                 if (     (locrange(1).lt.ixpt1(ixpt)) &
                 &   .and.(locrange(2).gt.ixpt1(ixpt)) &
                 &   .and.(locrange(2).le.ixpt2(ixpt)) ) then
