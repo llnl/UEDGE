@@ -749,11 +749,12 @@ END SUBROUTINE OMPSplitIndex
   SUBROUTINE OMPinitialize_ranges2D(limits)
     Use Selec
     Use Bcond, ONLY: xcnearrb, xcnearlb
-    Use Dim, ONLY: nfsp, nhsp, nisp, nx, ny
+    Use Dim, ONLY: nfsp, nhsp, nisp, nx, ny, nxpt
     Use Imprad, ONLY: isimpon
+    Use Xpoint_indices, ONLY: ixlb, ixrb
     IMPLICIT NONE
     integer, intent(in):: limits(4)
-    integer:: xs, xe, ys, ye
+    integer:: xs, xe, ys, ye, ixpt
     xs = limits(1)
     xe = limits(2)
     ys = limits(3)
@@ -822,8 +823,10 @@ END SUBROUTINE OMPSplitIndex
 
     xcnearrb = .FALSE.
     xcnearlb = .FALSE.
-    if (xs.eq.0) xcnearrb = .TRUE.
-    if (xe.eq.nx+1) xcnearlb = .TRUE.
+    do ixpt = 1, nxpt
+        if (xs.eq.ixlb(ixpt)) xcnearrb = .TRUE.
+        if (xe.eq.ixrb(ixpt)+1) xcnearlb = .TRUE.
+    end do
 
   END SUBROUTINE OMPinitialize_ranges2D
 
@@ -4031,8 +4034,8 @@ END SUBROUTINE OMPSplitIndex
         ! Deal with X-point xut here: shouldn't really be an issue!
         do ixpt = 1, nxpt
             if (locrange(3).le.iysptrx1(ixpt)) then
-!                locrange(1) = ixlb(ixpt)
-!                locrange(2) = ixrb(ixpt)+1
+                locrange(1) = ixlb(ixpt)
+                locrange(2) = ixrb(ixpt)+1
             end if
         end do
 
@@ -4048,18 +4051,15 @@ END SUBROUTINE OMPSplitIndex
         call OMPinitialize_ranges2d(range)
         ! Calculate plasma variables from yl
         call convsr_vo1 (xc, yc, yl)
-        call initialize_ranges(xc, yc, 2,2,2)
         call convsr_vo2 (xc, yc, yl) 
         ! Calculate derived quantities frequently used
         call convsr_aux1 (xc, yc)
         call convsr_aux2 (xc, yc)
         ! Calculate the plasma diffusivities and drift velocities
-!        call OMPinitialize_ranges2d(range)
         call calc_plasma_diffusivities
         call initialize_driftterms  
         call calc_driftterms1
         call calc_driftterms2
-!        call OMPinitialize_ranges2d(locrange)
         ! Calculate currents and potential
         if(isphion+isphiofft .eq. 1) then
             call calc_currents
@@ -4083,16 +4083,17 @@ END SUBROUTINE OMPSplitIndex
         call engbalg
         call calc_plasma_transport
 
+        ! TODO: only do for core chunk?
         call calc_fniycbo 
         call calc_plasma_momentum_coeffs
         call calc_plasma_momentum(xc, yc)
         call calc_plasma_energy(xc, yc)
         call calc_gas_energy
+        ! TODO: only do for core chunk?
         call calc_feeiycbo 
         call calc_atom_seic 
 
         if (isphion.eq.1) call calc_potential_residuals
-!        call OMPinitialize_ranges2d(range)
         call calc_plasma_particle_residuals
         call calc_gas_continuity_residuals
         call calc_plasma_momentum_residuals
@@ -4102,7 +4103,9 @@ END SUBROUTINE OMPSplitIndex
 
         ! Calculate yldot vector
         call calc_rhs(yldot)
+
         ! Set boundary conditions directly in yldot
+        call OMPinitialize_ranges2d(locrange)
         call bouncon(neq, yldot)
         if (TimingPandfOn.gt.0) & 
         &      TotTimePandf=TotTimePandf+tock(TimePandf)
@@ -4114,6 +4117,7 @@ END SUBROUTINE OMPSplitIndex
         ! are for d(nv)/dt, etc If isflxvar=2, variables are 
         ! ni,v,nTe,nTi,ng. Boundary equations and potential 
         ! equations are not reordered.
+        call initialize_ranges(xc, yc, 2,2,2)
         if(isflxvar.ne.1 .and. isrscalf.eq.1) call rscalf(yl,yldot)
 
         if(dtreal < 1.e15) then
@@ -4121,6 +4125,7 @@ END SUBROUTINE OMPSplitIndex
             &   (svrpkg=='nksol' .and. yl(neq+1)<0) &
             &   .or. svrpkg == 'petsc' &
             & ) then
+                write(*,*) dtreal
                 call add_timestep(neq, yl, yldot)
             endif   !if-test on svrpkg and ylcopy(neq+1)
         endif    !if-test on dtreal
