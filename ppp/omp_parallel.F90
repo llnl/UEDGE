@@ -4234,8 +4234,10 @@ END SUBROUTINE OMPSplitIndex
         if(isphion+isphiofft .eq. 1) then
             ! Calculate currents and potential
             ! The potential is required over the whole core area
-            call OMPinitialize_ranges2d(corerange)
-            call calc_currents
+            do ii = 1, 2
+                call OMPinitialize_ranges2d(ranges(ii,:))
+                call calc_currents
+            end do
             do ii = 1, 2
                 call OMPinitialize_ranges2d(ranges(ii,:))
                 call calc_fqp1
