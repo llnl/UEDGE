@@ -149,25 +149,6 @@ CONTAINS
         end do
         iscut=0
     enddo
-!    write(*,*) SUM(Nivxpt)+SUM(Niv), MAXVAL(Niv), MAXVAL(Nivxpt)
-    ! Do spatial chunking - no longer needed
-!    Nixy = 0
-!    ixychunk = 0
-!    do ii = 1, N
-!        do ix = rangechunk(ii,1), rangechunk(ii,2)
-!            do iy = rangechunk(ii,3), rangechunk(ii,4)
-!                Nixy(ii) = Nixy(ii) + 1
-!                ixychunk(ii, Nixy(ii),1) = ix
-!                ixychunk(ii, Nixy(ii),2) = iy
-!            end do
-!        end do
-!    end do
-    ! Update max array size required
-!    Nmax = MAXVAL(Niv)
-!    Nixymax = MAXVAL(Nixy)
-!    ! Trim overly large array
-!    allocate( xlims(Nxchunks,2), ylims(Nychunks,2), ixychunk(N, Nixymax, 2), &
-!    &   ivchunk(N, Nmax), rangechunk(N, 4), Niv(N), Nixy(N))
 
   END SUBROUTINE Make2DChunks
 END MODULE CHUNK
@@ -647,105 +628,6 @@ END SUBROUTINE OMPSplitIndex
 
 #ifdef _OPENMP
 
-  SUBROUTINE OMPPandf1Rhs_old(neq,time,yl,yldot)
-    USE omp_lib
-    USE OmpCopybbb
-    USE ParallelSettings, ONLY: Nthreads,CheckPandf1
-    USE OMPPandf1Settings, ONLY: OMPTimeParallelPandf1,OMPTimeSerialPandf1, &
-            OMPPandf1Stamp,OMPPandf1Verbose,OMPPandf1Debug
-    USE OMPPandf1, ONLY: Nivchunk,ivchunk,yincchunk,xincchunk, &
-            iychunk,ixchunk,NchunksPandf1
-    USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
-    USE Dim, ONLY:nx,ny
-    USE Imprad, ONLY: prad
-    USE Selec, ONLY:yinc,xrinc,xlinc
-    USE Grid, ONLY:ijactot
-    USE Cdv, ONLY: comnfe
-    USE Rhsides, ONLY: psorcxg, psorrg, psordis
-    IMPLICIT NONE
- 
-    integer yinc_bkp,xrinc_bkp,xlinc_bkp,iv,tid
-    integer,intent(in)::neq
-    real,intent(in)::yl(*)
-    real,intent(out)::yldot(*)
-    real,intent(in)::time
-    real::yldotcopy(1:neq)
-    real yldotsave(1:neq),ylcopy(1:neq+2), yldottot(1:neq)
-    character*80 ::FileName
-    real time1,time2
-    integer::ichunk
-    real tmp_prad(0:nx+1, 0:ny+1)
-    ylcopy(1:neq+1)=yl(1:neq+1)
-    yldotcopy = 0
-    yldottot = 0
-    tmp_prad = 0
-
-    if (ijactot.gt.0) then
-
-        Time1=omp_get_wtime()
-!        call MakeChunksPandf1
-        call OmpCopyPointerup
-          !$omp parallel do default(shared) schedule(dynamic,OMPPandf1LoopNchunk) &
-          !$omp& private(iv,ichunk) firstprivate(ylcopy,yldotcopy) copyin(yinc,xlinc,xrinc) &
-          !$omp& REDUCTION(+:yldottot, tmp_prad)
-            loopthread: do ichunk=1,NchunksPandf1 !ichunk from 1 to Nthread, tid from 0 to Nthread-1
-            ! we keep all these parameters as it is easier to debug LocalJacBuilder and deal wichunk private/shared attributes
-                yinc_bkp=yinc
-                xlinc_bkp=xlinc
-                xrinc_bkp=xrinc
-                yldotcopy = 0
-                if (iychunk(ichunk).ne.-1) then
-                    yinc=yincchunk(ichunk)
-                endif
-                if (ixchunk(ichunk).ne.-1) then
-                    xrinc=xincchunk(ichunk)
-                    xlinc=xincchunk(ichunk)
-                endif
-                ! Necessary initialization for icntnunk=1 evaluation
-                psorcxg = 0
-                psorrg = 0
-                psordis = 0
-
-                call pandf (ixchunk(ichunk),iychunk(ichunk), neq, time, ylcopy, yldotcopy)
-
-                do iv=1,Nivchunk(ichunk)
-                    yldottot(ivchunk(ichunk,iv)) = yldottot(ivchunk(ichunk,iv)) + yldotcopy(ivchunk(ichunk,iv))
-                enddo
-
-                tmp_prad(0:nx+1, iychunk(ichunk)) =  &
-                    & tmp_prad(0:nx+1, iychunk(ichunk)) + prad(0:nx+1, iychunk(ichunk))
-
-                yinc=yinc_bkp
-                xlinc=xlinc_bkp
-                xrinc=xrinc_bkp
-            enddo loopthread
-          !$omp  END PARALLEL DO
-        Time1=omp_get_wtime()-Time1
-
-        OMPTimeParallelPandf1=Time1+OMPTimeParallelPandf1
-
-        yldot(:neq) = yldottot
-        prad = tmp_prad
-
-        if (CheckPandf1.gt.0) then
-            Time2=omp_get_wtime()
-            call pandf (-1, -1, neq, time, ylcopy, yldotsave)
-            Time2=omp_get_wtime()-Time2
-            OMPTimeSerialPandf1=Time2+OMPTimeSerialPandf1
-            if (OMPPandf1Verbose.gt.0) then
-                write(*,*) "Timing Pandf1 serial:",OMPTimeSerialPandf1, &
-                    "(",Time2,")/parallel:",OMPTimeParallelPandf1,'(',Time1,')'
-            endif
-            call Compare(yldot,yldotsave,neq)
-            write(*,'(a,i4)') "  Serial and parallel pandf are identical for nfe = ", comnfe
-        endif
-    else
-       call pandf (-1,-1, neq, time, yl, yldot)
-    endif
-    RETURN
-  END SUBROUTINE OMPPandf1Rhs_old
-
-
   SUBROUTINE OMPinitialize_ranges2D(limits)
     Use Selec
     Use Bcond, ONLY: xcnearrb, xcnearlb
@@ -810,22 +692,18 @@ END SUBROUTINE OMPSplitIndex
 ! Recreates Pandf using parallel structure
     USE omp_lib
     USE OmpCopybbb
-    USE ParallelSettings, ONLY: Nthreads,CheckPandf1
-    USE OMPPandf1Settings, ONLY: OMPTimeParallelPandf1,OMPTimeSerialPandf1, &
-            OMPPandf1Stamp,OMPPandf1Verbose,OMPPandf1Debug
+    USE ParallelSettings, ONLY: Nthreads, CheckPandf1
+    USE OMPPandf1Settings, ONLY: OMPPandf1Stamp,OMPPandf1Verbose,OMPPandf1Debug
     USE OMPPandf1Settings, ONLY:OMPPandf1loopNchunk
-    USE Dim, ONLY: nx, ny, ngsp, nisp, nxpt
+    USE Dim, ONLY: nxpt
     USE Grid, ONLY:ijactot
     USE Cdv, ONLY: comnfe
     USE Rhsides, ONLY: psorcxg, psorrg, psordis
     USE Time_dep_nwt, ONLY: dtreal, nufak
     USE Ynorm, ONLY: isflxvar, isrscalf
-    USE MCN_sources, ONLY: ismcnon
     USE PandfTiming, ONLY: TimePandf, TotTimePandf, TimingPandfOn, TimeNeudif, &
     &   TotTimeNeudif
     USE OMPTiming, ONLY: ParaTime, SerialTime
-    USE Coefeq, ONLY: cfvisxneov, cfvisxneoq    
-    USE Math_problem_size, ONLY: numvar
     USE ParallelEval, ONLY: ParallelPandfCall
 
     USE UEpar, ONLY: igas
@@ -839,18 +717,12 @@ END SUBROUTINE OMPSplitIndex
     USE Indexes, ONLY: igyl
     IMPLICIT NONE
     INTEGER:: Nchunks, Nchunks_convert
-!    INTEGER, ALLOCATABLE, DIMENSION(:,:,:):: ixychunk, ixychunk_convert
     INTEGER, ALLOCATABLE, DIMENSION(:,:,:,:) :: rangexptchunk
     INTEGER, ALLOCATABLE, DIMENSION(:,:,:) ::  ivxptchunk
     INTEGER, ALLOCATABLE, DIMENSION(:,:) ::  ivchunk, rangechunk, ivchunk_convert, &
     &   rangechunk_convert, Nivxptchunk
     INTEGER, ALLOCATABLE, DIMENSION(:) ::  Nivchunk, Nivchunk_convert
-!    &   Nixychunk_convert
-!    INTEGER, ALLOCATABLE, DIMENSION(:)::  Nivchunk, Nixychunk, Nivchunk_convert, &
     INTEGER tid, Nxptchunks(nxpt)
-
- 
-    integer yinc_bkp,xrinc_bkp,xlinc_bkp,iv
     integer,intent(in)::neq
     real,intent(in)::yl(neq+1)
     real,intent(out)::yldot(neq)
@@ -858,17 +730,9 @@ END SUBROUTINE OMPSplitIndex
     real:: yldotcopy(neq),yldotxpt1(neq),yldotxpt2(neq) 
     real:: yldottot(neq), yldotxpt1tot(neq), yldotxpt2tot(neq) 
     real yldotsave(neq),ylcopy(neq+2)
-    character*80 ::FileName
-    real time1,time2
-    INTEGER:: ichunk, xc, yc, ii, icut, ixpt
-    real tmp_prad(0:nx+1, 0:ny+1)
-    real tick,tock, tsfe, tsjf, ttotfe, ttotjf, tserial, tpara
+    INTEGER:: ichunk, xc, yc, ii, ixpt, iv
+    real tick, tock
     external tick, tock
-    integer dummy(4)
-    dummy(1) = 0
-    dummy(2) = nx+1
-    dummy(3) = 0
-    dummy(4) = ny+1
 
     ParallelPandfCall = 1
     ylcopy = yl
@@ -877,34 +741,14 @@ END SUBROUTINE OMPSplitIndex
     yldotxpt1 = 0
     yldotxpt2 = 0
 
-!        tpara = tick()
-!        ParaTime = ParaTime + tock(tpara)
-
-!        tserial = tick()
-!        call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
-!        SerialTime = SerialTime + tock(tserial)
 
     Nxptchunks(1) = 1
     if (ijactot.gt.0) then
     ! TODO: move to initializer
-        Time1=omp_get_wtime()
         call Make2DChunks(Nxchunks, Nychunks, Nchunks, Nivchunk, &
         &   ivchunk, rangechunk, Nxptchunks, Nivxptchunk, ivxptchunk, &
         &   rangexptchunk)
 
-
-!        write(*,*) '==========='
-!        do ii = 1, Nchunks
-!            write(*,*) rangechunk(ii,:)
-!        end do
-!        call Make2DChunks(Nxchunks, Nychunks, Nchunks, Nivchunk, &
-!        &   ivchunk, rangechunk, ixychunk, Nixychunk)
-
-!        call Make2DChunks(nx, ny, Nchunks_convert, Nivchunk_convert, &
-!        &   ivchunk_convert, rangechunk_convert, ixychunk_convert, & 
-!        &   Nixychunk_convert)
-
-        tpara = tick()
         !$OMP TEAMS NUM_TEAMS(nxpt+1) PRIVATE(tid)
         tid = omp_get_team_num()
         if ( omp_get_num_teams() .ne. nxpt+1 ) stop "Too few teams allocated"
@@ -963,10 +807,9 @@ END SUBROUTINE OMPSplitIndex
             !$OMP END DO
             !$OMP END PARALLEL
             END IF
-            !$OMP END TEAMS
+        !$OMP END TEAMS
 
-        yldot = yldottot !+ yldotcut
-!        write(*,*) "===========", SUM(Nivchunk),SUM(Nivxptchunk)
+        yldot = yldottot
         do ii=1,Nivxptchunk(1, 1)
             iv = ivxptchunk(1,1,ii)
             yldot(iv) = yldotxpt1(iv)
@@ -981,28 +824,11 @@ END SUBROUTINE OMPSplitIndex
             do ii=1,Nivxptchunk(ixpt, 1)
                     iv = ivxptchunk(ixpt,1,ii)
                     yldot(iv) = yldotxpt1(iv)
-!                    write(*,*) iv, ii
-!                    if (ABS((yldottot(iv)-yldotcut(iv))/yldottot(iv)).gt.1e-6) &
-!                    &   write(*,*) igyl(iv,:), iv!yldotcut(iv), yldottot(iv)
             end do
         enddo
             
-        
-        ParaTime = ParaTime + tock(tpara)
-
-!        call OMPPandf(neq, yl, yldot, rangechunk(1,:))
-        Time1=omp_get_wtime()-Time1
-
-        OMPTimeParallelPandf1=Time1+OMPTimeParallelPandf1
         if (CheckPandf1.gt.0) then
-            Time2=omp_get_wtime()
             call pandf (-1, -1, neq, time, ylcopy, yldotsave)
-            Time2=omp_get_wtime()-Time2
-            OMPTimeSerialPandf1=Time2+OMPTimeSerialPandf1
-            if (OMPPandf1Verbose.gt.0) then
-                write(*,*) "Timing Pandf1 serial:",OMPTimeSerialPandf1, &
-                    "(",Time2,")/parallel:",OMPTimeParallelPandf1,'(',Time1,')'
-            endif
             call Compare(yldot,yldotsave,neq)
             write(*,'(a,i4)') "  Serial and parallel pandf are identical for nfe = ", comnfe
         endif
@@ -1033,7 +859,11 @@ END SUBROUTINE OMPSplitIndex
       REAL :: tick,tock!, tsfe, tsjf, ttotfe, ttotjf, tserial, tpara
 
         locrange = range
-        ! Deal with X-point xut here: shouldn't really be an issue!
+        ! For some reason the right BC in bouncon only
+        ! works robustly with the whole flux-tube. Since
+        ! the boundary only calculates in the vicinity of the
+        ! boundary, there is no additional cost to this.
+        ! Just do it!
         do ixpt = 1, nxpt
             if (locrange(3).le.iysptrx1(ixpt)) then
                 if (locrange(2).eq.ixrb(ixpt)+1) then
