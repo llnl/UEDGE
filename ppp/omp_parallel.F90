@@ -4034,8 +4034,9 @@ END SUBROUTINE OMPSplitIndex
         ! Deal with X-point xut here: shouldn't really be an issue!
         do ixpt = 1, nxpt
             if (locrange(3).le.iysptrx1(ixpt)) then
-                locrange(1) = ixlb(ixpt)
-                locrange(2) = ixrb(ixpt)+1
+                if (locrange(2).eq.ixrb(ixpt)+1) then
+                    locrange(1) = ixlb(ixpt)
+                endif
             end if
         end do
 
@@ -4117,7 +4118,7 @@ END SUBROUTINE OMPSplitIndex
         ! are for d(nv)/dt, etc If isflxvar=2, variables are 
         ! ni,v,nTe,nTi,ng. Boundary equations and potential 
         ! equations are not reordered.
-        call initialize_ranges(xc, yc, 2,2,2)
+        call OMPinitialize_ranges2d(range)
         if(isflxvar.ne.1 .and. isrscalf.eq.1) call rscalf(yl,yldot)
 
         if(dtreal < 1.e15) then
@@ -4125,10 +4126,13 @@ END SUBROUTINE OMPSplitIndex
             &   (svrpkg=='nksol' .and. yl(neq+1)<0) &
             &   .or. svrpkg == 'petsc' &
             & ) then
-                write(*,*) dtreal
                 call add_timestep(neq, yl, yldot)
             endif   !if-test on svrpkg and ylcopy(neq+1)
         endif    !if-test on dtreal
+        ! For some reason this call, that seemingly does nothing
+        ! is required here, and I have no clue as to why...
+        ! (just let it be, happy toughts)
+        call initialize_ranges(xc, yc, 2,2,2)
     END SUBROUTINE OMPPandf
 
 
