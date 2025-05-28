@@ -4129,7 +4129,7 @@ END SUBROUTINE OMPSplitIndex
                 call add_timestep(neq, yl, yldot)
             endif   !if-test on svrpkg and ylcopy(neq+1)
         endif    !if-test on dtreal
-        ! For some reason this call, that seemingly does nothing
+        ! For some reason this call, that seemingly does nothing,
         ! is required here, and I have no clue as to why...
         ! (just let it be, happy toughts)
         call initialize_ranges(xc, yc, 2,2,2)
