@@ -820,8 +820,10 @@ END SUBROUTINE OMPSplitIndex
     iys1 = j1
     iyf6 = j6
 
-    xcnearrb = .TRUE.
-    xcnearlb = .TRUE.
+    xcnearrb = .FALSE.
+    xcnearlb = .FALSE.
+    if (xs.eq.0) xcnearrb = .TRUE.
+    if (xe.eq.nx+1) xcnearlb = .TRUE.
 
   END SUBROUTINE OMPinitialize_ranges2D
 
