@@ -4031,6 +4031,7 @@ END SUBROUTINE OMPSplitIndex
         corechunk = 0
         locrange = range
         do ixpt = 1, nxpt
+!            if (1.eq.0) then
             ! Chunk spanning left cut
             if (locrange(3).le.iysptrx1(ixpt)) then
                 if (     (locrange(1).lt.ixpt1(ixpt)) &
@@ -4079,17 +4080,21 @@ END SUBROUTINE OMPSplitIndex
                 call convsr_vo2 (xc, yc, yl) 
                 call convsr_aux1 (xc, yc)
             end if
+!            end if
             ! TODO: not sure why whole core region is
             ! necessary - likely related to the potentials
             locrange(1) = ixlb(ixpt)
             locrange(2) = ixrb(ixpt)+1
             call OMPinitialize_ranges2d(locrange)
+!                call convsr_vo1 (xc, yc, yl)
+!                call convsr_vo2 (xc, yc, yl) 
+!                call convsr_aux1 (xc, yc)
             call convsr_aux2 (xc, yc)
         end do
 
 
         ! Initialize local thread ranges
-        call OMPinitialize_ranges2d(locrange)
+        call OMPinitialize_ranges2d(range)
         xc=-1; yc=-1
 
         ! Calculate plasma variables from yl
@@ -4113,11 +4118,16 @@ END SUBROUTINE OMPSplitIndex
         ! Get friction and electron velocities
         call calc_friction(xc)
         call calc_elec_velocities
+        ! TODO: FIX THIS 
         ! Volumetric plasma and gas sinks & sources
+        call OMPinitialize_ranges2d(locrange)
         call calc_volumetric_sources(xc, yc)
+        call OMPinitialize_ranges2d(range)
         if (TimingPandfOn.gt.0) TimeNeudif=tick()
         call neudifpg
         if (TimingPandfOn.gt.0) TotTimeNeudif=TotTimeNeudif+tock(TimeNeudif)
+
+        call OMPinitialize_ranges2d(locrange)
         call calc_srcmod
         ! Calculate plasma & gas conductivities etc.
         call calc_plasma_viscosities
