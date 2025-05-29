@@ -35,7 +35,7 @@ CONTAINS
 !    Nixymax = (nx+2)*(ny+2)
     ! Get the dx/dy per chunk
     dx = real(nx)/(Nxchunks)
-    dy = real(ny-1)/(Nychunks+1)
+    dy = real(ny-1)/(Nychunks)
     ! Allocate the necassary arrays
     allocate( &
     &       xlims(Nxchunks,2), &
