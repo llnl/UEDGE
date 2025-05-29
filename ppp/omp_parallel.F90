@@ -2,20 +2,20 @@ MODULE CHUNK
 CONTAINS
   SUBROUTINE Make2DChunks(Nxchunks, Nychunks, &
     &   N, Niv, ivchunk, rangechunk, Nxptchunks, Nivxpt, &
-    &   ivxptchunk, rangexptchunk)!, ixychunk, Nixy)
+    &   ivxptchunk, rangexptchunk, Nmax, Nxptmax, Nivxptmax)!, ixychunk, Nixy)
     Use Dim, ONLY: nx, ny, nxpt
     Use Indexes, ONLY: igyl
     Use Lsode, ONLY: neq
     Use Xpoint_indices, ONLY: iysptrx1, ixpt1, ixpt2
     IMPLICIT NONE
-    INTEGER, INTENT(INOUT):: N, Nxptchunks(nxpt), Nxchunks, Nychunks
+    INTEGER, INTENT(OUT):: N, Nxptchunks(nxpt), Nxchunks, Nychunks
 !    INTEGER, ALLOCATABLE, DIMENSION(:,:,:), INTENT(OUT):: ixychunk
     INTEGER, ALLOCATABLE, DIMENSION(:,:,:,:), INTENT(OUT):: rangexptchunk
     INTEGER, ALLOCATABLE, DIMENSION(:,:,:), INTENT(OUT)::  ivxptchunk
     INTEGER, ALLOCATABLE, DIMENSION(:,:), INTENT(OUT)::  ivchunk, &
     &               rangechunk, Nivxpt
     INTEGER, ALLOCATABLE, DIMENSION(:), INTENT(OUT)::  Niv !, Nixy
-    INTEGER:: Nmax!, Nixymax
+    INTEGER, INTENT(OUT) :: Nmax, Nxptmax, Nivxptmax
     integer:: ix, iy, nxi, nyi, ii, idx(2), idxl, ixpt, iix, iicut, iscut
     real:: dx, dy, dyxpt(2)
     integer, allocatable:: xlims(:,:), ylims(:,:), xlimsxpt(:,:,:,:), ylimsxpt(:,:,:,:)
@@ -30,16 +30,24 @@ CONTAINS
         Nxptchunks(ixpt) = MIN(Nxptchunks(ixpt),iysptrx1(ixpt)-1) ! Number of X-point chunks
         dyxpt(ixpt) = real(iysptrx1(ixpt)-1)/(Nxptchunks(ixpt)+1)
     end do
+    Nxptmax = MAXVAL(Nxptchunks)
     Nmax = neq
 !    Nixymax = (nx+2)*(ny+2)
     ! Get the dx/dy per chunk
     dx = real(nx)/(Nxchunks)
     dy = real(ny-1)/(Nychunks+1)
     ! Allocate the necassary arrays
-    allocate( xlims(Nxchunks,2), ylims(Nychunks,2), xlimsxpt(nxpt, 2, MAXVAL(Nxptchunks),2), &!ixychunk(N, Nixymax, 2), &
-    &   ivchunk(N, Nmax), rangechunk(N, 4), Niv(N), ylimsxpt(nxpt, 2, MAXVAL(Nxptchunks),2), &
-    &   ivxptchunk(nxpt,MAXVAL(Nxptchunks),Nmax), Nivxpt(nxpt,MAXVAL(Nxptchunks)), &
-    &   rangexptchunk(nxpt,2,MAXVAL(Nxptchunks),4))!, Nixy(N))
+    allocate( &
+    &       xlims(Nxchunks,2), &
+    &       ylims(Nychunks,2), &
+    &       xlimsxpt(nxpt, 2, MAXVAL(Nxptchunks),2), &
+    &       ivchunk(N, Nmax), &
+    &       rangechunk(N, 4), &
+    &       Niv(N), &
+    &       ylimsxpt(nxpt, 2, MAXVAL(Nxptchunks),2), &
+    &       ivxptchunk(nxpt,MAXVAL(Nxptchunks),Nmax), & 
+    &       Nivxpt(nxpt,MAXVAL(Nxptchunks)), &
+    &       rangexptchunk(nxpt,2,MAXVAL(Nxptchunks),4))
     ! Calculate poloidal X-point intervals
     do ixpt = 1, nxpt ! Separate teams for each X-point
         ! Calculate Y-chunks
@@ -149,11 +157,11 @@ CONTAINS
         end do
         iscut=0
     enddo
+    Nmax = MAXVAL(Niv)
+    Nivxptmax = MAXVAL(Nivxpt)
 
   END SUBROUTINE Make2DChunks
 END MODULE CHUNK
-
-
 
 
 SUBROUTINE InitOMPJac()
@@ -212,48 +220,97 @@ END SUBROUTINE InitOMPJAC
 
 
 SUBROUTINE InitOMPPandf1
-    USE OMPPandf1Settings, ONLY: OMPPandf1Nxchunks,OMPPandf1Nychunks,OMPPandf1Stamp,OMPPandf1Verbose
-    USE OMPPandf1, ONLY: NchunksPandf1,Nxchunks,Nychunks
-    USE Dim, ONLY: ny
+    USE OMPPandf1, ONLY: Nxchunks,Nychunks, Nxptchunks, rangechunk, &
+    &   rangexptchunk, Nchunks, Nxptchunks, ivchunk, ivxptchunk, &
+    &   Nchunksmax, Nxptchunksmax, Nivxptchunk, Nivchunk, Nivxptchunksmax, &
+    &   isnionxy_old, isngonxy_old, isuponxy_old, istionxy_old, &
+    &   isteonxy_old, istgonxy_old, isphionxy_old, nisp_old, ngsp_old, &
+    &   nx_old, ny_old, neq_old
+    USE Dim, ONLY: nx, ny, nisp, ngsp
+    USE Lsode, ONLY: neq
+    USE UEpar, ONLY: isnionxy, isngonxy, isuponxy, istionxy, isteonxy, &
+    &   istgonxy, isphionxy
+    USE CHUNK 
     IMPLICIT NONE
+    INTEGER, ALLOCATABLE, DIMENSION(:,:,:,:) :: rangexptchunk_tmp
+    INTEGER, ALLOCATABLE, DIMENSION(:,:,:) ::  ivxptchunk_tmp
+    INTEGER, ALLOCATABLE, DIMENSION(:,:) ::  ivchunk_tmp, rangechunk_tmp, &
+    &       Nivxptchunk_tmp
+    INTEGER, ALLOCATABLE, DIMENSION(:) ::  Nivchunk_tmp
+    INTEGER :: rechunk 
+    rechunk = 1
 
-    if (1.eq.0) then
-    if (OMPPandf1Nychunks.lt.0) then
-        call xerrab('Nychunks<0. Nxchunks must be >=0')
-    endif
-    if (OMPPandf1Nychunks.eq.0) then
-        Nychunks=ny
-    else
-        Nychunks=OMPPandf1Nychunks
-    endif
-    if (OMPPandf1Nxchunks.ne.1) then
-        call xerrab('OMPPandf1Nxchunks!=1. Only Nxchunks=1 is implemented for the moment...')
-    else
-        Nxchunks=1
-    endif
+    if (nx_old.ne.nx) then
+        rechunk = 1
+    elseif (ny_old.ne.ny) then
+        rechunk = 1
+    elseif (nisp_old.ne.nisp) then
+        rechunk = 1
+    elseif (ngsp_old.ne.ngsp) then
+        rechunk = 1
+    elseif (neq_old.ne.neq) then
+        rechunk = 1
+    elseif (MAXVAL(ABS(isnionxy_old-isnionxy)).ne.0) then
+        rechunk = 1
+    elseif (MAXVAL(ABS(isngonxy_old-isngonxy)).ne.0) then
+        rechunk = 1
+    elseif (MAXVAL(ABS(isuponxy_old-isuponxy)).ne.0) then
+        rechunk = 1
+    elseif (MAXVAL(ABS(istionxy_old-istionxy)).ne.0) then
+        rechunk = 1
+    elseif (MAXVAL(ABS(isteonxy_old-isteonxy)).ne.0) then
+        rechunk = 1
+    elseif (MAXVAL(ABS(istgonxy_old-istgonxy)).ne.0) then
+        rechunk = 1
+    elseif (MAXVAL(ABS(isphionxy_old-isphionxy)).ne.0) then
+        rechunk = 1
+    end if
+
+    ! TODO: Add checks wheter anything has changed
+
+    if (rechunk.ne.0) then
+        write(*,*) "RECHUNKING"
+        call gchange('OMPPandf1',0)
+
+        if (Nychunks.lt.0) then
+            call xerrab('Nychunks<0. Nxchunks must be >=0')
+        endif
+        if (Nxchunks.lt.0) then
+            call xerrab('Nxchunks<0. Nxchunks must be >=0')
+        endif
+        ! Set default to be approx 5x5 chunks
+        if (Nychunks.eq.0) then
+            Nychunks=int(ny/5)
+        endif
+        if (Nxchunks.eq.0) then
+            Nxchunks=int(ny/5)
+        endif
+        ! Don't chunk the X-point for the time being
+        Nxptchunks = 1
+
+
+        call Make2DChunks(Nxchunks, Nychunks, Nchunks, Nivchunk_tmp, &
+        &   ivchunk_tmp, rangechunk_tmp, Nxptchunks, Nivxptchunk_tmp, &
+        &   ivxptchunk_tmp, rangexptchunk_tmp, Nchunksmax, Nxptchunksmax, &
+        &   Nivxptchunksmax)
+
+        call gchange('OMPPandf1',0)
+
+        rangechunk=rangechunk_tmp; 
+        ivchunk=ivchunk_tmp(:,:Nchunksmax)
+        Nivchunk=Nivchunk_tmp
+        rangexptchunk=rangexptchunk_tmp
+        ivxptchunk=ivxptchunk_tmp(:,:,:Nivxptchunksmax)
+        Nivxptchunk=Nivxptchunk_tmp;
     endif
 
-    ! this is a placeholder for further parallelization but we need to implement handling of x-points discon. in ix indexing
-    NchunksPandf1=Nychunks
+    isnionxy_old = isnionxy; isngonxy_old = isngonxy; isuponxy_old = isuponxy
+    istionxy_old = istionxy; isteonxy_old = isteonxy; istgonxy_old = istgonxy
+    isphionxy_old = isphionxy;  nisp_old = nisp; ngsp_old = ngsp
+    nx_old = nx; ny_old = ny; neq_old = neq
 
-    call gchange('OMPPandf1',0)
-
-    if (OMPPandf1Verbose.gt.0) then
-        write(*,*) OMPPandf1Stamp, ' NchunksPandf1 = ',NchunksPandf1
-    endif
     RETURN
 END SUBROUTINE InitOMPPandf1
-
-
-SUBROUTINE InitZeroOMP
-    IMPLICIT NONE
-#ifdef _OPENMP
-        call OmpInitZerobbb
-        call OmpInitZeroapi
-        call OmpInitZerocom
-#endif
-    RETURN
-END SUBROUTINE InitZeroOMP
 
 
 #ifdef _OPENMP
@@ -711,18 +768,15 @@ END SUBROUTINE OMPSplitIndex
     USE Indices_domain_dcl, ONLY: iymnbcl,iymxbcl, ixmnbcl, ixmxbcl
     USE Share, ONLY: isudsym, geometry, islimon, ix_lim, nxc
     USE Bcond, ONLY: isfixlb
-    USE OMPPandf1, ONLY: Nxchunks, Nychunks
-    USE CHUNK
+    USE OMPPandf1, ONLY: Nxptchunks, rangechunk, &
+    &   rangexptchunk, Nchunks, ivchunk, ivxptchunk, &
+    &   Nivxptchunk, Nivchunk
+    USE OMPPandf1, ONLY: rangechunk, rangexptchunk, Nchunks, Nxptchunks, &
+    &   ivchunk, ivxptchunk
 
     USE Indexes, ONLY: igyl
     IMPLICIT NONE
-    INTEGER:: Nchunks, Nchunks_convert
-    INTEGER, ALLOCATABLE, DIMENSION(:,:,:,:) :: rangexptchunk
-    INTEGER, ALLOCATABLE, DIMENSION(:,:,:) ::  ivxptchunk
-    INTEGER, ALLOCATABLE, DIMENSION(:,:) ::  ivchunk, rangechunk, ivchunk_convert, &
-    &   rangechunk_convert, Nivxptchunk
-    INTEGER, ALLOCATABLE, DIMENSION(:) ::  Nivchunk, Nivchunk_convert
-    INTEGER tid, Nxptchunks(nxpt)
+    INTEGER tid
     integer,intent(in)::neq
     real,intent(in)::yl(neq+1)
     real,intent(out)::yldot(neq)
@@ -741,14 +795,7 @@ END SUBROUTINE OMPSplitIndex
     yldotxpt1 = 0
     yldotxpt2 = 0
 
-
-    Nxptchunks(1) = 1
     if (ijactot.gt.0) then
-    ! TODO: move to initializer
-        call Make2DChunks(Nxchunks, Nychunks, Nchunks, Nivchunk, &
-        &   ivchunk, rangechunk, Nxptchunks, Nivxptchunk, ivxptchunk, &
-        &   rangexptchunk)
-
         !$OMP TEAMS NUM_TEAMS(nxpt+1) PRIVATE(tid)
         tid = omp_get_team_num()
         if ( omp_get_num_teams() .ne. nxpt+1 ) stop "Too few teams allocated"
@@ -786,8 +833,6 @@ END SUBROUTINE OMPSplitIndex
                 enddo
             END DO
         !$OMP END PARALLEL DO
-
-
         else 
             !$OMP PARALLEL
             !$OMP DO    PRIVATE(ichunk, iv) SCHEDULE(dynamic) &
@@ -872,14 +917,8 @@ END SUBROUTINE OMPSplitIndex
             end if
         end do
 
-
-
-
-
-
         ! Initialize local thread ranges
         xc=-1; yc=-1
-
         
         call OMPinitialize_ranges2d(range)
         ! Calculate plasma variables from yl
@@ -932,7 +971,6 @@ END SUBROUTINE OMPSplitIndex
         call calc_plasma_momentum_residuals
         call calc_plasma_energy_residuals(xc, yc)
         call calc_gas_energy_residuals
-
 
         ! Calculate yldot vector
         call calc_rhs(yldot)
@@ -1093,6 +1131,7 @@ END SUBROUTINE OMPSplitIndex
             call OMPinitialize_ranges2d(ranges(ii,:))
             call calc_plasma_transport
         end do
+        ! TODO: NOT NEEDED
         call calc_fniycbo 
         do ii = 1, 2
             call OMPinitialize_ranges2d(ranges(ii,:))
@@ -1110,6 +1149,7 @@ END SUBROUTINE OMPSplitIndex
             call OMPinitialize_ranges2d(ranges(ii,:))
             call calc_gas_energy
         end do
+        ! TODO: NOT NEEDED
         call calc_feeiycbo 
         ! TODO: FIX ATOM_SEIC 
         call OMPinitialize_ranges2d(corerange)
@@ -1129,14 +1169,6 @@ END SUBROUTINE OMPSplitIndex
             call OMPinitialize_ranges2d(ranges(ii,:))
             call calc_rhs(yldot)
         end do
-        ! TODO: Use separate parallel chunk to set core boundary
-!        ! Set boundary conditions directly in yldot
-!        do ii = 1, 2
-!            call OMPinitialize_ranges2d(ranges(ii,:))
-!            if (iymnbcl .ne. 0) call iwall_boundary(neq, yldot)
-!        end do
-!        call initialize_ranges(xc, yc, xlinc, xrinc, yinc)
-!        if (iymnbcl .ne. 0) call iwall_boundary(neq, yldot)
 
         if (TimingPandfOn.gt.0) & 
         &      TotTimePandf=TotTimePandf+tock(TimePandf)
@@ -1167,181 +1199,6 @@ END SUBROUTINE OMPSplitIndex
 
 
     END SUBROUTINE OMPPandf_XPT
-
-
-
-
-  SUBROUTINE CreateBin(ieqmin,ieqmax,ichunkmin,ichunkmax,ichunktot,Padding,iCenterBin,iLeftBin,iRightBin,inc)
-    IMPLICIT NONE
-    integer,intent(in):: ieqmin, ieqmax,Padding,ichunkmin,ichunkmax, ichunktot
-    integer,intent(out):: iCenterbin(ichunktot),inc(ichunktot),iLeftBin(ichunktot),iRightBin(ichunktot)
-    integer ::N,SizeBin,Nchunk, i
-    N=ieqmax-ieqmin+1
-    Nchunk=ichunkmax-ichunkmin+1
-
-    if (N>Nchunk) then
-        SizeBin=int((N/Nchunk))
-    else
-        SizeBin=1
-    endif
-
-    iLeftBin(ichunkmin) = ieqmin
-    iRightBin(ichunkmin) = iLeftBin(ichunkmin)+SizeBin-1
-    iCenterBin(ichunkmin) = int((iLeftBin(ichunkmin)+iRightBin(ichunkmin))/2)
-    inc(ichunkmin) = max(iCenterBin(ichunkmin)-iLeftBin(ichunkmin), &
-                iRightBin(ichunkmin)-iCenterBin(ichunkmin)) + padding
-    if (ichunkmax.gt.ichunkmin) then
-        do i=ichunkmin+1,ichunkmax-1
-            iLeftBin(i) = iRightBin(i-1)+1
-            iRightBin(i) = iLeftBin(i)+SizeBin-1
-            iCenterBin(i) = int((iLeftBin(i)+iRightBin(i))/2)
-            inc(i) = max(iCenterBin(i)-iLeftBin(i),iRightBin(i)-iCenterBin(i))+padding
-        enddo
-        iLeftBin(ichunkmax) = iRightBin(ichunkmax-1)+1
-        iRightBin(ichunkmax) = ieqmax
-        iCenterBin(ichunkmax) = int((iLeftBin(ichunkmax)+iRightBin(ichunkmax))/2)
-        inc(ichunkmax) = max(iCenterBin(ichunkmax)-iLeftBin(ichunkmax), &
-                iRightBin(ichunkmax)-iCenterBin(ichunkmax))+padding
-    endif
-    RETURN
-  END SUBROUTINE CreateBin
-
-
-  SUBROUTINE MakeChunksPandf1()
-    USE Indexes, ONLY: igyl
-    USE OMPPandf1Settings, ONLY: xpadding,ypadding,OMPPandf1Verbose
-    USE OMPPandf1, ONLY: NchunksPandf1,yincchunk,xincchunk,iychunk, &
-            ixchunk,Nychunks_old,Nxchunks_old,neq_old,ivchunk,&
-            Nivchunk,Nxchunks,Nychunks,iymaxchunk,ixmaxchunk,iyminchunk,ixminchunk
-    USE Lsode, ONLY: neq
-    USE Dim, ONLY: nx,ny
-    IMPLICIT NONE
-
-    integer:: remakechunk,i,ii,ichunk,iv,ix,iy
-    integer:: iyCenterBin(Nychunks),iyRightBin(Nychunks),iyLeftBin(Nychunks),incy(Nychunks)
-    integer::ixCenterBin(Nxchunks),ixRightBin(Nxchunks),ixLeftBin(Nxchunks),incx(Nxchunks)
-    remakechunk=0
-    if ((Nxchunks.ne.Nxchunks_old).or.(Nychunks.ne.Nychunks_old)) then
-        if (Nychunks.gt.1) then
-            if (Nychunks.eq.ny) then
-                iyLeftBin(1)=0
-                iyRightBin(1)=1
-                iyCenterBin(1)=1
-                incy(1)=ypadding
-                call CreateBin(   2,ny-1,2,Nychunks-1, Nychunks, ypadding, &
-                                iyCenterBin, iyLeftBin, iyRightBin,&
-                                incy &
-                )
-                iyLeftBin(Nychunks)=ny
-                iyRightBin(Nychunks)=ny+1
-                iyCenterBin(Nychunks)=ny
-                incy(Nychunks)=ypadding
-                if (OMPPandf1Verbose.gt.1) then
-                    write(*,*) '----- Bins in y direction: ', Nychunks, ny+2
-                    do iy=1,Nychunks
-                        write(*,*) iyCenterBin(iy),iyLeftBin(iy),iyRightBin(iy),incy(iy)
-                    enddo
-                endif
-            else
-                call CreateBin(0,ny+1,1,Nychunks,Nychunks,ypadding,iyCenterBin, &
-                    iyLeftBin,iyRightBin,incy)
-                if (OMPPandf1Verbose.gt.1) then
-                    write(*,*) '----- Bins in y direction: ', Nychunks, ny+2
-                    do iy=1,Nychunks
-                        write(*,*) iyCenterBin(iy),iyLeftBin(iy),iyRightBin(iy),incy(iy)
-                    enddo
-                endif
-                ! now we check the first and last bins to check that ypadding is 3 if iyCenterBin=2
-                if (iyCenterBin(1)==0) then
-                    incy(1)=incy(1)+1
-                endif
-                if (iyCenterBin(Nychunks)==ny+1) then
-                    incy(Nychunks)=incy(Nychunks)+1
-                endif
-            endif
-        else
-            iyCenterBin(1)=-1
-            iyLeftBin(1)=0
-            iyLeftBin(1)=ny+1
-            incy(1)=0 !not used
-        endif
-        if (Nxchunks.gt.1) then
-            call CreateBin(0,nx+1,1,Nxchunks,Nxchunks,xpadding,ixCenterBin,ixLeftBin,ixRightBin,incx)
-        else
-            ixCenterBin(1)=-1
-            ixLeftBin(1)=0
-            ixRightBin(1)=nx+1
-            incx(1)=0 !not used
-        endif
-        ichunk=1
-        ! Build NchunksPandf1
-        do iy=1,Nychunks
-            if (iy==1) then
-                iychunk(ichunk)=iyCenterBin(iy)
-                iyminchunk(ichunk)=iyLeftBin(iy)
-                iymaxchunk(ichunk)=iyRightBin(iy)
-                yincchunk(ichunk)=incy(iy)
-                ixchunk(ichunk)=-1
-                ixminchunk(ichunk)=0
-                ixmaxchunk(ichunk)=nx+1
-                xincchunk(ichunk)=0
-                ichunk=ichunk+1
-                CYCLE
-            endif
-            if (iy==ny+1) then
-                iychunk(ichunk)=iyCenterBin(iy)
-                iyminchunk(ichunk)=iyLeftBin(iy)
-                iymaxchunk(ichunk)=iyRightBin(iy)
-                yincchunk(ichunk)=incy(iy)
-                ixchunk(ichunk)=-1
-                ixminchunk(ichunk)=0
-                ixmaxchunk(ichunk)=nx+1
-                xincchunk(ichunk)=0
-                ichunk=ichunk+1
-                CYCLE
-            endif
-            do ix=1,Nxchunks
-                iychunk(ichunk)=iyCenterBin(iy)
-                iyminchunk(ichunk)=iyLeftBin(iy)
-                iymaxchunk(ichunk)=iyRightBin(iy)
-                yincchunk(ichunk)=incy(iy)
-                ixchunk(ichunk)=ixCenterBin(ix)
-                ixminchunk(ichunk)=ixLeftBin(ix)
-                ixmaxchunk(ichunk)=ixRightBin(ix)
-                xincchunk(ichunk)=incx(ix)
-                ichunk=ichunk+1
-            enddo
-        enddo
-        Nychunks_old=Nychunks
-        Nxchunks_old=Nxchunks
-        remakechunk=1
-    endif
-    if ((neq.ne.neq_old) .or. remakechunk.gt.0) then
-        do i=1,NchunksPandf1
-            ii=1
-            do iv=1,neq
-                if ((igyl(iv,2).le.iymaxchunk(i) .and. igyl(iv,2).ge.iyminchunk(i)) &
-                .and. (igyl(iv,1).le.ixmaxchunk(i) .and. igyl(iv,1).ge.ixminchunk(i))) then
-                    ivchunk(i,ii)=iv
-                    Nivchunk(i)=ii
-                    ii=ii+1
-                endif
-            enddo
-        enddo
-        neq_old=neq
-        if (OMPPandf1Verbose.gt.1) then
-            write(*,"('Nychunks = ',I3,'; Nxchunks = ',I3)") Nychunks,Nxchunks
-            write(*,"('Nchunks:',I3)") NchunksPandf1
-            do i=1,NchunksPandf1
-                write(*,'("ichunk: ",I3," | iyc = [",I3,";",I3,";",I3,"] ; ixc = ",I3, &
-                " || xinc = ", I3,"; yinc = ",I3," | iv = [",I5,";",I5,"]")') &
-                i,iyminchunk(i),iychunk(i),iymaxchunk(i), ixchunk(i),xincchunk(i),  &
-                yincchunk(i), ivchunk(i,1),ivchunk(i,Nivchunk(i))
-            enddo
-        endif
-    endif
-    RETURN
-  END SUBROUTINE MakeChunksPandf1
 
 #endif
 

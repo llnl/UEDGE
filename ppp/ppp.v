@@ -85,10 +85,6 @@ OMPPandf1Verbose    integer         /0/
 OMPTimeParallelPandf1   real        /0.0/
 OMPTimeSerialPandf1     real        /0.0/
 OMPPandf1LoopNchunk     integer     /1/
-OMPPandf1Nychunks   integer         /0/
-OMPPandf1Nxchunks   integer         /1/
-xpadding            integer         /2/
-ypadding            integer         /2/
 
 **** OMPPandf1:
 isnionxy_old(0:nx+1,0:ny+1,nisp) _integer /0/
@@ -106,28 +102,25 @@ Nxchunks_old integer /0/
 Nychunks_old integer /0/
 Nxptchunks_old integer /0/
 neq_old             integer     /0/
+rangechunk(Nchunks, 4)  _integer
+rangexptchunk(nxpt, 2, Nxptchunksmax, 4)  _integer
+Nchunks             integer     /0/
+Nxptchunks(nxpt)    _integer    /0/
+Nychunks            integer     /0/
+Nxchunks            integer     /1/
+ivchunk(Nchunks,Nchunksmax)  _integer
+ivxptchunk(nxpt, Nxptchunksmax, Nivxptchunksmax)  _integer
+Nchunksmax          integer     /1/
+Nxptchunksmax          integer     /1/
+Nivxptchunksmax          integer     /1/
+Nivchunk(Nchunks)     _integer
+Nivxptchunk(nxpt, Nxptchunksmax)     _integer
+
 
 
 chunks(neq,3)       _integer
-Nchunks             integer
-Nychunks            integer     /0/
-Nxchunks            integer     /1/
-NchunksPandf1       integer     /1/
-Nchunksmax          integer     /1/
-Nixychunksmax       integer     /1/
-yincchunk(NchunksPandf1)    _integer
-xincchunk(NchunksPandf1)    _integer
-ixchunk(NchunksPandf1)      _integer
-iychunk(NchunksPandf1)      _integer
-rangechunk(NchunksPandf1, 4)  _integer
-Nivchunk(NchunksPandf1)     _integer
-ivchunk(NchunksPandf1,Nchunksmax)  _integer
-Nixychunk(NchunksPandf1)    _integer
-ixychunk(NchunksPandf1,Nixychunksmax,2)  _integer
-iymaxchunk(NchunksPandf1)   _integer
-ixmaxchunk(NchunksPandf1)   _integer
-iyminchunk(NchunksPandf1)   _integer
-ixminchunk(NchunksPandf1)   _integer
+ixchunk(Nchunks)      _integer
+iychunk(Nchunks)      _integer
 
 **** OMPTiming:
 DebugTime       integer /0/     # Display execution times of various subroutines
