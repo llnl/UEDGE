@@ -900,10 +900,10 @@ END SUBROUTINE OMPSplitIndex
       INTEGER, INTENT(IN), DIMENSION(4) :: range
       REAL, INTENT(IN), DIMENSION(neq+2) :: yl
       REAL, INTENT(OUT), DIMENSION(neq) :: yldot
-      INTEGER :: ichunk, xc, yc, ii, locrange(4), ixpt, corechunk = 1
+      INTEGER :: ichunk, xc, yc, ii, locrange(4), ixpt, ftrange(4)
       REAL :: tick,tock!, tsfe, tsjf, ttotfe, ttotjf, tserial, tpara
 
-        locrange = range
+        locrange = range;ftrange=range
         ! For some reason the right BC in bouncon only
         ! works robustly with the whole flux-tube. Since
         ! the boundary only calculates in the vicinity of the
@@ -914,6 +914,8 @@ END SUBROUTINE OMPSplitIndex
                 if (locrange(2).eq.ixrb(ixpt)+1) then
                     locrange(1) = ixlb(ixpt)
                 endif
+                ftrange(1) = ixlb(ixpt)
+                ftrange(2) = ixrb(ixpt) + 1
             end if
         end do
 
@@ -926,7 +928,14 @@ END SUBROUTINE OMPSplitIndex
         call convsr_vo2 (xc, yc, yl) 
         ! Calculate derived quantities frequently used
         call convsr_aux1 (xc, yc)
+
+
+        ! TODO: Figure out why this is needed??
+        call initialize_ranges(xc, yc, 2,2,2)
         call convsr_aux2 (xc, yc)
+        call OMPinitialize_ranges2d(range)
+
+
         ! Calculate the plasma diffusivities and drift velocities
         call calc_plasma_diffusivities
         call initialize_driftterms  
@@ -955,7 +964,7 @@ END SUBROUTINE OMPSplitIndex
         call engbalg
         call calc_plasma_transport
 
-        ! TODO: only do for core chunk?
+        ! TODO: only do for core chunk? - Better: move to iwall bdry
         call calc_fniycbo 
         call calc_plasma_momentum_coeffs
         call calc_plasma_momentum(xc, yc)
@@ -976,10 +985,9 @@ END SUBROUTINE OMPSplitIndex
         call calc_rhs(yldot)
 
         ! Set boundary conditions directly in yldot
-        call OMPinitialize_ranges2d(locrange)
+        call OMPinitialize_ranges2d(ftrange)
+        ! TODO: Why is the boundary casuing some issues?
         call bouncon(neq, yldot)
-        if (TimingPandfOn.gt.0) & 
-        &      TotTimePandf=TotTimePandf+tock(TimePandf)
 
         ! ================ BEGIN OLD PANDF1 ===================
 
@@ -999,10 +1007,6 @@ END SUBROUTINE OMPSplitIndex
                 call add_timestep(neq, yl, yldot)
             endif   !if-test on svrpkg and ylcopy(neq+1)
         endif    !if-test on dtreal
-        ! For some reason this call, that seemingly does nothing,
-        ! is required here, and I have no clue as to why...
-        ! (just let it be, happy toughts)
-        call initialize_ranges(xc, yc, 2,2,2)
     END SUBROUTINE OMPPandf
 
 
