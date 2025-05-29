@@ -895,15 +895,16 @@ END SUBROUTINE OMPSplitIndex
       USE Time_dep_nwt, ONLY: dtreal
       USE Dim, ONLY: nxpt, nx
       USE Xpoint_indices, ONLY: ixpt1, ixpt2, iysptrx1, ixlb, ixrb
+      USE Bcond, ONLY: xcnearrb, xcnearlb
       IMPLICIT NONE
       INTEGER, INTENT(IN) :: neq
       INTEGER, INTENT(IN), DIMENSION(4) :: range
       REAL, INTENT(IN), DIMENSION(neq+2) :: yl
       REAL, INTENT(OUT), DIMENSION(neq) :: yldot
-      INTEGER :: ichunk, xc, yc, ii, locrange(4), ixpt, ftrange(4)
+      INTEGER :: ichunk, xc, yc, ii, locrange(4), ixpt, ftrange(4), auxrange(4)
       REAL :: tick,tock!, tsfe, tsjf, ttotfe, ttotjf, tserial, tpara
 
-        locrange = range;ftrange=range
+        locrange = range;ftrange=range; auxrange=range
         ! For some reason the right BC in bouncon only
         ! works robustly with the whole flux-tube. Since
         ! the boundary only calculates in the vicinity of the
@@ -919,6 +920,8 @@ END SUBROUTINE OMPSplitIndex
             end if
         end do
 
+
+
         ! Initialize local thread ranges
         xc=-1; yc=-1
         
@@ -931,7 +934,14 @@ END SUBROUTINE OMPSplitIndex
 
 
         ! TODO: Figure out why this is needed??
-        call initialize_ranges(xc, yc, 2,2,2)
+        if ((auxrange(1).gt.ixpt1(1)).and.(auxrange(2).le.ixpt2(1))) then
+            auxrange(1)=ixpt1(1)+1
+            auxrange(2)=ixpt2(1)
+        elseif (auxrange(2).le.ixpt1(1)) then
+            auxrange(1)=ixlb(1)
+            auxrange(2)=ixpt1(1)
+        endif
+        call OMPinitialize_ranges2d(auxrange)
         call convsr_aux2 (xc, yc)
         call OMPinitialize_ranges2d(range)
 
@@ -1007,6 +1017,10 @@ END SUBROUTINE OMPSplitIndex
                 call add_timestep(neq, yl, yldot)
             endif   !if-test on svrpkg and ylcopy(neq+1)
         endif    !if-test on dtreal
+        ! For some reason this call, that seemingly does nothing,
+        ! is required here, and I have no clue as to why...
+        ! (just let it be, happy toughts)
+        call initialize_ranges(xc, yc, 2,2,2)
     END SUBROUTINE OMPPandf
 
 
