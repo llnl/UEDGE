@@ -901,30 +901,31 @@ END SUBROUTINE OMPSplitIndex
       INTEGER, INTENT(IN), DIMENSION(4) :: range
       REAL, INTENT(IN), DIMENSION(neq+2) :: yl
       REAL, INTENT(OUT), DIMENSION(neq) :: yldot
-      INTEGER :: ichunk, xc, yc, ii, locrange(4), ixpt, ftrange(4), auxrange(4)
+      INTEGER :: ichunk, xc, yc, ii, ixpt, auxrange(4)
       REAL :: tick,tock!, tsfe, tsjf, ttotfe, ttotjf, tserial, tpara
 
-        locrange = range;ftrange=range; auxrange=range
+        auxrange=range
         ! For some reason the right BC in bouncon only
         ! works robustly with the whole flux-tube. Since
         ! the boundary only calculates in the vicinity of the
         ! boundary, there is no additional cost to this.
         ! Just do it!
         do ixpt = 1, nxpt
-            if (locrange(3).le.iysptrx1(ixpt)) then
-                if (locrange(2).eq.ixrb(ixpt)+1) then
-                    locrange(1) = ixlb(ixpt)
-                endif
-                ftrange(1) = ixlb(ixpt)
-                ftrange(2) = ixrb(ixpt) + 1
-            end if
+            ! TODO: Figure out why this is needed??
+            if ((auxrange(1).gt.ixpt1(ixpt)).and.(auxrange(2).le.ixpt2(ixpt))) then
+                auxrange(1)=ixpt1(ixpt)+1
+                auxrange(2)=ixpt2(ixpt)
+            elseif (auxrange(2).le.ixpt1(ixpt)) then
+                auxrange(1)=ixlb(ixpt)
+                auxrange(2)=ixpt1(ixpt)
+            endif
         end do
 
 
 
-        openbox = .true.
         ! Initialize local thread ranges
         xc=-1; yc=-1
+        openbox = .true.
         
         call OMPinitialize_ranges2d(range)
         ! Calculate plasma variables from yl
@@ -934,14 +935,6 @@ END SUBROUTINE OMPSplitIndex
         call convsr_aux1 (xc, yc)
 
 
-        ! TODO: Figure out why this is needed??
-        if ((auxrange(1).gt.ixpt1(1)).and.(auxrange(2).le.ixpt2(1))) then
-            auxrange(1)=ixpt1(1)+1
-            auxrange(2)=ixpt2(1)
-        elseif (auxrange(2).le.ixpt1(1)) then
-            auxrange(1)=ixlb(1)
-            auxrange(2)=ixpt1(1)
-        endif
         call OMPinitialize_ranges2d(auxrange)
         call convsr_aux2 (xc, yc)
         call OMPinitialize_ranges2d(range)
