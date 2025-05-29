@@ -895,7 +895,7 @@ END SUBROUTINE OMPSplitIndex
       USE Time_dep_nwt, ONLY: dtreal
       USE Dim, ONLY: nxpt, nx
       USE Xpoint_indices, ONLY: ixpt1, ixpt2, iysptrx1, ixlb, ixrb
-      USE Bcond, ONLY: xcnearrb, xcnearlb
+      USE Bcond, ONLY: openbox
       IMPLICIT NONE
       INTEGER, INTENT(IN) :: neq
       INTEGER, INTENT(IN), DIMENSION(4) :: range
@@ -922,6 +922,7 @@ END SUBROUTINE OMPSplitIndex
 
 
 
+        openbox = .true.
         ! Initialize local thread ranges
         xc=-1; yc=-1
         
@@ -995,8 +996,6 @@ END SUBROUTINE OMPSplitIndex
         call calc_rhs(yldot)
 
         ! Set boundary conditions directly in yldot
-        call OMPinitialize_ranges2d(ftrange)
-        ! TODO: Why is the boundary casuing some issues?
         call bouncon(neq, yldot)
 
         ! ================ BEGIN OLD PANDF1 ===================
@@ -1006,7 +1005,6 @@ END SUBROUTINE OMPSplitIndex
         ! are for d(nv)/dt, etc If isflxvar=2, variables are 
         ! ni,v,nTe,nTi,ng. Boundary equations and potential 
         ! equations are not reordered.
-        call OMPinitialize_ranges2d(range)
         if(isflxvar.ne.1 .and. isrscalf.eq.1) call rscalf(yl,yldot)
 
         if(dtreal < 1.e15) then
@@ -1017,10 +1015,6 @@ END SUBROUTINE OMPSplitIndex
                 call add_timestep(neq, yl, yldot)
             endif   !if-test on svrpkg and ylcopy(neq+1)
         endif    !if-test on dtreal
-        ! For some reason this call, that seemingly does nothing,
-        ! is required here, and I have no clue as to why...
-        ! (just let it be, happy toughts)
-        call initialize_ranges(xc, yc, 2,2,2)
     END SUBROUTINE OMPPandf
 
 
@@ -1033,8 +1027,6 @@ END SUBROUTINE OMPSplitIndex
       USE Selec, ONLY: yinc, xrinc, xlinc, j3, i4, i8
       USE Indices_domain_dcl, ONLY: iymnbcl
       USE Dim, ONLY: nx
-
-        USE Rhsides, ONLY: resco
       IMPLICIT NONE
       INTEGER, INTENT(IN) :: neq
       INTEGER, INTENT(IN), DIMENSION(2,4) :: ranges
