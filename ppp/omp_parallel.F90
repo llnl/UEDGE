@@ -226,8 +226,9 @@ SUBROUTINE InitOMPPandf1
     &   isnionxy_old, isngonxy_old, isuponxy_old, istionxy_old, &
     &   isteonxy_old, istgonxy_old, isphionxy_old, nisp_old, ngsp_old, &
     &   nx_old, ny_old, neq_old
-    USE Dim, ONLY: nx, ny, nisp, ngsp
+    USE Dim, ONLY: nx, ny, nisp, ngsp, nxpt
     USE Lsode, ONLY: neq
+    USE Xpoint_indices, ONLY: iysptrx1
     USE UEpar, ONLY: isnionxy, isngonxy, isuponxy, istionxy, isteonxy, &
     &   istgonxy, isphionxy
     USE CHUNK 
@@ -237,7 +238,7 @@ SUBROUTINE InitOMPPandf1
     INTEGER, ALLOCATABLE, DIMENSION(:,:) ::  ivchunk_tmp, rangechunk_tmp, &
     &       Nivxptchunk_tmp
     INTEGER, ALLOCATABLE, DIMENSION(:) ::  Nivchunk_tmp
-    INTEGER :: rechunk 
+    INTEGER :: rechunk, ixpt
     rechunk = 1
 
     if (nx_old.ne.nx) then
@@ -285,8 +286,11 @@ SUBROUTINE InitOMPPandf1
         if (Nxchunks.eq.0) then
             Nxchunks=int(ny/5)
         endif
-        ! Don't chunk the X-point for the time being
-        Nxptchunks = 1
+        do ixpt = 1, nxpt
+            if (Nxptchunks(ixpt).eq.0) then
+                Nxptchunks(ixpt) = int(iysptrx1(ixpt)/5)
+            endif
+        enddo
 
 
         call Make2DChunks(Nxchunks, Nychunks, Nchunks, Nivchunk_tmp, &
@@ -855,14 +859,18 @@ END SUBROUTINE OMPSplitIndex
         !$OMP END TEAMS
 
         yldot = yldottot
-        do ii=1,Nivxptchunk(1, 1)
-            iv = ivxptchunk(1,1,ii)
-            yldot(iv) = yldotxpt1(iv)
-        end do
-        if (nxpt.eq.2) then
-            do ii=1,Nivxptchunk(2, 1)
-                iv = ivxptchunk(2,1,ii)
+        do ichunk = 1, Nxptchunks(1) 
+            do ii=1,Nivxptchunk(1, ichunk)
+                iv = ivxptchunk(1,ichunk,ii)
                 yldot(iv) = yldotxpt1(iv)
+            end do
+        enddo
+        if (nxpt.eq.2) then
+            do ichunk = 1, Nxptchunks(2) 
+                do ii=1,Nivxptchunk(2, ichunk)
+                    iv = ivxptchunk(2,ichunk,ii)
+                    yldot(iv) = yldotxpt1(iv)
+                end do
             end do
         endif
         do ixpt = 1, nxpt
