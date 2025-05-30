@@ -25,10 +25,10 @@ CONTAINS
     Nxchunks = MAX(MIN(nx, Nxchunks),1)
     Nychunks = MAX(MIN(ny-1, Nychunks),1)
     ! Calculate the number of chunks needed maximum
-    N = Nxchunks * Nychunks + 1
+    N = Nxchunks * Nychunks + 3*nxpt
     do ixpt = 1, nxpt
         Nxptchunks(ixpt) = MIN(Nxptchunks(ixpt),iysptrx1(ixpt)-1) ! Number of X-point chunks
-        dyxpt(ixpt) = real(iysptrx1(ixpt)-1)/(Nxptchunks(ixpt)+1)
+        dyxpt(ixpt) = real(iysptrx1(ixpt)-1)/(Nxptchunks(ixpt))
     end do
     Nxptmax = MAXVAL(Nxptchunks)
     Nmax = neq
@@ -109,17 +109,28 @@ CONTAINS
     end do
     if (Nychunks .gt. 1) ylims(Nychunks,1) = ylims(Nychunks-1,2)+1
     ylims(Nychunks,2) = ny+1
+    ! Make special chunks for iy=0 boundary
+    do ixpt = 1, nxpt
+        rangechunk(1+3*(ixpt-1),1) =   0
+        rangechunk(1+3*(ixpt-1),2) =   ixpt1(ixpt)-2
+        rangechunk(1+3*(ixpt-1),3) =   0
+        rangechunk(1+3*(ixpt-1),4) =   1
+        rangechunk(2+3*(ixpt-1),1) =   ixpt1(ixpt)-1
+        rangechunk(2+3*(ixpt-1),2) =   ixpt2(ixpt)+2
+        rangechunk(2+3*(ixpt-1),3) =   0
+        rangechunk(2+3*(ixpt-1),4) =   1
+        rangechunk(3+3*(ixpt-1),1) =   ixpt2(ixpt)+3
+        rangechunk(3+3*(ixpt-1),2) =   nx+1
+        rangechunk(3+3*(ixpt-1),3) =   0
+        rangechunk(3+3*(ixpt-1),4) =   1
+    end do
     ! Ravel the ranges into chunks 
-    rangechunk(1,1) =   0
-    rangechunk(1,2) =   nx+1
-    rangechunk(1,3) =   0
-    rangechunk(1,4) =   1
     do ix = 1, Nxchunks
         do iy = 1, Nychunks
-            rangechunk(Nxchunks*(iy-1) + ix + 1, 1) = xlims(ix,1)
-            rangechunk(Nxchunks*(iy-1) + ix + 1, 2) = xlims(ix,2)
-            rangechunk(Nxchunks*(iy-1) + ix + 1, 3) = ylims(iy,1)
-            rangechunk(Nxchunks*(iy-1) + ix + 1, 4) = ylims(iy,2)
+            rangechunk(Nxchunks*(iy-1) + ix + 3*nxpt, 1) = xlims(ix,1)
+            rangechunk(Nxchunks*(iy-1) + ix + 3*nxpt, 2) = xlims(ix,2)
+            rangechunk(Nxchunks*(iy-1) + ix + 3*nxpt, 3) = ylims(iy,1)
+            rangechunk(Nxchunks*(iy-1) + ix + 3*nxpt, 4) = ylims(iy,2)
         end do
     end do
     ! Get the yldot-indices for the chunks 
