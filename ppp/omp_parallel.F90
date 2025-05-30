@@ -800,9 +800,8 @@ END SUBROUTINE OMPSplitIndex
     real,intent(in)::yl(neq+1)
     real,intent(out)::yldot(neq)
     real,intent(in)::time
-    real:: yldotcopy(neq),yldotxpt1(neq),yldotxpt2(neq) 
-    real:: yldottot(neq), yldotxpt1tot(neq), yldotxpt2tot(neq) 
-    real yldotsave(neq),ylcopy(neq+2), yldotcore(neq)
+    real:: yldotcopy(neq), yldottot(neq)
+    real yldotsave(neq),ylcopy(neq+2)
     INTEGER:: ichunk, xc, yc, ii, ixpt, iv
     real tick, tock
     external tick, tock
@@ -811,90 +810,42 @@ END SUBROUTINE OMPSplitIndex
     ylcopy = yl
     yldotcopy = yldot
     yldottot = 0
-    yldotxpt1 = 0
-    yldotxpt2 = 0
-    yldotcore = 0
+
 
     if (ijactot.gt.0) then
-        !$OMP TEAMS NUM_TEAMS(nxpt+2) PRIVATE(tid)
-        tid = omp_get_team_num()
-        if ( omp_get_num_teams() .ne. nxpt+2 ) stop "Too few teams allocated"
-        ! Do the first X-point - assumed to always be present
-        if(tid .eq. 0) then
         !$OMP PARALLEL DO PRIVATE(ichunk) SCHEDULE(dynamic) &
-        !$OMP &      FIRSTPRIVATE(ylcopy, yldotcopy) REDUCTION(+:yldotxpt1)
-            DO ichunk = 1, Nxptchunks(1)
+        !$OMP &      FIRSTPRIVATE(ylcopy, yldotcopy) REDUCTION(+:yldottot)
+            DO ichunk = 1, SUM(Nxptchunks) + Nchunks
                 psorcxg = 0
                 psorrg = 0
                 psordis = 0
-                ! Only one chunk for the time being
-                call OMPPandf_XPT(neq, ylcopy, yldotcopy, rangexptchunk(1, :, ichunk,:))
+                if (ichunk .le. Nxptchunks(1)) then
+                    call OMPPandf_XPT(neq, ylcopy, yldotcopy, rangexptchunk(1, :, ichunk,:))
 
-                do iv=1,Nivxptchunk(1, ichunk)
-                    yldotxpt1(ivxptchunk(1,ichunk,iv)) = yldotxpt1(ivxptchunk(1,ichunk,iv)) &
-                    &       + yldotcopy(ivxptchunk(1,ichunk,iv))
-                enddo
+                    do iv=1,Nivxptchunk(1, ichunk)
+                        yldottot(ivxptchunk(1,ichunk,iv)) = yldottot(ivxptchunk(1,ichunk,iv)) &
+                        &       + yldotcopy(ivxptchunk(1,ichunk,iv))
+                    enddo
+                elseif ((nxpt.eq.2).and.(ichunk.le.SUM(Nxptchunks))) then
+                    call OMPPandf_XPT(neq, ylcopy, yldotcopy, rangexptchunk(2, :, ichunk-Nxptchunks(1),:))
+
+                    do iv=1,Nivxptchunk(2, ichunk-Nxptchunks(1))
+                        yldottot(ivxptchunk(2,ichunk-Nxptchunks(1),iv)) = &
+                        &       yldottot(ivxptchunk(2,ichunk-Nxptchunks(1),iv)) &
+                        &       + yldotcopy(ivxptchunk(2,ichunk-Nxptchunks(1),iv))
+                    enddo
+                else
+                    call OMPPandf(neq, ylcopy, yldotcopy,rangechunk(ichunk-SUM(Nxptchunks),:))
+
+                    do iv=1,Nivchunk(ichunk-SUM(Nxptchunks))
+                        yldottot(ivchunk(ichunk-SUM(Nxptchunks),iv)) = &
+                        &       yldottot(ivchunk(ichunk-SUM(Nxptchunks),iv)) &
+                        &       + yldotcopy(ivchunk(ichunk-SUM(Nxptchunks),iv))
+                    enddo
+                endif
             END DO
-        !$OMP END PARALLEL DO
-        ! Do the second X-point if present
-        elseif ((nxpt.eq.2).and.(tid.eq.1)) then
-        !$OMP PARALLEL DO PRIVATE(ichunk) SCHEDULE(dynamic) &
-        !$OMP &      FIRSTPRIVATE(ylcopy, yldotcopy) REDUCTION(+:yldotxpt1)
-            DO ichunk = 1, Nxptchunks(2)
-                psorcxg = 0
-                psorrg = 0
-                psordis = 0
-                ! Only one chunk for the time being
-                call OMPPandf_XPT(neq, ylcopy, yldotcopy, rangexptchunk(2, :, ichunk,:))
-
-                do iv=1,Nivxptchunk(2, ichunk)
-                    yldotxpt1(ivxptchunk(2,ichunk,iv)) = yldotxpt1(ivxptchunk(2,ichunk,iv)) &
-                    &       + yldotcopy(ivxptchunk(2,ichunk,iv))
-                enddo
-            END DO
-        !$OMP END PARALLEL DO
-        ! Do the core boundary - has to be split into larger chunks and 
-        ! needs to be executed early to avoid having a large chunk last
-        elseif (tid.eq.nxpt+1) then
-            !$OMP PARALLEL
-            !$OMP DO    PRIVATE(ichunk, iv) SCHEDULE(dynamic) &
-            !$OMP &      FIRSTPRIVATE(ylcopy, yldotcopy) REDUCTION(+:yldotcore)
-            DO ichunk= 1, 3*nxpt
-
-                psorcxg = 0
-                psorrg = 0
-                psordis = 0
-                call OMPPandf(neq, ylcopy, yldotcopy,rangechunk(ichunk,:))
-
-                do iv=1,Nivchunk(ichunk)
-                    yldotcore(ivchunk(ichunk,iv)) = yldotcore(ivchunk(ichunk,iv)) &
-                    &       + yldotcopy(ivchunk(ichunk,iv))
-                enddo
-            END DO
-            !$OMP END DO
-            !$OMP END PARALLEL
-        ! Last team takes care of bulk of chunks
-        else 
-            !$OMP PARALLEL
-            !$OMP DO    PRIVATE(ichunk, iv) SCHEDULE(dynamic) &
-            !$OMP &      FIRSTPRIVATE(ylcopy, yldotcopy) REDUCTION(+:yldottot)
-            DO ichunk= 3*nxpt+1, Nchunks
-
-                psorcxg = 0
-                psorrg = 0
-                psordis = 0
-                call OMPPandf(neq, ylcopy, yldotcopy,rangechunk(ichunk,:))
-
-                do iv=1,Nivchunk(ichunk)
-                    yldottot(ivchunk(ichunk,iv)) = yldottot(ivchunk(ichunk,iv)) &
-                    &       + yldotcopy(ivchunk(ichunk,iv))
-                enddo
-            END DO
-            !$OMP END DO
-            !$OMP END PARALLEL
-            END IF
-        !$OMP END TEAMS
-        yldot = yldottot + yldotxpt1 + yldotxpt2 + yldotcore
+            !$OMP END PARALLEL DO
+        yldot = yldottot 
 
         if (CheckPandf1.gt.0) then
             call pandf (-1, -1, neq, time, ylcopy, yldotsave)
