@@ -19,7 +19,6 @@ CONTAINS
     integer:: ix, iy, nxi, nyi, ii, idx(2), idxl, ixpt, iix, iicut, iscut
     real:: dx, dy, dyxpt(2)
     integer, allocatable:: xlims(:,:), ylims(:,:), xlimsxpt(:,:,:,:), ylimsxpt(:,:,:,:)
-    ! TODO: Resize & use local variables, allocate real variables at last step only 
 
     ! Ensure chunking setup is valid: between 1 and n(x/y) chunks
     Nxchunks = MAX(MIN(nx, Nxchunks),1)
@@ -90,7 +89,6 @@ CONTAINS
                 rangexptchunk(ixpt, 2, iix, 4) = ylimsxpt(ixpt, 2, iix, 2)
         end do
     end do
-    ! TODO: Ensure one parallel chunk spans the whole iy=0 boundary!
     ! Calculate poloidal chunking intervals
     ! Include protections for boundaries
     xlims(1,1) = 0; xlims(1,2)=max(1,int(dx))
@@ -902,7 +900,6 @@ END SUBROUTINE OMPSplitIndex
     ParallelPandfCall = 0
     RETURN
 
-    ! TODO: add serial pandf call outside of loops to update all arrays
     END SUBROUTINE OMPPandf1Rhs
 
 
@@ -912,7 +909,7 @@ END SUBROUTINE OMPSplitIndex
       &     TimeNeudif, TotTimeNeudif
       USE Ynorm, ONLY: isflxvar, isrscalf
       USE Time_dep_nwt, ONLY: dtreal
-      USE Dim, ONLY: nxpt, nx
+      USE Dim, ONLY: nxpt, nx, ny
       USE Xpoint_indices, ONLY: ixpt1, ixpt2, iysptrx1, ixlb, ixrb
       USE Bcond, ONLY: openbox
       IMPLICIT NONE
@@ -1007,9 +1004,20 @@ END SUBROUTINE OMPSplitIndex
         ! Calculate yldot vector
         call calc_rhs(yldot)
 
+        ! TODO: add more robust checks on ixrb: primary X-point
+        ! RB may be in the middle of a chunk, rather than on the 
+        ! boundary. Alternatively, the chunks should be defined to
+        ! ensure a chunk on each LB/RB boundary
         ! Set boundary conditions directly in yldot
-        call bouncon(neq, yldot)
-
+        do ixpt = 1, nxpt
+            if (    (range(1).eq.ixlb(ixpt)) &
+            &   .or.(range(2).eq.ixrb(ixpt)+1) &
+            &   .or.(range(3).eq.0) &
+            &   .or.(range(4).eq.ny+1) &
+            & ) then
+                call bouncon(neq, yldot)
+            endif
+        end do
         ! ================ BEGIN OLD PANDF1 ===================
 
         ! If isflxvar=0, we use ni,v,Te,Ti,ng as variables, and
@@ -1153,8 +1161,6 @@ END SUBROUTINE OMPSplitIndex
             call OMPinitialize_ranges2d(ranges(ii,:))
             call calc_plasma_transport
         end do
-        ! TODO: NOT NEEDED
-        call calc_fniycbo 
         do ii = 1, 2
             call OMPinitialize_ranges2d(ranges(ii,:))
             call calc_plasma_momentum_coeffs
@@ -1171,10 +1177,6 @@ END SUBROUTINE OMPSplitIndex
             call OMPinitialize_ranges2d(ranges(ii,:))
             call calc_gas_energy
         end do
-        ! TODO: NOT NEEDED
-        call calc_feeiycbo 
-        ! TODO: FIX ATOM_SEIC 
-        call OMPinitialize_ranges2d(corerange)
         call calc_atom_seic 
         do ii = 1, 2
             call OMPinitialize_ranges2d(ranges(ii,:))
