@@ -853,6 +853,8 @@ END SUBROUTINE OMPSplitIndex
                 enddo
             END DO
         !$OMP END PARALLEL DO
+        ! Do the core boundary - has to be split into larger chunks and 
+        ! needs to be executed early to avoid having a large chunk last
         elseif (tid.eq.nxpt+1) then
             !$OMP PARALLEL
             !$OMP DO    PRIVATE(ichunk, iv) SCHEDULE(dynamic) &
@@ -871,6 +873,7 @@ END SUBROUTINE OMPSplitIndex
             END DO
             !$OMP END DO
             !$OMP END PARALLEL
+        ! Last team takes care of bulk of chunks
         else 
             !$OMP PARALLEL
             !$OMP DO    PRIVATE(ichunk, iv) SCHEDULE(dynamic) &
