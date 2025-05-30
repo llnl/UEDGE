@@ -234,7 +234,7 @@ SUBROUTINE InitOMPPandf1
     &   Nchunksmax, Nxptchunksmax, Nivxptchunk, Nivchunk, Nivxptchunksmax, &
     &   isnionxy_old, isngonxy_old, isuponxy_old, istionxy_old, &
     &   isteonxy_old, istgonxy_old, isphionxy_old, nisp_old, ngsp_old, &
-    &   nx_old, ny_old, neq_old
+    &   nx_old, ny_old, neq_old, Nxchunks_old, Nychunks_old, Nxptchunks_old
     USE Dim, ONLY: nx, ny, nisp, ngsp, nxpt
     USE Lsode, ONLY: neq
     USE Xpoint_indices, ONLY: iysptrx1
@@ -248,7 +248,7 @@ SUBROUTINE InitOMPPandf1
     &       Nivxptchunk_tmp
     INTEGER, ALLOCATABLE, DIMENSION(:) ::  Nivchunk_tmp
     INTEGER :: rechunk, ixpt
-    rechunk = 1
+    rechunk = 0
 
     if (nx_old.ne.nx) then
         rechunk = 1
@@ -257,6 +257,12 @@ SUBROUTINE InitOMPPandf1
     elseif (nisp_old.ne.nisp) then
         rechunk = 1
     elseif (ngsp_old.ne.ngsp) then
+        rechunk = 1
+    elseif (MAXVAL(ABS(Nxptchunks_old-Nxptchunks)).ne.0) then
+        rechunk = 1
+    elseif (Nxchunks_old.ne.Nxchunks) then
+        rechunk = 1
+    elseif (Nychunks_old.ne.Nychunks) then
         rechunk = 1
     elseif (neq_old.ne.neq) then
         rechunk = 1
@@ -279,7 +285,6 @@ SUBROUTINE InitOMPPandf1
     ! TODO: Add checks wheter anything has changed
 
     if (rechunk.ne.0) then
-        write(*,*) "RECHUNKING"
         call gchange('OMPPandf1',0)
 
         if (Nychunks.lt.0) then
@@ -320,7 +325,8 @@ SUBROUTINE InitOMPPandf1
     isnionxy_old = isnionxy; isngonxy_old = isngonxy; isuponxy_old = isuponxy
     istionxy_old = istionxy; isteonxy_old = isteonxy; istgonxy_old = istgonxy
     isphionxy_old = isphionxy;  nisp_old = nisp; ngsp_old = ngsp
-    nx_old = nx; ny_old = ny; neq_old = neq
+    nx_old = nx; ny_old = ny; neq_old = neq; Nxptchunks_old = Nxptchunks
+    Nxchunks_old = Nxchunks; Nychunks_old=Nychunks
 
     RETURN
 END SUBROUTINE InitOMPPandf1

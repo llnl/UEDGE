@@ -100,7 +100,7 @@ nx_old integer /0/
 ny_old integer /0/
 Nxchunks_old integer /0/
 Nychunks_old integer /0/
-Nxptchunks_old integer /0/
+Nxptchunks_old(nxpt) _integer /0/
 neq_old             integer     /0/
 rangechunk(Nchunks, 4)  _integer
 rangexptchunk(nxpt, 2, Nxptchunksmax, 4)  _integer
