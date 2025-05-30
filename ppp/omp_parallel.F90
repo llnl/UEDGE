@@ -802,7 +802,7 @@ END SUBROUTINE OMPSplitIndex
     real,intent(in)::time
     real:: yldotcopy(neq),yldotxpt1(neq),yldotxpt2(neq) 
     real:: yldottot(neq), yldotxpt1tot(neq), yldotxpt2tot(neq) 
-    real yldotsave(neq),ylcopy(neq+2)
+    real yldotsave(neq),ylcopy(neq+2), yldotcore(neq)
     INTEGER:: ichunk, xc, yc, ii, ixpt, iv
     real tick, tock
     external tick, tock
@@ -813,11 +813,12 @@ END SUBROUTINE OMPSplitIndex
     yldottot = 0
     yldotxpt1 = 0
     yldotxpt2 = 0
+    yldotcore = 0
 
     if (ijactot.gt.0) then
-        !$OMP TEAMS NUM_TEAMS(nxpt+1) PRIVATE(tid)
+        !$OMP TEAMS NUM_TEAMS(nxpt+2) PRIVATE(tid)
         tid = omp_get_team_num()
-        if ( omp_get_num_teams() .ne. nxpt+1 ) stop "Too few teams allocated"
+        if ( omp_get_num_teams() .ne. nxpt+2 ) stop "Too few teams allocated"
         ! Do the first X-point - assumed to always be present
         if(tid .eq. 0) then
         !$OMP PARALLEL DO PRIVATE(ichunk) SCHEDULE(dynamic) &
@@ -852,11 +853,29 @@ END SUBROUTINE OMPSplitIndex
                 enddo
             END DO
         !$OMP END PARALLEL DO
+        elseif (tid.eq.nxpt+1) then
+            !$OMP PARALLEL
+            !$OMP DO    PRIVATE(ichunk, iv) SCHEDULE(dynamic) &
+            !$OMP &      FIRSTPRIVATE(ylcopy, yldotcopy) REDUCTION(+:yldotcore)
+            DO ichunk= 1, 3*nxpt
+
+                psorcxg = 0
+                psorrg = 0
+                psordis = 0
+                call OMPPandf(neq, ylcopy, yldotcopy,rangechunk(ichunk,:))
+
+                do iv=1,Nivchunk(ichunk)
+                    yldotcore(ivchunk(ichunk,iv)) = yldotcore(ivchunk(ichunk,iv)) &
+                    &       + yldotcopy(ivchunk(ichunk,iv))
+                enddo
+            END DO
+            !$OMP END DO
+            !$OMP END PARALLEL
         else 
             !$OMP PARALLEL
             !$OMP DO    PRIVATE(ichunk, iv) SCHEDULE(dynamic) &
             !$OMP &      FIRSTPRIVATE(ylcopy, yldotcopy) REDUCTION(+:yldottot)
-            DO ichunk= 1, Nchunks
+            DO ichunk= 3*nxpt+1, Nchunks
 
                 psorcxg = 0
                 psorrg = 0
@@ -874,6 +893,12 @@ END SUBROUTINE OMPSplitIndex
         !$OMP END TEAMS
 
         yldot = yldottot
+        do ichunk = 1, 3*nxpt
+            do ii=1,Nivchunk(ichunk)
+                iv = ivchunk(ichunk,ii)
+                yldot(iv) = yldotcore(iv)
+            end do
+        enddo
         do ichunk = 1, Nxptchunks(1) 
             do ii=1,Nivxptchunk(1, ichunk)
                 iv = ivxptchunk(1,ichunk,ii)
@@ -884,16 +909,10 @@ END SUBROUTINE OMPSplitIndex
             do ichunk = 1, Nxptchunks(2) 
                 do ii=1,Nivxptchunk(2, ichunk)
                     iv = ivxptchunk(2,ichunk,ii)
-                    yldot(iv) = yldotxpt1(iv)
+                    yldot(iv) = yldotxpt2(iv)
                 end do
             end do
         endif
-        do ixpt = 1, nxpt
-            do ii=1,Nivxptchunk(ixpt, 1)
-                    iv = ivxptchunk(ixpt,1,ii)
-                    yldot(iv) = yldotxpt1(iv)
-            end do
-        enddo
             
         if (CheckPandf1.gt.0) then
             call pandf (-1, -1, neq, time, ylcopy, yldotsave)
