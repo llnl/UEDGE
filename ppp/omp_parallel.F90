@@ -984,14 +984,10 @@ END SUBROUTINE OMPSplitIndex
         call engbalg
         call calc_plasma_transport
 
-        ! TODO: only do for core chunk? - Better: move to iwall bdry
-        call calc_fniycbo 
         call calc_plasma_momentum_coeffs
         call calc_plasma_momentum(xc, yc)
         call calc_plasma_energy(xc, yc)
         call calc_gas_energy
-        ! TODO: only do for core chunk?
-        call calc_feeiycbo 
         call calc_atom_seic 
 
         if (isphion.eq.1) call calc_potential_residuals
@@ -1008,6 +1004,7 @@ END SUBROUTINE OMPSplitIndex
         ! RB may be in the middle of a chunk, rather than on the 
         ! boundary. Alternatively, the chunks should be defined to
         ! ensure a chunk on each LB/RB boundary
+
         ! Set boundary conditions directly in yldot
         do ixpt = 1, nxpt
             if (    (range(1).eq.ixlb(ixpt)) &
@@ -1015,9 +1012,12 @@ END SUBROUTINE OMPSplitIndex
             &   .or.(range(3).eq.0) &
             &   .or.(range(4).eq.ny+1) &
             & ) then
+                call calc_fniycbo 
+                call calc_feeiycbo 
                 call bouncon(neq, yldot)
             endif
         end do
+        !NOTE: This logic loop might be obsolete, due to internal checks
         ! ================ BEGIN OLD PANDF1 ===================
 
         ! If isflxvar=0, we use ni,v,Te,Ti,ng as variables, and
