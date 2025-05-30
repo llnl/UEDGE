@@ -891,29 +891,8 @@ END SUBROUTINE OMPSplitIndex
             !$OMP END PARALLEL
             END IF
         !$OMP END TEAMS
+        yldot = yldottot + yldotxpt1 + yldotxpt2 + yldotcore
 
-        yldot = yldottot
-        do ichunk = 1, 3*nxpt
-            do ii=1,Nivchunk(ichunk)
-                iv = ivchunk(ichunk,ii)
-                yldot(iv) = yldotcore(iv)
-            end do
-        enddo
-        do ichunk = 1, Nxptchunks(1) 
-            do ii=1,Nivxptchunk(1, ichunk)
-                iv = ivxptchunk(1,ichunk,ii)
-                yldot(iv) = yldotxpt1(iv)
-            end do
-        enddo
-        if (nxpt.eq.2) then
-            do ichunk = 1, Nxptchunks(2) 
-                do ii=1,Nivxptchunk(2, ichunk)
-                    iv = ivxptchunk(2,ichunk,ii)
-                    yldot(iv) = yldotxpt2(iv)
-                end do
-            end do
-        endif
-            
         if (CheckPandf1.gt.0) then
             call pandf (-1, -1, neq, time, ylcopy, yldotsave)
             call Compare(yldot,yldotsave,neq)
