@@ -1182,5 +1182,289 @@ END SUBROUTINE OMPSplitIndex
 
     END SUBROUTINE OMPPandf_XPT
 
+
+    SUBROUTINE OMPilut (n,a,ja,ia,lfil,tol,alu,jlu,ju,iwk, &
+    &               wu,wl,jr,jwl,jwu,ierr)
+       implicit none
+       integer n, ju0, j, ii, j1, j2, k, lenu, lenl, jj, nl, jrow
+       integer jpos, len
+       real tnorm, t, s, fact
+       real a(*), alu(*), wu(n+1), wl(n), tol
+       integer ja(*),ia(n+1),jlu(*),ju(n),jr(n), jwu(n), jwl(n), lfil, iwk, ierr
+    !----------------------------------------------------------------------*
+    !                      *** ILUT preconditioner ***                     *
+    !                      ---------------------------                     *
+    !      incomplete LU factorization with dual truncation mechanism      *
+    !      VERSION 2 : sorting  done for both L and U.                     *
+    !                                                                      *
+    ! Bug Fix:  Version of 2-25-93.                                        *
+    !                                                                      *
+    !----------------------------------------------------------------------*
+    !---- coded by Youcef Saad May, 5, 1990. ------------------------------*
+    !---- Dual drop-off strategy works as follows.                         *
+    !                                                                      *
+    !     1) Theresholding in L and U as set by tol. Any element whose size*
+    !        is less than some tolerance (relative to the norm of current  *
+    !        row in u) is dropped.                                         *
+    !                                                                      *
+    !     2) Keeping only the largest lfil elements in L and the largest   *
+    !        lfil elements in U.                                           *
+    !                                                                      *
+    ! Flexibility: one can use tol=0 to get a strategy based on keeping the*
+    ! largest elements in each row of L and U. Taking tol .ne. 0 but lfil=n*
+    ! will give the usual threshold strategy (however, fill-in is then     *
+    ! impredictible).                                                      *
+    !                                                                      *
+    !----------------------------------------------------------------------*
+    ! PARAMETERS
+    !-----------
+    !
+    ! on entry:
+    !==========
+    ! n       = integer. The dimension of the matrix A.
+    !
+    ! a,ja,ia = matrix stored in Compressed Sparse Row format.
+    !
+    ! lfil    = integer. The fill-in parameter. Each row of L and
+    !           each row of U will have a maximum of lfil elements
+    !           in addition to the original number of nonzero elements.
+    !           Thus storage can be determined beforehand.
+    !           lfil must be .ge. 0.
+    !
+    ! iwk     = integer. The minimum (MAX??) length of arrays alu and jlu
+    !
+    ! On return:
+    !===========
+    !
+    ! alu,jlu = matrix stored in Modified Sparse Row (MSR) format containing
+    !           the L and U factors together. The diagonal (stored in
+    !           alu(1:n) ) is inverted. Each i-th row of the alu,jlu matrix
+    !           contains the i-th row of L (excluding the diagonal entry=1)
+    !           followed by the i-th row of U.
+    !
+    ! ju      = integer array of length n containing the pointers to
+    !           the beginning of each row of U in the matrix alu,jlu.
+    !
+    ! ierr    = integer. Error message with the following meaning.
+    !           ierr  = 0    --> successful return.
+    !           ierr .gt. 0  --> zero pivot encountered at step number ierr.
+    !           ierr  = -1   --> Error. input matrix may be wrong.
+    !                            (The elimination process has generated a
+    !                            row in L or U whose length is .gt.  n.)
+    !           ierr  = -2   --> The matrix L overflows the array al.
+    !           ierr  = -3   --> The matrix U overflows the array alu.
+    !           ierr  = -4   --> Illegal value for lfil.
+    !           ierr  = -5   --> zero row encountered.
+    !
+    ! work arrays:
+    !=============
+    ! jr,jwu,jwl 	  = integer work arrays of length n.
+    ! wu, wl          = real work arrays of length n+1, and n resp.
+    !
+    ! Notes:
+    ! ------
+    ! A must have all nonzero diagonal elements.
+    !-----------------------------------------------------------------------
+    if (lfil .lt. 0) then
+        ierr = -4
+        RETURN
+    endif 
+    !-------------------------------
+    ! initialize ju0 (points to next element to be added to alu,jlu)
+    ! and pointer.
+    !-----------------------------------------------------------------------
+    !---- Initialize alu and jlu for diagnostic clarity --- TDR 1/24/00 ---
+    alu(:iwk) = 0.
+    jlu(:iwk) = 0.
+    !------------------------------------------------------------------------
+    ju0 = n+2
+    jlu(1) = ju0
+    !  integer double pointer array.
+    jr(:j) = 0
+
+    !-----------------------------------------------------------------------
+    ! beginning of main loop.
+    !-----------------------------------------------------------------------
+    DO ii = 1, n
+        j1 = ia(ii)
+        j2 = ia(ii+1) - 1
+        tnorm = 0.
+        do k=j1,j2
+            tnorm = tnorm+abs(a(k))
+        end do
+        if (tnorm .eq. 0.) then
+            ierr = -5
+            RETURN
+        endif
+        tnorm = tnorm/(j2-j1+1)
+        ! unpack L-part and U-part of row of A in arrays wl, wu
+        lenu = 1
+        lenl = 0
+        jwu(1) = ii
+        wu(1) = 0.0
+        jr(ii) = 1
+        ! unpack lower and upper parts of row ii, in jwl-wl and
+        ! jwu-wu compressed rows respectively. Ignore element if small
+        do j = j1, j2
+            k = ja(j)
+            t = a(j)
+            if ((abs(t) .lt. tol*tnorm).and.(k .ne. ii)) CYCLE
+            if (k .lt. ii) then
+                lenl = lenl+1
+                jwl(lenl) = k
+                wl(lenl) = t
+                jr(k) = lenl
+            else if (k .eq. ii) then
+                wu(1) = t
+            else
+                lenu = lenu+1
+                jwu(lenu) = k
+                wu(lenu) = t
+                jr(k) = lenu
+            endif
+        end do
+        tnorm = tnorm/(j2-j1+1)
+        !---------------------------------------------------------------
+        jj = 1
+        nl = 0
+        ! eliminate previous rows
+        DO WHILE( jj.le.lenl)
+            !-------------------------------------------------------------------
+            ! in order to do the elimination in the correct order we need to
+            ! exchange the current row number with the one that has
+            ! smallest column number, among jj,jj+1,...,lenl.
+            !-------------------------------------------------------------------
+            jrow = jwl(jj)
+            k = jj
+            ! determine smallest column index
+            do j=jj+1,lenl
+                if (jwl(j) .lt. jrow) then
+                    jrow = jwl(j)
+                    k = j
+                endif
+            end do
+            ! exchange in jwl
+            if (k .ne. jj) then
+                j = jwl(jj)
+                jwl(jj) = jwl(k)
+                jwl(k) = j
+                ! exchange in jr
+                jr(jrow) = jj
+                jr(j) = k
+                ! exchange in wl
+                s = wl(jj)
+                wl(jj) = wl(k)
+                wl(k) = s
+            endif
+            if (jrow .ge. ii) CYCLE
+            ! get the multiplier for row to be eliminated: jrow
+            fact = wl(jj)*alu(jrow)
+            ! zero out element in row by setting jr(jrow) = 0
+            jr(jrow) = 0
+            if (abs(fact)*wu(n+2-jrow) .gt. tol*tnorm) then
+                ! combine current row and row jrow
+                do k = ju(jrow), jlu(jrow+1)-1
+                    s = fact*alu(k)
+                    j = jlu(k)
+                    jpos = jr(j)
+                    ! if fill-in element is small then disregard:
+                    if (abs(s) .lt. tol*tnorm .and. jpos .eq. 0) CYCLE
+                    if (j .ge. ii) then
+                        ! dealing with upper part.
+                        if (jpos .eq. 0) then
+                            ! this is a fill-in element
+                            lenu = lenu+1
+                            if (lenu .gt. n) then
+                                ierr = -1
+                                RETURN
+                            end if
+                            jwu(lenu) = j
+                            jr(j) = lenu
+                            wu(lenu) = - s
+                        else
+                            ! no fill-in element --
+                            wu(jpos) = wu(jpos) - s
+                        endif
+                    else
+                        ! dealing with lower part.
+                        if (jpos .eq. 0) then
+                            ! this is a fill-in element
+                            lenl = lenl+1
+                            if (lenl .gt. n) then
+                                ierr = -1
+                                RETURN
+                            end if
+                            jwl(lenl) = j
+                            jr(j) = lenl
+                            wl(lenl) = - s
+                        else
+                            ! no fill-in element --
+                            wl(jpos) = wl(jpos) - s
+                        endif
+                    endif
+                end do 
+                nl = nl+1
+                wl(nl) = fact
+                jwl(nl)  = jrow
+            end if
+            jj = jj+1
+        END DO 
+        ! update l-matrix
+        len = min0(nl,lfil)
+        call qsplit (wl,jwl,nl,len)
+        do k=1, len
+            if (ju0 .gt. iwk) then
+                ierr = -2
+                RETURN
+            end if 
+            alu(ju0) =  wl(k)
+            jlu(ju0) =  jwl(k)
+            ju0 = ju0+1
+        end do
+!
+!     save pointer to beginning of row ii of U
+!
+        ju(ii) = ju0
+!
+!     reset double-pointer jr to zero (L-part - except first
+!     jj-1 elements which have already been reset)
+!
+        do k= jj, lenl
+            jr(jwl(k)) = 0
+        end do
+
+        len = min0(lenu,lfil)
+        call qsplit (wu(2), jwu(2), lenu-1,len)
+        ! update u-matrix
+        t = abs(wu(1))
+        if (len + ju0 .gt. iwk) then
+            ierr = -3
+            RETURN
+        end if
+        do k=2, len
+            jlu(ju0) = jwu(k)
+            alu(ju0) = wu(k)
+            t = t + abs(wu(k) )
+            ju0 = ju0+1
+        end do
+        ! save norm (in fact the average abs value) in wu (backwards)
+        wu(n+2-ii) = t / (len+1)
+        ! store inverse of diagonal element of u
+        if (wu(1) .eq. 0.0) wu(1) = (0.0001 + tol)*tnorm
+        alu(ii) = 1.0 / wu(1)
+        ! update pointer to beginning of next row of U.
+        jlu(ii+1) = ju0
+        ! reset double-pointer jr to zero (U-part)
+        do k=1, lenu
+            jr(jwu(k)) = 0
+        end do
+!-----------------------------------------------------------------------
+!     end main loop
+!-----------------------------------------------------------------------
+    END DO 
+    ierr = 0
+    RETURN
+    END SUBROUTINE OMPilut
+
 #endif
 

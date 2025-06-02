@@ -4104,6 +4104,8 @@ writeToLog(message:string)    subroutine
 ParallelJac     integer /0/        # [0]: serial jacobian calc [1] parallel jacobian calc
 ParallelPandf1     integer /0/        # [0]: serial pandf1 calc [1] parallel pandf1 calc
 ParallelPandfCall integer /0/       
+ParallelMatsol      integer /0/     # [0]: serial matrix solve [1] parallel matrix solve
+ParallelMatfac      integer /0/     # [0]: serial matrix factorization [1] parallel matrix factorization
 
 **** PandfTiming: # added by J.Guterl
 TimingPandfOn integer /0/

@@ -1311,7 +1311,7 @@ c ... Reorder Jacobian rows and columns, if desired.
 
 c ... Use incomplete factorization routine ilut from SparsKit.
          tsmatfac = tick()
-         call ilut (neq,jac,ja,ia,lfililut,tolilut,wp,iwp(neq+1),
+         call ilut_interface (neq,jac,ja,ia,lfililut,tolilut,wp,iwp(neq+1),
      .              iwp,lenplumx,rwk1,rwk2,iwk1,
      .              iwk2,iwk3,ierr) 
          if (ierr .ne. 0) then
@@ -4788,6 +4788,29 @@ c  The output is the file jacwrite.txt
       write(*,*)"Jacobian written successfully to jacwrite.txt"
       end
 c ***** End of subroutine jacwrite **********
+
+      SUBROUTINE ilut_interface (neq,jac,ja,ia,lfililut,tolilut,wp,iwp,
+     .              ju,lenplumx,rwk1,rwk2,iwk1,
+     .              iwk2,iwk3,ierr) 
+      Use(ParallelEval)
+      IMPLICIT NONE
+      integer:: neq, lfililut 
+      real:: jac(*), tolilut, wp(*), rwk1(1+neq), rwk2(neq) 
+      integer:: ja(*), ia(neq+1), iwp(*), ju(neq), lenplumx, iwk1(neq),
+     .      iwk2(neq), iwk3(neq), ierr
+c!omp if (ParallelMatfac.eq.1) then
+c!omp   call OMPilut (neq,jac,ja,ia,lfililut,tolilut,wp,iwp,
+c!omp.              ju,lenplumx,rwk1,rwk2,iwk1,
+c!omp.              iwk2,iwk3,ierr) 
+c!omp else
+        call OMPilut (neq,jac,ja,ia,lfililut,tolilut,wp,iwp,
+     .              ju,lenplumx,rwk1,rwk2,iwk1,
+     .              iwk2,iwk3,ierr) 
+c!omp endif
+        
+
+
+      END SUBROUTINE ilut_interface
 
       subroutine jac_calc_interface(neq, t, yl, yldot00, ml, mu, wk,
      .                     nnzmx, jac, ja, ia)
