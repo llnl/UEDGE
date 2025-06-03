@@ -1093,11 +1093,14 @@ i7omp       integer +threadprivate
 i8omp       integer +threadprivate
 j1omp       integer +threadprivate
 j1omp1      integer +threadprivate
+j1pomp      integer +threadprivate
 j2omp       integer +threadprivate
 j3omp       integer +threadprivate
 j4omp       integer +threadprivate
 j5omp       integer +threadprivate
-j6omp       integer +threadprivate
+j5pomp      integer +threadprivate
+j6omp      integer +threadprivate
+j6pomp      integer +threadprivate
 j7omp       integer +threadprivate
 j8omp       integer +threadprivate
 xlinc       integer /2/ +threadprivate

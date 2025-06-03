@@ -83,7 +83,7 @@ c-----------------------------------------------------------------------
 ************************************************************************
 *     Calculate fq2, the 2-current
 ************************************************************************
-      do 37 iy = j1p, j6p
+      do 37 iy = j1pomp, j6pomp
          do 36 ix = i1, i5
 	    iy1 = max(0,iy-1)
             ix1 = ixp1(ix,iy)
@@ -108,7 +108,7 @@ c...  in subroutine nphygeo)
 *     Calculate radial current fqy from toroidal momentum balance eqn
 ************************************************************************
 
-      do 27 iy = j1p, j5p
+      do 27 iy = j1pomp, j5pomp
          do 26 ix = i1, i6
             ix3 = ixm1(ix,iy)
             ix4 = ixm1(ix,iy+1)
@@ -159,7 +159,7 @@ ccc            fqy(ix,iy) = fqya(ix,iy) + cfydd*fqyd(ix,iy)
 
       do ifld = 1, nisp
        if (zi(ifld) > 1.e-10) then
-         do iy = max(j1p, 1), min(j5p, ny)  #min(j5p, ny-1)
+         do iy = max(j1pomp, 1), min(j5pomp, ny)  #min(j5p, ny-1)
            iyp2 = min(iy+2,ny+1)
            do ix = i1, i6
              ix3 = ixm1(ix,iy)
@@ -239,7 +239,7 @@ c... Next diffs btwn interp pts (niy1&niy0), thus use 1/dynog, not gyf
 
 
 c ... Sum ion species contributions to fqya, fqym, fqydti
-      do iy = max(j1p, 1), min(j5p, ny) ## min(j5p, ny-1)
+      do iy = max(j1pomp, 1), min(j5pomp, ny) ## min(j5p, ny-1)
         do ix = i1, i6
           fqya(ix,iy) = 0.
           fqym(ix,iy) = 0.
@@ -273,7 +273,7 @@ c ... Zero fqya on iy=0,1 and iy=ny,1 as unimportant (use isnewpot=0 bc)
       enddo
 
 c ... Sum contributions for fqy; ave old fqyao & fqya with rnewpot
-      do iy = j1p, j5p
+      do iy = j1pomp, j5pomp
          do ix = i1, i6
             fqy(ix,iy) = (1.-rnewpot)*fqyao(ix,iy) +
      .                     rnewpot*fqya(ix,iy) + cfqybf*fqyb(ix,iy) +
@@ -295,7 +295,7 @@ c ... Sum contributions for fqy; ave old fqyao & fqya with rnewpot
 c ... Add anomalous perp vis vy using calc_currents result - awkward,change
       if (cfvyavis > 0.) then
         do ifld = 1, 1  # nfsp  # only good for ifld=1
-          do iy = max(j1,2), min(j5,ny-1)
+          do iy = max(j1omp1,2), min(j5omp,ny-1)
             do ix = max(i1,2), min(i6,nx-1)
               vyavis(ix,iy,ifld) = fqya(ix,iy)*2/(
      .                  qe*(niy1(ix,iy,1)+niy0(ix,iy,1))*sy(ix,iy) )
@@ -366,7 +366,7 @@ c ***  End of subroutine calc_currents  **********
 ************************************************************************
       if (isimpon.ne.5) then
 
-      do iy = j1p, j6p
+      do iy = j1pomp, j6pomp
          do ix = i1, i5
 	    iy1 = max(0,iy-1)
             ix1 = ixp1(ix,iy)
@@ -462,7 +462,7 @@ c ***  End of subroutine calc_currents  **********
 ************************************************************************
       if (isimpon.eq.5) goto 255
 
-      do 25 iy = j1p, j6p
+      do 25 iy = j1pomp, j6pomp
          do 24 ix = i1, i5
 	    iy1 = max(0,iy-1)
             ix1 = ixp1(ix,iy)
@@ -565,7 +565,7 @@ ccc         if (iy.eq.1 .and. isnewpot.eq.1) fqp(ix,1) = fqp(ix,2)
 ************************************************************************
 *     Calculate fqx, the poloidal current
 ************************************************************************
-      do 47 iy = j1p, j6p
+      do 47 iy = j1pomp, j6pomp
          do 46 ix = i1, i5
             ix1 = ixp1(ix,iy)
             nzvibtot = 0.
