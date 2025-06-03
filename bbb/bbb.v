@@ -1083,6 +1083,23 @@ iys         integer +threadprivate
 ixs         integer +threadprivate
 ixf         integer +threadprivate
 iyf         integer +threadprivate
+i1omp       integer +threadprivate
+i2omp       integer +threadprivate
+i3omp       integer +threadprivate
+i4omp       integer +threadprivate
+i5omp       integer +threadprivate
+i6omp       integer +threadprivate
+i7omp       integer +threadprivate
+i8omp       integer +threadprivate
+j1omp       integer +threadprivate
+j1omp1      integer +threadprivate
+j2omp       integer +threadprivate
+j3omp       integer +threadprivate
+j4omp       integer +threadprivate
+j5omp       integer +threadprivate
+j6omp       integer +threadprivate
+j7omp       integer +threadprivate
+j8omp       integer +threadprivate
 xlinc       integer /2/ +threadprivate
 xrinc       integer /1/ +threadprivate
 yinc        integer /2/ +threadprivate

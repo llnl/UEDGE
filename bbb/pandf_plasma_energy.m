@@ -58,25 +58,21 @@ c!include "../sptodp.h"
 *  ---------------------------------------------------------------------
 *  -- initialize to 0 --
 
-      do iy = j1, j6
-         do ix = i1, i6
-            floxe(ix,iy) = 0.0e0
-            floxi(ix,iy) = 0.0e0
-            floye(ix,iy) = 0.0e0
-            floyi(ix,iy) = 0.0e0
-            feiycbo(ix) = 0.0e0
-            feeycbo(ix) = 0.0e0
-            w0(ix,iy) = 0.0e0
-            w1(ix,iy) = 0.0e0
-        end do
-      end do
-      wvh = 0.0e0    #wvh is 3D vector (ix,iy,nusp)
+        floxe = 0.0e0
+        floxi = 0.0e0
+        floye = 0.0e0
+        floyi = 0.0e0
+        feiycbo = 0.0e0
+        feeycbo = 0.0e0
+        w0 = 0.0e0
+        w1 = 0.0e0
+        wvh = 0.0e0    #wvh is 3D vector (ix,iy,nusp)
 
 *  -- compute conxe and conxi --
 
 *     (The computation of conxe involves a flux limit)
 
-      do iy = j4, j8
+      do iy = j4omp, j8omp
          do ix = i1, i5
             ix2 = ixp1(ix,iy)
             t0 = max (te(ix,iy), temin*ev)
@@ -136,7 +132,7 @@ c.... Now do the ions (hcxi is flux-limited previously when it is built)
 
 *  -- compute conye and conyi --
 
-      do iy = j1, j5
+      do iy = j1omp1, j5omp
          do ix = i4, i8
             conye(ix,iy) = sy(ix,iy) * hcye(ix,iy) / dynog(ix,iy)
             conyi(ix,iy) = sy(ix,iy) * hcyi(ix,iy) / dynog(ix,iy)
@@ -159,7 +155,7 @@ c.... Now do the ions (hcxi is flux-limited previously when it is built)
 *                        JLM      5/3/90
 *  ---------------------------------------------------------------------
 
-      do iy = j4, j8
+      do iy = j4omp, j8omp
          do ix = i1, i5  
             ix1 = ixp1(ix,iy)
             ltmax = min( abs(te(ix,iy)/(rrv(ix,iy)*gtex(ix,iy) + cutlo)),
@@ -176,7 +172,7 @@ c.... Now do the ions (hcxi is flux-limited previously when it is built)
 c IJ 2016/10/10	add cfneutsor_ei multiplier to control fraction of neutral energy to add 
       do ifld = 1, nfsp
          if ((isupgon(1) .eq. 1) .and. (ifld .eq. iigsp)) then  #neutrals
-            do iy = j4, j8
+            do iy = j4omp, j8omp
                do ix = i1, i5
                   floxi(ix,iy) = floxi(ix,iy) +
      .                 cftiexclg*cfcvti*2.5*cfneut*cfneutsor_ei*fnix(ix,iy,ifld) 
@@ -200,7 +196,7 @@ c IJ 2016/10/10	add cfneutsor_ei multiplier to control fraction of neutral energ
                enddo
             end do
          else  #ions
-            do iy = j4, j8
+            do iy = j4omp, j8omp
                do ix = i1, i5
                   floxi(ix,iy) = floxi(ix,iy) +
      .                           cfcvti*2.5*fnix(ix,iy,ifld)
@@ -212,7 +208,7 @@ c IJ 2016/10/10	add cfneutsor_ei multiplier to control fraction of neutral energ
 
 *  -- compute floye and floyi --
 
-      do iy = j1, j5    # note: cfloye usually = 2.5 or 1.5 (ExB turb)
+      do iy = j1omp1, j5omp    # note: cfloye usually = 2.5 or 1.5 (ExB turb)
          do ix = i4, i8
             floye(ix,iy) = floye(ix,iy) + (cfloye/2.)*
      .                    (ney0(ix,iy)+ney1(ix,iy))*vey(ix,iy)*sy(ix,iy)
@@ -223,7 +219,7 @@ c IJ 2016/10/10	add cfneutsor_ei multiplier to control fraction of neutral energ
 
       do ifld = 1, nfsp
          if ((isupgon(1) .eq. 1) .and. (ifld .eq. iigsp)) then
-            do iy = j1, j5
+            do iy = j1omp1, j5omp
                do ix = i4, i8
                   floyi(ix,iy) = floyi(ix,iy)
      .                 + cftiexclg*cfneut * cfneutsor_ei * 2.5 * fniy(ix,iy,ifld)
@@ -244,7 +240,7 @@ c ...       Make correction at walls to prevent recyc neutrals injecting pwr
             enddo 
 
          else
-            do iy = j1, j5 # note: cfloyi usually = 2.5 or 1.5 (ExB turb)
+            do iy = j1omp1, j5omp # note: cfloyi usually = 2.5 or 1.5 (ExB turb)
                do ix = i4, i8
                   floyi(ix,iy) = floyi(ix,iy)
      .                            + cfloyi * fniy(ix,iy,ifld)
@@ -260,7 +256,7 @@ c...  Next B x grad(T), first for the ions
       if(abs(cfbgt) .gt. 0 .or. cfeexdbo+cfeixdbo > 0.) then
 
       do ifld = 1, nfsp
-        do iy = j4, j8
+        do iy = j4omp, j8omp
            do ix = i1, i5
 	     iy1 = max(0,iy-1)
              ix1 = ixp1(ix,iy)
@@ -285,7 +281,7 @@ cccMER For full double-null configuration, iysptrx is last closed flux surface.
         end do
  
       do ifld = 1, nfsp
-        do iy = j1, j5
+        do iy = j1omp1, j5omp
            do ix = i4, i8
              ix3 = ixm1(ix,iy)
              ix4 = ixm1(ix,iy+1)
@@ -312,7 +308,7 @@ cccMER For full double-null configuration, iysptrx is last closed flux surface.
 
 c...  Now B x grad(T) for the electrons
 
-      do iy = j4, j8
+      do iy = j4omp, j8omp
          do ix = i1, i5
 	     iy1 = max(0,iy-1)
              ix1 = ixp1(ix,iy)
@@ -334,7 +330,7 @@ cccMER For full double-null configuration, iysptrx is last closed flux surface.
           end do
         end do
  
-      do iy = j1, j5
+      do iy = j1omp1, j5omp
 	   do ix = i4, i8
 	    ix3 = ixm1(ix,iy)
 	    ix4 = ixm1(ix,iy+1)
@@ -360,7 +356,7 @@ cccMER For full double-null configuration, iysptrx is last closed flux surface.
 c...Add the charge-exhange neutral contributions to ion+neutral temp eq.
 
 
-         do iy = j4, j8
+         do iy = j4omp, j8omp
             do ix = i1, i5
                floxi(ix,iy) = floxi(ix,iy) +
      .          cftiexclg*cfneut*cfneutsor_ei*cngtgx(1)*cfcvti*2.5*fngx(ix,iy,1)
@@ -369,7 +365,7 @@ c...Add the charge-exhange neutral contributions to ion+neutral temp eq.
         end do
 *  --Adds to floyi --
 
-         do iy = j1, j5
+         do iy = j1omp1, j5omp
             do ix = i4, i8
                floyi(ix,iy) = floyi(ix,iy)
      .             + cftiexclg*cfneut*cfneutsor_ei*cngtgy(1)*2.5*fngy(ix,iy,1)
@@ -423,7 +419,7 @@ c...  Add y-component of nonorthogonal diffusive flux; convective component
 c...  already added to uu(ix,iy)
       if (isnonog .eq. 1) then
 
-         do iy = j1, j6
+         do iy = j1omp1, j6omp
             if (iy .le. ny) then 
             iy1 = max(iy-1,0)
             do ix = i1, i6
@@ -497,7 +493,7 @@ c...  Flux limit with flalftxt even though hcys have parallel FL built in
         end do
 
 c...  Fix the fluxes with the same indice range as in fd2tra
-         do iy = j4, j8
+         do iy = j4omp, j8omp
             do ix = i1, i5
                feex(ix,iy) = feex(ix,iy) - feexy(ix,iy)
                feix(ix,iy) = feix(ix,iy) - feixy(ix,iy)
@@ -509,7 +505,7 @@ c...  Finished with nonorthogonal mesh part
 
 c ... Demand that net feex cannot be out of the plates
       if (isfeexpl0 == 1) then
-        do iy = j4, j8
+        do iy = j4omp, j8omp
           do jx = 1, nxpt
             if(feex(ixlb(jx),iy) > 0. .and. ixmnbcl==1) then
               feexflr = ni(ixlb(jx),iy,1)*1.e4*ev*sx(ixlb(jx),iy)
@@ -526,7 +522,7 @@ c ... Demand that net feex cannot be out of the plates
       endif
 
       if (isfeixpl0 == 1) then
-        do iy = j4, j8
+        do iy = j4omp, j8omp
           do jx = 1, nxpt
             if(feix(ixlb(jx),iy) > 0.) then
               feixflr = ni(ixlb(jx),iy,1)*1.e3*ev*sx(ixlb(jx),iy)
@@ -542,7 +538,7 @@ c ... Demand that net feex cannot be out of the plates
         enddo
       endif
 
-      do iy = j2, j5
+      do iy = j2omp, j5omp
 	    if((isudsym==1.or.geometry.eq.'dnXtarget') .and. nxc > 1) then
             feex(nxc-1,iy) = 0.
             feix(nxc-1,iy) = 0.
@@ -659,8 +655,8 @@ c*************************************************************
               j5pwr = min(ny, yc+1)
             endif 
               if (ParallelPandfCall.gt.0) then
-                j2pwr = j2
-                j5pwr = j5
+                j2pwr = j2omp
+                j5pwr = j5omp
               end if
             do iy = j2pwr, j5pwr
               if (xc < 0) then #full RHS eval
@@ -690,7 +686,7 @@ c*************************************************************
          endif    # end of integrating over sources and iseesorave test
 
 
-      do iy = j2, j5
+      do iy = j2omp, j5omp
          do ix = i2, i5
             ix1 = ixm1(ix,iy)
 c ... Energy density change due to molecular dissociation ("Franck-Condon")
@@ -861,8 +857,8 @@ cc         elseif (ishosor .ne. 0)
               j5pwr = min(ny, yc+1)
             endif 
               if (ParallelPandfCall.gt.0) then
-                j2pwr = j2
-                j5pwr = j5
+                j2pwr = j2omp
+                j5pwr = j5omp
               end if
             do iy = j2pwr, j5pwr
               if (xc < 0) then #full RHS eval

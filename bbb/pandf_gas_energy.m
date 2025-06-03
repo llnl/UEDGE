@@ -589,7 +589,7 @@ c                   Atom kinetic energy source from mol. drift heating
 *  -- total energy residual and equipartition --
 
       do igsp = 1, ngsp
-        do iy = j2, j5
+        do iy = j2omp, j5omp
           iy1 = max(0,iy-1)
           do ix = i2, i5
             ix1 = ixm1(ix,iy)

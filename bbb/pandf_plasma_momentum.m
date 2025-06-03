@@ -206,7 +206,7 @@ c     Compute y-component fmixy of nonorthogonal diffusive momentum flux.
 c     The convective component is already already added through uu(ix,iy).
 c     Average fym, etc in ix to get staggered velocity-grid values fymv, etc.
 c     The density-stencil dxnog has to be averaged as well.
-         do iy = j2, j5
+         do iy = j2omp, j5omp
             iy1 = max(iy-1,0)
             do ix = i2, i5+1    # ixp1(i5,iy)
                ix1 = ixm1(ix,iy)
@@ -253,7 +253,7 @@ c...  Now flux limit with flalfvgxy if ifld=2
 
 c...  Compute viscous drag from nonuniform B-field, then add to smoc
       if (isupdrag .eq. 1 .and. ifld .eq. 1) then
-        do iy = j2, j5
+        do iy = j2omp, j5
           do ix = i2, i5
             ix1 = ixm1(ix,iy)
             ix2 = ixp1(ix,iy)

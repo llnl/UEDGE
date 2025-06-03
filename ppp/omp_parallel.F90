@@ -731,6 +731,7 @@ END SUBROUTINE OMPSplitIndex
     i6 = min(nx+1, xe+3)
     i7 = xe+2
     i8 = min(nx+1, xe+2)
+
     j1 = max(0, ys-3)
     j2 = max(1, ys-2)
     j1p = max(0, ys-4)
@@ -754,25 +755,25 @@ END SUBROUTINE OMPSplitIndex
     i7omp = xe
     i8omp = xe
 
-    j1omp = ys
+    j1omp = max(ys, 0)
+    j1omp1 = max(ys-1, 0)
     j2omp = max(ys,1)
     j3omp = ys
     j4omp = max(ys,0)
     j5omp = min(ye+1, ny)
-    j6omp = ye
+    j6omp = min(ye, ny+1)
     j7omp = ye
     j8omp = min(ye+1,ny+1)
-        
-
 
     ixs = i2
     ixf = i5
-    iys = j2
-    iyf = j5
+    iys = j2omp
+    iyf = j5omp
     ixs1 = i1
     ixf6 = i6
-    iys1 = j1
-    iyf6 = j6
+    iys1 = j1omp1
+    iyf6 = j8omp
+
 
     xcnearrb = .FALSE.
     xcnearlb = .FALSE.
