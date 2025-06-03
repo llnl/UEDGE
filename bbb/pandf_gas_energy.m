@@ -56,17 +56,10 @@ c --------------------------------------------------------------------------
 *  -- Compute sources terms v_grad_Pg; first initialize array over range
 c  -- This v_grad_Pg term first added by MZhao
 
-      do igsp = 1, ngsp
-        do iy = j2, j5
-          do ix = i2, i5
-            segc(ix,iy,igsp) = 0.0
-          enddo
-        enddo
-      enddo
-
+        segc = 0.0
       do igsp = 1, ngsp
         if(istgon(igsp) == 1) then 
-          do iy = j2, j5
+          do iy = j2omp, j5omp
             do ix = i2, i5
               ix1 = ixm1(ix,iy)
               ix2 = ixp1(ix,iy)
@@ -90,24 +83,17 @@ c  -- This v_grad_Pg term first added by MZhao
 
 
 *  -- Compute flux terms; initialize some arrays to 0 --
-
-      do igsp = 1, ngsp
-        do iy = j1, j6
-          do ix = i1, i6
-            floxge(ix,iy,igsp) = 0.0e0
-            floyge(ix,iy,igsp) = 0.0e0
-            conxge(ix,iy,igsp) = 0.0e0
-            conyge(ix,iy,igsp) = 0.0e0
-          enddo
-        enddo
-      enddo
+        floxge = 0.0e0
+        floyge = 0.0e0
+        conxge = 0.0e0
+        conyge = 0.0e0
 
 *  ---------------------------------------------------------------------
 *  Compute thermal conductances
 *  ---------------------------------------------------------------------
 c ... Compute poloidal conduction
       do igsp = 1,ngsp
-        do iy = j4, j8
+        do iy = j4omp, j8omp
           do ix = i1, i5
             ix2 = ixp1(ix,iy)
 
@@ -124,7 +110,7 @@ c... flux-limit occurs in building hcxg - do not flux-limit 2nd time
 
 *  -- compute radial conduction conyge
       do igsp = 1, ngsp
-        do iy = j1, j5
+        do iy = j1omp1, j5omp
           do ix = i4, i8
             conyge(ix,iy,igsp) = sy(ix,iy)*hcyg(ix,iy,igsp)/dynog(ix,iy)
           enddo
@@ -143,7 +129,7 @@ c... flux-limit occurs in building hcxg - do not flux-limit 2nd time
 *  -- compute floxge --
 
       do igsp = 1, ngsp
-        do iy = j4, j8
+        do iy = j4omp, j8omp
           do ix = i1, i5
             floxge(ix,iy,igsp) = cfcvtg*2.5*fngx(ix,iy,igsp)
           enddo
@@ -153,7 +139,7 @@ c... flux-limit occurs in building hcxg - do not flux-limit 2nd time
 
 *  -- Correct bdry:remove any inward power from plates; ok in parallel
       do igsp = 1, ngsp
-        do iy = j4, j8
+        do iy = j4omp, j8omp
           do jx = 1, nxpt  #if at plate, sub (1-cfloxiplt)*neut-contrib
             if(ixmnbcl==1) then  #real div plt -need for parallel UEDGE
               iixt = ixlb(jx) #left plate
@@ -177,7 +163,7 @@ c... flux-limit occurs in building hcxg - do not flux-limit 2nd time
 *  -- compute floyge --
 
       do igsp = 1, ngsp
-        do iy = j1, j5
+        do iy = j1omp1, j5omp
           do ix = i4, i8
             floyge(ix,iy,igsp) = cfcvtg*2.5*fngy(ix,iy,igsp)
           enddo
@@ -225,7 +211,7 @@ c...  already added to uug(ix,iy,igsp)
       if (isnonog == 1) then
         do igsp = 1, ngsp
           if(istgon(igsp) == 0) cycle
-          do iy = j1, j6
+          do iy = j1omp1, j6omp
             if (iy .gt. ny) cycle
             iy1 = max(iy-1,0)
             do ix = i1, i6
@@ -293,7 +279,7 @@ c...  Flux limit with flalftxt even though hcys have parallel FL built in
 
       if((isudsym==1.or.geometry.eq.'dnXtarget') .and. nxc > 1) then
         do igsp = 1, ngsp
-          do iy = j2, j5
+          do iy = j2omp, j5omp
             fegx(nxc-1,iy,igsp) = 0. 
             fegx(nxc  ,iy,igsp) = 0. 
             fegx(nxc+1,iy,igsp) = 0. 
@@ -304,7 +290,7 @@ c...  Flux limit with flalftxt even though hcys have parallel FL built in
 *  -- Energy transfer to impurity neutrals at tg(,,igsp)
       if (ngsp >= 2) then   # for now, specialized to igsp=2 only
         do ifld = nhsp+1, nisp
-          do iy = j2, j5    # iys,iyf limits dont seem to work(?)
+          do iy = j2omp, j5omp    # iys,iyf limits dont seem to work(?)
             do ix = i2, i5
               #      possible bugs here? resei is replaced with seic
 	      #      since resei is not defined before this subroutine called

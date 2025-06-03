@@ -1269,7 +1269,7 @@ c******************************************************************
 
 *  -- initialize to 0 --
 
-      do iy = j1, j6
+      do iy = j1omp1, j6omp
          do ix = i1, i6
             hcxe(ix,iy) = 0.0e0
             hcxi(ix,iy) = 0.0e0
@@ -1290,12 +1290,8 @@ c -- Skip this if these are the neutrals (zi(ifld).eq.0)
          if (zi(ifld) .ne. 0.0e0) then
 
 c...  Initialize w1 and w2 for each species
-         do iy = j1, j6
-            do ix = i1, i6
-               w1(ix,iy) = 0.0e0
-               w2(ix,iy) = 0.0e0
-            end do
-         end do
+       w1 = 0.0e0
+       w2 = 0.0e0
 
 *     -- conductivities --
 *        The poloidal conductivities  are initially computed without
@@ -1305,7 +1301,7 @@ c...  Initialize w1 and w2 for each species
             tv = zi(jfld)**2
             a = zi(jfld)**2 *
      .            sqrt(2*mi(ifld)*mi(jfld)/(mi(ifld)+mi(jfld)))
-            do  iy = j1, j6
+            do  iy = j1omp1, j6omp
                do ix = i1, i6
                   ix1 = ixp1(ix,iy)
                   w1(ix,iy) = w1(ix,iy) + tv*(ni(ix,iy,jfld)*gx(ix,iy) +
@@ -1318,7 +1314,7 @@ c...  Initialize w1 and w2 for each species
             end do
         end do
 
-         do iy = j1, j6
+         do iy = j1omp1, j6omp
             do ix = i1, i6
                ix1 = ixp1(ix,iy)
                iyp1 = min(ny+1, iy+1)
@@ -1377,7 +1373,7 @@ ccc          iysptrx is the last closed flux surface (see S.R. nphygeo)
 c ... Add ion temp. dep. for pol. terms, flux limit, & build total ion hcx,yi
         do ifld = 1, nisp
          if (zi(ifld) .ne. 0.e0) then
-         do iy = j1, j6
+         do iy = j1omp1, j6omp
             do ix = i1, i6
                ix1 = ixp1(ix,iy)
                if (concap .eq. 0) then
@@ -1438,7 +1434,7 @@ c ... Flux limit individ. hcxij in poloidal direction if isflxldi=2
         end do
 
 c...  Now include elec. temp and other dep. in poloidal terms + diff. neut.
-      do iy = j1, j6
+      do iy = j1omp1, j6omp
          do ix = i1, i6
             ix1 = ixp1(ix,iy)
             iyp1 = min(ny+1, iy+1)
@@ -1495,7 +1491,7 @@ c
 c ----- Section for the inertial neutral fluid; we need to do different
 c ----- things than for the ions. Note third index=iigsp is neutral species
 c ----- The inertial neutrals coeff. are flux-limited and add to total here
-         do iy = j1, j6
+         do iy = j1omp1, j6omp
             iy1 = min(iy,ny)   #dont use j5 because hcx also in loop (not imp.)
             do ix = i1, i6
                ix1 = ixp1(ix,iy)
@@ -1558,17 +1554,12 @@ c
 *  ---------------------------------------------------------------------
 
 *     -- initialize w3 --
-c      do iy = j1, j6
-c         do ix = i1, i6
-c            w3(ix,iy) = 0.0e0
-c          end do
-c        end do
       w3=0
 
 
 *  -- compute equipartition --
 ccc In detail, coef1 = qe**4*sqrt(me)*lnlam / ((2*pi)**1.5*eps0**2)
-      do iy = j2, j5
+      do iy = j2omp, j5omp
          do ix = i2, i5
             do ifld = 1, nisp
               tv = zi(ifld)**2/mi(ifld)

@@ -1277,7 +1277,7 @@ c                   if (ix .eq. 1 .and. iy .eq. 1) write(*,*) 'sng_ue', ifld, jf
 
          methnx = mod(methn, 10)
          methny = methn/10
-         do iy = j4, j8
+         do iy = j4omp, j8omp
             do ix = i1, i5
               if ( zi(ifld).eq.0. .and. ineudif.ne.0 .and.
      .                                   1.-rrv(ix,iy) > 1.e-4 ) then
@@ -1343,7 +1343,7 @@ c                   if (ix .eq. 1 .and. iy .eq. 1) write(*,*) 'sng_ue', ifld, jf
 
 *  -- compute fniy  --
 
-         do iy = j1, j5
+         do iy = j1omp1, j5omp
             do ix = i4, i8
                if (zi(ifld).eq.0.) then #inertial gas must follow ion index
                   fniy(ix,iy,ifld) = fngy(ix,iy,ifld-1)
