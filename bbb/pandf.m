@@ -107,6 +107,31 @@ c         j6 = min(ny+1, yc+yinc_loc+1)
          j8 = min(ny+1, yc+yinc_loc)
       endif
 
+
+        i1omp = i1
+        i2omp = i2
+        i3omp = i3
+        i4omp = i4
+        i5omp = i5
+        i6omp = i6
+        i7omp = i7
+        i8omp = i8
+        j1omp = j1
+        j1pomp = j1p
+        j1omp1 = j1
+        j2omp = j2
+        j3omp = j3
+        j4omp = j4
+        j5omp = j5
+        j5pomp = j5p
+        j6omp = j6
+        j6pomp = j6p
+        j7omp = j7
+        j8omp = j8
+        
+
+
+
 c...  We will expand the range of possible responses when perturbing the
 c...  plasma in a cell near one of the cuts.
       xccuts = .false.
@@ -236,7 +261,7 @@ c...  boundary cells of a mesh region.  Used in subroutine bouncon.
 **********************************************************************
 *  --  Equations to be solved --
 **********************************************************************
-      do iy = j2, j5
+      do iy = j2omp, j5omp
          do ix = i2, i5
             do ifld = 1, nisp
 	       if(isnionxy(ix,iy,ifld) .eq. 1) then
@@ -388,13 +413,13 @@ cccMER   NOTE: what about internal guard cells (for dnbot,dnull,limiter) ???
              endif           
          else
              if (isbcwdt .eq. 0) then  # omit b.c. eqns
-                j2l = j2
-                j5l = j5
+                j2l = j2omp
+                j5l = j5omp
                 i2l = i2
                 i5l = i5
             else
-                j2l = j4
-                j5l = j8
+                j2l = j4omp
+                j5l = j8omp
                 i2l = i4
                 i5l = i8
             endif

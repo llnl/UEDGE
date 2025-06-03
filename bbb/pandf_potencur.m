@@ -798,7 +798,7 @@ c-----------------------------------------------------------------------
       real teev, nexface
 
 c ... Compute log_lambda
-      do iy = j1, j6
+      do iy = j1omp1, j6omp
         do ix = i1, i6
           ix1 = ixp1(ix,iy)
           teev = 0.5*(te(ix,iy)+te(ix1,iy))/ev
@@ -818,7 +818,7 @@ c ... Compute log_lambda
       enddo
 
 c ... Calculate collis. factors eta1 and rtaue for the simple Braginski model
-      do iy = j1, j6
+      do iy = j1omp1, j6omp
         do ix = i1, i6
            eta1(ix,iy) = cfeta1*0.3*nm(ix,iy,1)*ti(ix,iy)*
      .                   (1/(qe*btot(ix,iy))) / omgci_taui
@@ -875,7 +875,7 @@ c ... Calculate collis. factors eta1 and rtaue for the simple Braginski model
 c --- If this is the neutral species (zi(ifld).eq.0)) we dont want velocities
         if(zi(ifld) > 1.e-10) then  # if not, skip to end of 100 loop
          qion = zi(ifld)*qe
-         do iy = j1, j5
+         do iy = j1omp1, j5omp
             iyp1 = min(iy+1,ny+1)
             iym1 = max(iy-1,0)
             do ix = i1, i6
@@ -971,7 +971,7 @@ c ...   Note that the density grad. term for vydd added below
 c
 c ... Compute diffusive part of radial velocity.
 c .. Needs further cleaning; no turbulence model used now TDR 9/1/15
-         do iy = j1, j5
+         do iy = j1omp1, j5omp
             do ix = i1, i6
               difnimix = diffusivwrk(ix,iy)
 
@@ -1079,7 +1079,7 @@ c --- If this is the neutral species (zi(ifld).eq.0)) we dont want velocities
         if(zi(ifld) > 1.e-10) then  # if not, skip to end of 100 loop
          qion = zi(ifld)*qe
 
-        do iy = j1, j6
+        do iy = j1omp1, j6omp
 	      do ix = i1, i6
 	      iy1 = max(0,iy-1)            # does iy=0 properly
               iy2 = min(ny+1,iy+1) # use ex*fqx since phi(0,) may be large 
@@ -1235,7 +1235,7 @@ c ... Need to calculate new currents (fqp) after saving old & before frice,i
 c ... Add anomalous perp vis vy using calc_currents result - awkward,change
           if (cfvyavis > 0.) then
             do ifld = 1, 1  # nfsp  # only good for ifld=1
-              do iy = max(j1,2), min(j5,ny-1)
+              do iy = max(j1omp1,2), min(j5omp,ny-1)
                 do ix = max(i1,2), min(i6,nx-1)
                   vyavis(ix,iy,ifld) = fqya(ix,iy)*2/(
      .                  qe*(niy1(ix,iy,1)+niy0(ix,iy,1))*sy(ix,iy) )

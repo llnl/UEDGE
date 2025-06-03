@@ -1221,7 +1221,7 @@ c****** end of subroutine mombalni ************
 c ... Calculate the Bohm diffusion rates (units are m**2/s)
       do ifld = 1, nisp
        if (facbni+facbup+facbee+facbei>0 .and. isbohmcalc>0) then
-         do iy = j1, j6
+         do iy = j1omp1, j6omp
             iyp1 = min(ny+1, iy+1)
             do ix = i1, i6
                ix1 = ixp1(ix,iy)
@@ -1239,7 +1239,7 @@ c ... Calculate the Bohm diffusion rates (units are m**2/s)
          enddo
          if (isbohmcalc.eq.2) then  # calc. recip. average with const D
            fcdif = 0.   # used to zero constant diff. if recip. ave used
-           do iy = j1, j6
+           do iy = j1omp1, j6omp
              do ix = i1, i6
                dif_use(ix,iy,ifld)  = 0.5*ave(difni(ifld),  dif_use(ix,iy,ifld))
                dif2_use(ix,iy,ifld) = 0.5*ave(difni2(ifld), dif2_use(ix,iy,ifld))
@@ -1255,7 +1255,7 @@ c ... Calculate the Bohm diffusion rates (units are m**2/s)
 c ... If isbohmcalc=3, then give (B0/B)**inbdif profile to diff
        if (isbohmcalc==3) then  # use inbtdif, inbpdif for btot, bpol scaling
          bpolmin = bpol(ixpt2(1)-ixbpmin,iysptrx,0)
-         do iy = j1, j6
+         do iy = j1omp1, j6omp
             do ix = i1, i6
               ix1 = ixp1(ix,iy)
 	      bscalf=((.5*(btot(ixmp,iysptrx)/btot(ix,iy)) +
@@ -1280,7 +1280,7 @@ c ,,, Add diffusion propto betap**iexpbp and (B0/B)**inbdif (as for isbohmcalc=3
        do ifld = 1, nisp
          if(zi(ifld) > 0.) then
            bpolmin = bpol(ixpt2(1)-ixbpmin,iysptrx,0)
-           do iy = j1, j6
+           do iy = j1omp1, j6omp
              do ix = i1, i6
                ix1 = ixp1(ix,iy)
                betap(ix,iy) = 8.*pi*1.e-7*pr(ix,iy)/bpol(ix,iy,0)**2
