@@ -50,7 +50,7 @@ c!include "../sptodp.h"
 
 *  -- evaluate flox and conx --
 
-         do iy = j4, j8
+         do iy = j4omp, j8omp
             flox(0,iy,ifld) = 0.0e0
             conx(0,iy,ifld) = 0.0e0
             do ix = i2, i6
@@ -79,7 +79,7 @@ ccc Distance between veloc. cell centers:
 
 *  -- evaluate floy and cony without averaging over two ix cells --
 
-         do  iy = j1, j5
+         do  iy = j1omp1, j5omp
             if (nxpt == 1 .or. iy <= iysptrx1(1)) then
               iysepu = iysptrx1(1)
               if (ndomain > 1) iysepu = iysptrxg(mype+1)  # and ixpt1,2u??
@@ -253,7 +253,7 @@ c...  Now flux limit with flalfvgxy if ifld=2
 
 c...  Compute viscous drag from nonuniform B-field, then add to smoc
       if (isupdrag .eq. 1 .and. ifld .eq. 1) then
-        do iy = j2omp, j5
+        do iy = j2omp, j5omp
           do ix = i2, i5
             ix1 = ixm1(ix,iy)
             ix2 = ixp1(ix,iy)
