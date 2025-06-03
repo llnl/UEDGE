@@ -351,7 +351,7 @@ c-----------------------------------------------------------------------
 *  -- total energy residual and equipartition --
 
       do igsp = 1, ngsp
-        do iy = j2, j5
+        do iy = j2omp, j5omp
           iy1 = max(0,iy-1)
           do ix = i2, i5
             ix1 = ixm1(ix,iy)
@@ -471,7 +471,7 @@ c               Only apply drift heating for inertial atoms?
       enddo
 
       if(get_neutral_moments .and. cmneutdiv_feg .ne. 0.0) then   
-      do iy = j2, j5
+      do iy = j2omp, j5omp
          do ix = i2, i5
 c ... ## IJ 2016/10/19 add MC neutral flux
               jfld=1
@@ -482,7 +482,7 @@ c ... ## IJ 2016/10/19 add MC neutral flux
       endif
 
       if (isupgon(1).eq.1) then
-      do iy = j2, j5
+      do iy = j2omp, j5omp
          do ix = i2, i5
 c             ATOMS
 c             -------------------------------------------------------------
@@ -511,7 +511,7 @@ c                   Atom kinetic energy source from mol. drift heating
 *  -- Now we introduce the viscous heating; one-side derviatives are used
 *  -- on either side of the x-point where isxpty = 0
 
-      do iy = j2, j5
+      do iy = j2omp, j5omp
          do ix = i2, i5
             do ifld = 1, nusp  # if nusp --> nfsp, problems from y-term
                ix1 = ixm1(ix,iy)

@@ -1008,7 +1008,7 @@ c******************************************************************
 
 *  -- source terms --
 
-      do iy = j2, j5
+      do iy = j2omp, j5omp
          do ix = i2, i5
             resee(ix,iy) = 
      .             seec(ix,iy) + seev(ix,iy) * te(ix,iy)
@@ -1024,7 +1024,7 @@ c******************************************************************
       end do  
 
 
-      do iy = j2, j5
+      do iy = j2omp, j5omp
          do ix = i2, i5
             ix1 = ixm1(ix,iy)
             resee(ix,iy) = resee(ix,iy)
@@ -1045,7 +1045,7 @@ c     .                             cmneutdiv*cmneutdiv_feg*seg_ue(ix,iy,jfld)
         end do
       end do
 
-      do iy = j2, j5
+      do iy = j2omp, j5omp
          do ix = i2, i5
             ix1 = ixm1(ix,iy)
             w0(ix,iy) = vol(ix,iy) * eqp(ix,iy) * (te(ix,iy)-ti(ix,iy))
@@ -1098,7 +1098,7 @@ c                   Ion energy source from mol. drift heating
 *  -- Energy transfer to impurity neutrals at tg(,,igsp)
       if (ngsp >= 2) then   # for now, specialized to igsp=2 only
         do ifld = nhsp+1, nisp
-          do iy = j2, j5    # iys,iyf limits dont seem to work(?)
+          do iy = j2omp, j5omp    # iys,iyf limits dont seem to work(?)
             do ix = i2, i5
               resei(ix,iy) =resei(ix,iy) -cftiimpg*1.5*ni(ix,iy,ifld)*
      .                      (nucxi(ix,iy,ifld)+nueli(ix,iy,ifld))*
@@ -1115,7 +1115,7 @@ c                   Ion energy source from mol. drift heating
 c******************************************************************
 c...  Update resee over whole "box" because initially set to zero 
 c******************************************************************
-         do iy = j2, j5
+         do iy = j2omp, j5omp
             do ix = i2, i5               
                resee(ix,iy) = resee(ix,iy) -
      .                            cnimp*pwrze(ix,iy)*vol(ix,iy) +
@@ -1137,7 +1137,7 @@ c******************************************************************
             iy_max = ny
          endif
          if (jhswitch == 1) then   # div(J)=0 gives -grad(phi).J=-div(phi.J)
-           do iy = max(iy_min, j2), min(iy_max, j5)
+           do iy = max(iy_min, j2omp), min(iy_max, j5omp)
              do ix = i2, i5   
                ix1 = ixm1(ix,iy)
                ix2 = ixp1(ix,iy)
@@ -1155,7 +1155,7 @@ c******************************************************************
              enddo
            enddo
          else  # for jhswitch > 1
-           do iy = max(iy_min, j2), min(iy_max, j5)
+           do iy = max(iy_min, j2omp), min(iy_max, j5omp)
              do ix = i2, i5    # use ex*fqx since phi(0,) may be large 
                ix1 = ixm1(ix,iy)
                ix2 = ixp1(ix,iy)
@@ -1173,7 +1173,7 @@ c******************************************************************
 *  -- Now we introduce the viscous heating; one-side derviatives are used
 *  -- on either side of the x-point where isxpty = 0
 
-      do iy = j2, j5
+      do iy = j2omp, j5omp
          do ix = i2, i5
             do ifld = 1, nusp  # if nusp --> nfsp, problems from y-term
                ix1 = ixm1(ix,iy)
@@ -1230,7 +1230,7 @@ c******************************************************************
 c*******************************************************************
 c ... Define a background ion energy source to prevent very low Ti
 c******************************************************************
-      do iy = j2, j5
+      do iy = j2omp, j5omp
         do ix = i2, i5
           resei(ix,iy) = resei(ix,iy) + pwribkg(ix,iy)*vol(ix,iy)
         enddo

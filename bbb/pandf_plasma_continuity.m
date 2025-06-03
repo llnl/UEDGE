@@ -1192,7 +1192,7 @@ c...  Add friction part of Q_e here
 *  -- compute the residual if isnion = 1 --
 
       do ifld = 1, nfsp
-       do iy = j2, j5
+       do iy = j2omp, j5omp
          do ix = i2, i5
 	   if(isnionxy(ix,iy,ifld) == 1) then
               resco(ix,iy,ifld) = 
@@ -1213,7 +1213,7 @@ c           if (ifld .ne. iigsp) then
           end do
         end do
 
-       do iy = j2, j5
+       do iy = j2omp, j5omp
          do ix = i2, i5
 	       if(isnionxy(ix,iy,ifld) == 1) then
               ix1 = ixm1(ix,iy)

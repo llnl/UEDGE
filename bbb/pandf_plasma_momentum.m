@@ -389,7 +389,7 @@ cccMER erroneous multiplicative factor -1/2 (from original code) ???
       if(isupon(ifld) .ne. 0) then
 *  -- source term and pressure gradient --
 
-         do iy = j2, j5
+         do iy = j2omp, j5omp
             do ix = i2, i5
                ix2 = ixp1(ix,iy)
                if (zi(ifld) .ne. 0) then  # additions only for charged ions
@@ -470,7 +470,7 @@ c     The neutral species, momentum coupling AND other source terms:
 *  -- divergence of momentum flow --
 
          if (isnonog.eq.1) then
-            do iy = j2, j5
+            do iy = j2omp, j5omp
                do ix = i2, i5
                   ix2 = ixp1(ix,iy)
 c ... IJ 2016/10/10 use cfneutdiv_fmg multiplier for neutrals 
@@ -487,7 +487,7 @@ c***	IJ 2017/09/21: Need to add similar fmgxy calculation for MC neutrals on non
             end do
          endif
 
-         do iy = j2, j5
+         do iy = j2omp, j5omp
             do ix = i2, i5
                ix2 = ixp1(ix,iy)
 c IJ 2016/10/10 add cfneutdiv_fmg multiplier for neutrals to control fraction of momentum to add 

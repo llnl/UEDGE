@@ -1036,7 +1036,7 @@ c.... Calculate the residual for the gas equation for diffusive neutral case
 
       do igsp = 1, ngsp
       if (isupgon(igsp).eq.0) then
-        do iy = j2, j5
+        do iy = j2omp, j5omp
           if ((isudsym==1.or.geometry.eq.'dnXtarget') .and. nxc > 1) then 
 	     fngx(nxc-1,iy,igsp) = 0.
 	     fngx(nxc,  iy,igsp) = 0.

@@ -571,7 +571,7 @@ c...  potential are not reordered (loops from i2-i5 and j2-j5).
 *  --  ODE Equations to be solved - rescaling
 *****************************************************************
 
-      do 270 iy = j2, j5
+      do 270 iy = j2omp, j5omp
          do 260 ix = i2, i5
             nbedot = 0.
             nbidot = 0.
@@ -4803,7 +4803,7 @@ c!omp   call OMPilut (neq,jac,ja,ia,lfililut,tolilut,wp,iwp,
 c!omp.              ju,lenplumx,rwk1,rwk2,iwk1,
 c!omp.              iwk2,iwk3,ierr) 
 c!omp else
-        call OMPilut (neq,jac,ja,ia,lfililut,tolilut,wp,iwp,
+        call ilut (neq,jac,ja,ia,lfililut,tolilut,wp,iwp,
      .              ju,lenplumx,rwk1,rwk2,iwk1,
      .              iwk2,iwk3,ierr) 
 c!omp endif

@@ -745,6 +745,26 @@ END SUBROUTINE OMPSplitIndex
     j7 = ye+2
     j8 = min(ny+1, ye+2)
 
+    i1omp = xs
+    i2omp = max(xs-2,1)
+    i3omp = xs
+    i4omp = xs
+    i5omp = xe
+    i6omp = xe
+    i7omp = xe
+    i8omp = xe
+
+    j1omp = ys
+    j2omp = max(ys,1)
+    j3omp = ys
+    j4omp = max(ys,0)
+    j5omp = min(ye+1, ny)
+    j6omp = ye
+    j7omp = ye
+    j8omp = min(ye+1,ny+1)
+        
+
+
     ixs = i2
     ixf = i5
     iys = j2
@@ -1185,7 +1205,7 @@ END SUBROUTINE OMPSplitIndex
 
     SUBROUTINE OMPilut (n,a,ja,ia,lfil,tol,alu,jlu,ju,iwk, &
     &               wu,wl,jr,jwl,jwu,ierr)
-       implicit none
+       IMPLICIT NONE
        integer n, ju0, j, ii, j1, j2, k, lenu, lenl, jj, nl, jrow
        integer jpos, len
        real tnorm, t, s, fact
@@ -1198,7 +1218,7 @@ END SUBROUTINE OMPSplitIndex
     !      VERSION 2 : sorting  done for both L and U.                     *
     !                                                                      *
     ! Bug Fix:  Version of 2-25-93.                                        *
-    !                                                                      *
+    ! Modernizes loops: A. Holm, 6-2-25                                    *
     !----------------------------------------------------------------------*
     !---- coded by Youcef Saad May, 5, 1990. ------------------------------*
     !---- Dual drop-off strategy works as follows.                         *
