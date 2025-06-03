@@ -1012,7 +1012,7 @@ c ... Then "ion" species 2 (redundant as gas species 1) is hydr atom
 *  ---------------------------------------------------------------------
 
 
-      do iy = j2, j5
+      do iy = j2omp, j5omp
          do ix = i2, i5
             do ifld = 1, nfsp
                snic(ix,iy,ifld) = 0.0
@@ -1039,7 +1039,7 @@ c ... Then "ion" species 2 (redundant as gas species 1) is hydr atom
 *-----------------------------------------------------------------------
 
       if (ifixsrc .ne. 0) then
-         do iy = j2, j5
+         do iy = j2omp, j5omp
             do ix = i2, i5
                snic(ix,iy,1) = snic(ix,iy,1) + vol(ix,iy) * a1n *
      .                          exp(-b1n*(xcs(ix)-xxsrc)**2) *
@@ -1058,7 +1058,7 @@ c ... Then "ion" species 2 (redundant as gas species 1) is hydr atom
 
 
 *  -- Set up electron parallel contribution to seec & smoc
-      do iy = j2, j5
+      do iy = j2omp, j5omp
          do ix = i2, i5
             ix1 = ixm1(ix,iy)
             ix2 = ixp1(ix,iy)
@@ -1097,7 +1097,7 @@ c ... Then "ion" species 2 (redundant as gas species 1) is hydr atom
 * ------ *
 *     -- coupling in the x-direction --
 *     -- (note sign change in pondomfpari_use term starting 031722)
-           do iy = j2, j5
+           do iy = j2omp, j5omp
              do ix = i2, i5
                ix1 = ixm1(ix,iy)
                ix2 = ixp1(ix,iy)
@@ -1131,7 +1131,7 @@ c...  Add friction part of Q_e here
         end do
 
 *     -- coupling in the x & y-directions --
-           do iy = j2, j5
+           do iy = j2omp, j5omp
             do ix = i2, i5
              if (isgpye == 0) then
                ix1 = ixm1(ix,iy)

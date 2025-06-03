@@ -548,7 +548,6 @@ c ------------------
       methgx = mod(methg, 10)
       methgy = methg/10
 	  
-c      write (*,*) "neudifpg"
       do igsp = 1, ngsp
 
 c *********************************************
@@ -558,7 +557,7 @@ c *********************************************
 c ..Timing;initialize 
       if(istimingon==1) tsngxlog = tick()
 
-      do 888 iy = j4, j8
+      do 888 iy = j4omp, j8omp
          do 887 ix = i1, i5
             iy1 = max(0,iy-1)
             iy2 = min(ny+1,iy+1)
@@ -671,7 +670,7 @@ c *******************************************************
 c ..Timing; initiate time for y-direction calc
       if(istimingon==1) tsngylog = tick()
 
-      do iy = j1, j5
+      do iy = j1omp1, j5omp
          do ix = i4, i8
             ngyface = 0.5*(ng(ix,iy,igsp)+ng(ix,iy+1,igsp))
 	    t0 = max(tg(ix,iy,igsp),tgmin*ev)
@@ -782,7 +781,7 @@ c...  Addition for nonorthogonal mesh
 c ..Timing
       if(istimingon==1) tsngfxy = tick()
 
-         do iy = j1, min(j6, ny)
+         do iy = j1omp1, min(j6omp, ny)
             iy1 = max(iy-1,0)
             do ix = i1, min(i6, nx)
                ix1 = ixm1(ix,iy)
@@ -878,7 +877,7 @@ c ..Timing
 
 c...  Fix the total fluxes; note the loop indices same as fd2tra
 c...  Flux-limit the total poloidal flux here
-            do iy = j4, j8
+            do iy = j4omp, j8omp
                do ix = i1, i5
                   ix2 = ixp1(ix,iy)
                   fngx(ix,iy,igsp) = fngx(ix,iy,igsp)-fngxy(ix,iy,igsp)
@@ -963,7 +962,7 @@ c ... gas if isupgon=1.  However, even when isupgon=1, the particle
 c ... fluxes are fngx -> fnix and fngy -> fngy in pandf, i.e., methg
 c ... determines the differencing for the inertial particle fluxes, not 
 c ... methn
-      do iy = j1, j5
+      do iy = j1omp1, j5omp
         do ix = i1,i5
           ix1 = ixp1(ix,iy)
           if (1.-rrv(ix,iy) > 1.e-4 .or. isupgon(igsp)==0) then 
@@ -992,7 +991,7 @@ cfw ----   If doing only the outer half we want this boundary condition:
 
 c **- loop for uu just as in the previous version - needed for correct Jac?
       if (isupgon(igsp) .eq. 1) then
-         do iy = j4, j6
+         do iy = j4omp, j6omp
             do ix = i1, i6
                uu(ix,iy,iigsp) = uug(ix,iy,igsp)
                v2(ix,iy,iigsp) = ( uuxg(ix,iy,igsp) 

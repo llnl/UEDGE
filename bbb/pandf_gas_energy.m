@@ -721,7 +721,7 @@ c ... Gas thermal conductivity coeffs - from self-collisions
 
       if (nisp >= 2) then  # uses ni(,,2), so must have atoms
        do igsp = 1, ngsp
-        do iy = j1, j6
+        do iy = j1omp1, j6omp
         iy1 = min(iy,ny)
           do ix = i1, i6
             ix1 = ixp1(ix,iy)
