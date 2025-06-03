@@ -601,7 +601,7 @@ c ... value at ix-1.
 c ... Calc friction forces from Braginskii; no individ chg-states;isimpon < 5.
 
       if (isimpon < 5) then
-         do iy = j1, j6    #iys1, iyf6
+         do iy = j1omp1, j6omp    #iys1, iyf6
             do ix = i1, i6
                ix2 = ixp1(ix,iy)
                nbarx = 0.5*(ne(ix,iy)+ne(ix2,iy))
@@ -734,7 +734,7 @@ c ... Add contributions to poloidal velocity from cross-field drifts
 c     to those from parallel flow.
 
       do ifld = 1, nfsp
-         do iy = j1, j6
+         do iy = j1omp1, j6omp
             if (i1 .gt. 0) then  # il is initial ix; here for uu(ixm1(i1-1,,)
                ix = i1
                ix1 = ixm1(ix,iy)
@@ -778,7 +778,7 @@ c...  uu(ixrb,,) & upi(ixrb,,) via generalized Bohm cond.
           ixt1 = ixrb(jx)
 	  do ifld = nhsp+1, nfsp
             if(ifld > nusp) then  #species without full mom eqn
-	      do iy = j1, j6
+	      do iy = j1omp1, j6omp
 c ..          first left plate(s)
                 if(isfixlb(jx) == 0) then # set upi for left plate
                   cs = csfacrb(ifld,jx)*sqrt( (te(ixt0,iy) +
@@ -1333,22 +1333,22 @@ c ,,, Add diffusion propto betap**iexpbp and (B0/B)**inbdif (as for isbohmcalc=3
 *     Calculate the electron velocities, vex, upe, ve2, vey
 ************************************************************************
        do iy = j1, j6
-	    do ix = i1, i6
-	    vex(ix,iy) = 0.
-	    vey(ix,iy) = 0.
-        end do
+         do ix = i1, i6
+            vex(ix,iy) = 0.
+            vey(ix,iy) = 0.
+          end do
         end do
 
       if (isimpon.ne.5) then    # have upe from mombal
 
-      do iy = j1, j6    #iys1, iyf6
+      do iy = j1omp1, j6omp    #iys1, iyf6
          do ix = i1, i6
             upe(ix,iy) = 0.
          enddo
       enddo
 
       do ifld = 1, nfsp
-         do iy = j1, j6    #iys1, iyf6
+         do iy = j1omp1, j6omp    #iys1, iyf6
 	    do ix = i1, i6
                ix1 = ixp1(ix,iy)
 	       upe(ix,iy) = upe(ix,iy) + upi(ix,iy,ifld)*zi(ifld)*0.5*
@@ -1358,7 +1358,7 @@ c ,,, Add diffusion propto betap**iexpbp and (B0/B)**inbdif (as for isbohmcalc=3
         end do
       afqp = 1.
       if (isimpon.eq.6 .or. isimpon.eq.7) afqp = fupe_cur  #allows gradual fix for old cases
-      do iy = j1, j6    #iys1, iyf6
+      do iy = j1omp1, j6omp    #iys1, iyf6
          do ix = i1, i6
             ix1 = ixp1(ix,iy)
 	    upe(ix,iy) = (upe(ix,iy) -afqp*fqp(ix,iy)/
@@ -1369,7 +1369,7 @@ c ,,, Add diffusion propto betap**iexpbp and (B0/B)**inbdif (as for isbohmcalc=3
 
       end if
 
-      do iy = j1, j6   # ExB same all species;if cf2dd=1, no imp yet
+      do iy = j1omp1, j6omp   # ExB same all species;if cf2dd=1, no imp yet
 	    do ix = i1, i6
             ix1 = ixp1(ix,iy)
             vex(ix,iy) = upe(ix,iy)*rrv(ix,iy) + 
@@ -1382,7 +1382,7 @@ c ,,, Add diffusion propto betap**iexpbp and (B0/B)**inbdif (as for isbohmcalc=3
        end do
 
       do ifld = 1, nfsp
-	 do iy = j1, j5
+	 do iy = j1omp1, j5omp
 	    do  ix = i1, i6   # grad_B will be ok as next fqy is subtr.
 	       vey(ix,iy) = vey(ix,iy) + vy(ix,iy,ifld)*zi(ifld)*0.5*
      .                      ( niy0(ix,iy,ifld)+niy1(ix,iy,ifld) )
@@ -1390,7 +1390,7 @@ c ,,, Add diffusion propto betap**iexpbp and (B0/B)**inbdif (as for isbohmcalc=3
          end do
         end do
 
-        do iy = j1, j5
+        do iy = j1omp1, j5omp
 	     do ix = i1, i6
 	      vey(ix,iy) = (vey(ix,iy)-cfjve*fqy(ix,iy)/(sy(ix,iy)*qe))/
      .                    (0.5*( ney0(ix,iy)+ney1(ix,iy) ))

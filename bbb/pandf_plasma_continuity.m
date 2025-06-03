@@ -164,6 +164,7 @@ c            write(*,*) parvis
       Use(Cfric)
       Use(Comflo)
       Use(Jacobian_restore)
+      Use(ParallelEval)
       integer xc, yc
       integer iy, ix, ifld, igsp, j2pwr, j5pwr, i2pwr, i5pwr, 
      .  ix1, ix2, jg, ifld_lcs, jz, ifld_fcs, izch,  z1fac, 
@@ -182,28 +183,19 @@ c            write(*,*) parvis
 *  Coefficients for the source terms.
 *  ---------------------------------------------------------------------
 
-
-      do iy = j2, j5
-         do ix = i2, i5
-            do ifld = 1, nfsp
-               snic(ix,iy,ifld) = 0.0
-               sniv(ix,iy,ifld) = 0.0
-               psori(ix,iy,ifld) = 0.0
-            enddo
-            do ifld = 1, nusp
-               smoc(ix,iy,ifld) = 0.0
-               smov(ix,iy,ifld) = 0.0
-            enddo
-            seec(ix,iy) = 0.0
-            seev(ix,iy) = 0.0
-            seic(ix,iy) = 0.0
-            seiv(ix,iy) = 0.0
-            seik(ix,iy) = 0.0
-            seid(ix,iy) = 0.0
-            seidh(ix,iy) = 0.0
-	    psorbgz(ix,iy) = 0.    # diagnostic only
-         end do
-        end do
+       snic = 0.0
+       sniv = 0.0
+       psori = 0.0
+       smoc = 0.0
+       smov = 0.0
+       seec(ix,iy) = 0.0
+       seev(ix,iy) = 0.0
+       seic(ix,iy) = 0.0
+       seiv(ix,iy) = 0.0
+       seik(ix,iy) = 0.0
+       seid(ix,iy) = 0.0
+       seidh(ix,iy) = 0.0
+       psorbgz(ix,iy) = 0.    # diagnostic only
 
 ************************************************************************
 *  -- steady sources
@@ -375,6 +367,10 @@ c*****************************************************************
                j2pwr = max(1, yc-1)
                j5pwr = min(ny, yc+1)
              endif 
+             if (ParallelPandfCall.gt.0) then
+                j2pwr = j2omp
+                j5pwr = j5omp
+             endif
              do iy = j2pwr, j5pwr
                if (xc < 0) then #full RHS eval
                  i2pwr = i2
@@ -747,7 +743,7 @@ c *** Now do the gas
 *-----------------------------------------------------------------------
 
       if (ifixsrc .ne. 0) then
-         do iy = j2, j5
+         do iy = j2omp, j5omp
             do ix = i2, i5
                snic(ix,iy,1) = snic(ix,iy,1) + vol(ix,iy) * a1n *
      .                          exp(-b1n*(xcs(ix)-xxsrc)**2) *
@@ -768,22 +764,23 @@ c *** Now do the gas
 c In the case of neutral parallel mom, call neudif to get
 c flux fngy, vy and uu, now that we have evaluated nuix etc.
 *****************************************************************
-      if (TimingPandfOn.gt.0) TimeNeudif=tick()
+! Moved to Pandf - AH 250602
+!      if (TimingPandfOn.gt.0) TimeNeudif=tick()
 ccc      if (isupgon .eq. 1 .and. zi(ifld) .eq. 0.0) call neudif
-      if (ineudif .eq. 1) then
-         call neudif
-      elseif (ineudif .eq. 2) then
+!      if (ineudif .eq. 1) then
+!         call neudif
+!      elseif (ineudif .eq. 2) then
 c ..Timing
-      if(istimingon==1) tsnpg=tick()
-         call neudifpg
+!      if(istimingon==1) tsnpg=tick()
+!         call neudifpg
 c ..Timing
-      if(istimingon==1) ttnpg = ttnpg + tock(tsnpg)
-      elseif (ineudif .eq. 3) then
-         call neudifl
-      else
-         call neudifo
-      endif
-      if (TimingPandfOn.gt.0) TotTimeNeudif=TotTimeNeudif+tock(TimeNeudif)
+!      if(istimingon==1) ttnpg = ttnpg + tock(tsnpg)
+!      elseif (ineudif .eq. 3) then
+!         call neudifl
+!      else
+!         call neudifo
+!      endif
+!      if (TimingPandfOn.gt.0) TotTimeNeudif=TotTimeNeudif+tock(TimeNeudif)
 *****************************************************************
 *  Other volume sources calculated in old SRCMOD
 *****************************************************************
@@ -818,7 +815,7 @@ c...  Force fluxes and gradients on cuts to be zero for half-space problems
       endif
 
 *  -- Set up electron parallel contribution to seec & smoc
-      do iy = j2, j5
+      do iy = j2omp, j5omp
          do ix = i2, i5
             ix1 = ixm1(ix,iy)
             ix2 = ixp1(ix,iy)
@@ -857,7 +854,7 @@ c...  Force fluxes and gradients on cuts to be zero for half-space problems
 * ------ *
 *     -- coupling in the x-direction --
 *     -- (note sign change in pondomfpari_use term starting 031722)
-           do iy = j2, j5
+           do iy = j2omp, j5omp
              do ix = i2, i5
                ix1 = ixm1(ix,iy)
                ix2 = ixp1(ix,iy)
@@ -891,7 +888,7 @@ c...  Add friction part of Q_e here
         end do
 
 *     -- coupling in the x & y-directions --
-           do iy = j2, j5
+           do iy = j2omp, j5omp
             do ix = i2, i5
              if (isgpye == 0) then
                ix1 = ixm1(ix,iy)
@@ -933,7 +930,7 @@ c ... Then "ion" species 2 (redundant as gas species 1) is hydr atom
 
       if(isupgon(1)==1 .and. zi(2)<1.e-20) then # .and. istgon(1)==0) then 
         if(cfvgpx(2) > 0.) then
-          do iy = j2, j5
+          do iy = j2omp, j5omp
             do ix = i2, i5
               ix1 = ixm1(ix,iy)
               ix2 = ixp1(ix,iy)
@@ -949,7 +946,7 @@ c ... Then "ion" species 2 (redundant as gas species 1) is hydr atom
             enddo
           enddo
         else  # Here if cfvgpx(2)=0, old vpar_g*grad_Pg only => ifld=2
-          do iy = j2, j5
+          do iy = j2omp, j5omp
             do ix = i2, i5
                ix1 = ixm1(ix,iy)
                ix2 = ixp1(ix,iy)
