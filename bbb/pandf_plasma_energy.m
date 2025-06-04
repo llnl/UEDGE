@@ -73,7 +73,7 @@ c!include "../sptodp.h"
 *     (The computation of conxe involves a flux limit)
 
       do iy = j4omp, j8omp
-         do ix = i1, i5
+         do ix = i1momp, i5omp
             ix2 = ixp1(ix,iy)
             t0 = max (te(ix,iy), temin*ev)
             t1 = max (te(ix2,iy), temin*ev)
@@ -133,13 +133,13 @@ c.... Now do the ions (hcxi is flux-limited previously when it is built)
 *  -- compute conye and conyi --
 
       do iy = j1omp1, j5omp
-         do ix = i4, i8
+         do ix = i4omp, i8omp
             conye(ix,iy) = sy(ix,iy) * hcye(ix,iy) / dynog(ix,iy)
             conyi(ix,iy) = sy(ix,iy) * hcyi(ix,iy) / dynog(ix,iy)
           end do
       end do
 
-      do ix = i1, i6
+      do ix = i1omp, i6omp
          conye(ix,ny+1) = 0.0e0
          conyi(ix,ny+1) = 0.0e0
       end do
@@ -156,7 +156,7 @@ c.... Now do the ions (hcxi is flux-limited previously when it is built)
 *  ---------------------------------------------------------------------
 
       do iy = j4omp, j8omp
-         do ix = i1, i5  
+         do ix = i1momp, i5omp  
             ix1 = ixp1(ix,iy)
             ltmax = min( abs(te(ix,iy)/(rrv(ix,iy)*gtex(ix,iy) + cutlo)),
      .                   lcone(ix,iy) )
@@ -173,7 +173,7 @@ c IJ 2016/10/10	add cfneutsor_ei multiplier to control fraction of neutral energ
       do ifld = 1, nfsp
          if ((isupgon(1) .eq. 1) .and. (ifld .eq. iigsp)) then  #neutrals
             do iy = j4omp, j8omp
-               do ix = i1, i5
+               do ix = i1omp, i5omp
                   floxi(ix,iy) = floxi(ix,iy) +
      .                 cftiexclg*cfcvti*2.5*cfneut*cfneutsor_ei*fnix(ix,iy,ifld) 
                end do # next correct for incoming neut pwr = 0
@@ -197,7 +197,7 @@ c IJ 2016/10/10	add cfneutsor_ei multiplier to control fraction of neutral energ
             end do
          else  #ions
             do iy = j4omp, j8omp
-               do ix = i1, i5
+               do ix = i1momp, i5omp
                   floxi(ix,iy) = floxi(ix,iy) +
      .                           cfcvti*2.5*fnix(ix,iy,ifld)
                 end do 
@@ -209,7 +209,7 @@ c IJ 2016/10/10	add cfneutsor_ei multiplier to control fraction of neutral energ
 *  -- compute floye and floyi --
 
       do iy = j1omp1, j5omp    # note: cfloye usually = 2.5 or 1.5 (ExB turb)
-         do ix = i4, i8
+         do ix = i4omp, i8omp
             floye(ix,iy) = floye(ix,iy) + (cfloye/2.)*
      .                    (ney0(ix,iy)+ney1(ix,iy))*vey(ix,iy)*sy(ix,iy)
      .                + (vyte_use(ix,iy)+vyte_cft(ix,iy))*0.5*sy(ix,iy)*
@@ -220,13 +220,13 @@ c IJ 2016/10/10	add cfneutsor_ei multiplier to control fraction of neutral energ
       do ifld = 1, nfsp
          if ((isupgon(1) .eq. 1) .and. (ifld .eq. iigsp)) then
             do iy = j1omp1, j5omp
-               do ix = i4, i8
+               do ix = i4omp, i8omp
                   floyi(ix,iy) = floyi(ix,iy)
      .                 + cftiexclg*cfneut * cfneutsor_ei * 2.5 * fniy(ix,iy,ifld)
                enddo
             enddo
 c ...       Make correction at walls to prevent recyc neutrals injecting pwr
-            do ix = i4, i8
+            do ix = i4omp, i8omp
               if (matwallo(ix) > 0 .and. recycwot(ix,1)>0.) then
                 fniy_recy = max(recycwot(ix,1)*fac2sp*fniy(ix,ny,1), 0.)
                 floyi(ix,ny) = floyi(ix,ny) + 
@@ -241,7 +241,7 @@ c ...       Make correction at walls to prevent recyc neutrals injecting pwr
 
          else
             do iy = j1omp1, j5omp # note: cfloyi usually = 2.5 or 1.5 (ExB turb)
-               do ix = i4, i8
+               do ix = i4omp, i8omp
                   floyi(ix,iy) = floyi(ix,iy)
      .                            + cfloyi * fniy(ix,iy,ifld)
      .                            + (vyti_use(ix,iy)+vyti_cft(ix,iy))*
@@ -257,7 +257,7 @@ c...  Next B x grad(T), first for the ions
 
       do ifld = 1, nfsp
         do iy = j4omp, j8omp
-           do ix = i1, i5
+           do ix = i1omp, i5omp
 	     iy1 = max(0,iy-1)
              ix1 = ixp1(ix,iy)
              ix5 = ixp1(ix,iy1)
@@ -282,7 +282,7 @@ cccMER For full double-null configuration, iysptrx is last closed flux surface.
  
       do ifld = 1, nfsp
         do iy = j1omp1, j5omp
-           do ix = i4, i8
+           do ix = i4omp, i8omp
              ix3 = ixm1(ix,iy)
              ix4 = ixm1(ix,iy+1)
              do jx = 1, nxpt
@@ -309,7 +309,7 @@ cccMER For full double-null configuration, iysptrx is last closed flux surface.
 c...  Now B x grad(T) for the electrons
 
       do iy = j4omp, j8omp
-         do ix = i1, i5
+         do ix = i1omp, i5omp
 	     iy1 = max(0,iy-1)
              ix1 = ixp1(ix,iy)
              ix5 = ixp1(ix,iy1)
@@ -331,7 +331,7 @@ cccMER For full double-null configuration, iysptrx is last closed flux surface.
         end do
  
       do iy = j1omp1, j5omp
-	   do ix = i4, i8
+	   do ix = i4omp, i8omp
 	    ix3 = ixm1(ix,iy)
 	    ix4 = ixm1(ix,iy+1)
             do jx = 1, nxpt
@@ -357,7 +357,7 @@ c...Add the charge-exhange neutral contributions to ion+neutral temp eq.
 
 
          do iy = j4omp, j8omp
-            do ix = i1, i5
+            do ix = i1omp, i5omp
                floxi(ix,iy) = floxi(ix,iy) +
      .          cftiexclg*cfneut*cfneutsor_ei*cngtgx(1)*cfcvti*2.5*fngx(ix,iy,1)
             end do
@@ -366,7 +366,7 @@ c...Add the charge-exhange neutral contributions to ion+neutral temp eq.
 *  --Adds to floyi --
 
          do iy = j1omp1, j5omp
-            do ix = i4, i8
+            do ix = i4omp, i8omp
                floyi(ix,iy) = floyi(ix,iy)
      .             + cftiexclg*cfneut*cfneutsor_ei*cngtgy(1)*2.5*fngy(ix,iy,1)
             end do
@@ -390,7 +390,7 @@ c  -- Add rad flux of 4th order diff operator; damp grid-scale oscillations
           iym1 = max(iy-1,0)
           iyp1 = min(iy+1,ny+1)
           iyp2 = min(iy+2,ny+1)
-          do ix = i4, i8
+          do ix = i4omp, i8omp
             dtdym1 = (te(ix,iy)-te(ix,iym1))*gyf(ix,iym1)
             dtdy0 = (te(ix,iyp1)-te(ix,iy))*gyf(ix,iy)
             dtdyp1 = (te(ix,iyp2)-te(ix,iyp1))*gyf(ix,iyp1)
@@ -401,7 +401,7 @@ c  -- Add rad flux of 4th order diff operator; damp grid-scale oscillations
      .                                     sy(ix,iy)/gyf(ix,iy)**2
             feey(ix,iy) = feey(ix,iy) + feey4ord(ix,iy)
           enddo
-          do ix = i4, i8
+          do ix = i4omp, i8omp
             dtdym1 = (ti(ix,iy)-ti(ix,iym1))*gyf(ix,iym1)
             dtdy0 = (ti(ix,iyp1)-ti(ix,iy))*gyf(ix,iy)
             dtdyp1 = (ti(ix,iyp2)-ti(ix,iyp1))*gyf(ix,iyp1)
@@ -422,7 +422,7 @@ c...  already added to uu(ix,iy)
          do iy = j1omp1, j6omp
             if (iy .le. ny) then 
             iy1 = max(iy-1,0)
-            do ix = i1, i6
+            do ix = i1momp, i6omp 
 c...  First do the Te equation
                ix1 = ixm1(ix,iy)
                ix2 = ixp1(ix,iy)
@@ -494,7 +494,7 @@ c...  Flux limit with flalftxt even though hcys have parallel FL built in
 
 c...  Fix the fluxes with the same indice range as in fd2tra
          do iy = j4omp, j8omp
-            do ix = i1, i5
+            do ix = i1momp, i5omp
                feex(ix,iy) = feex(ix,iy) - feexy(ix,iy)
                feix(ix,iy) = feix(ix,iy) - feixy(ix,iy)
             enddo
@@ -555,7 +555,7 @@ c ... Demand that net feex cannot be out of the plates
             feex(ixrb(1)+1,iy) = 0.
             feix(ixrb(1)+1,iy) = 0.
          endif
-         do ix = i2, i5
+         do ix = i2omp, i5omp
 c ... ## IJ 2016/10/19 add MC neutral flux
            if(get_neutral_moments .and. cmneutdiv_feg .ne. 0.0) then   
               jfld=1
@@ -667,8 +667,8 @@ c*************************************************************
                 i5pwr = min(nx, ixp1(xc,yc))
               endif
               if (ParallelPandfCall.gt.0) then
-                i2pwr = i2
-                i5pwr = i5
+                i2pwr = i2omp
+                i5pwr = i5omp
               end if
               do ix = i2pwr, i5pwr
                 ix1 = ixm1(ix,iy)
@@ -687,7 +687,7 @@ c*************************************************************
 
 
       do iy = j2omp, j5omp
-         do ix = i2, i5
+         do ix = i2omp, i5omp
             ix1 = ixm1(ix,iy)
 c ... Energy density change due to molecular dissociation ("Franck-Condon")
             emolia(ix,iy,1) = 0
@@ -869,8 +869,8 @@ cc         elseif (ishosor .ne. 0)
                 i5pwr = min(nx, ixp1(xc,yc))
               endif
               if (ParallelPandfCall.gt.0) then
-                i2pwr = i2
-                i5pwr = i5
+                i2pwr = i2omp
+                i5pwr = i5omp
               end if
               do ix = i2pwr, i5pwr
                 ix1 = ixm1(ix,iy)
@@ -1005,7 +1005,7 @@ c******************************************************************
 *  -- source terms --
 
       do iy = j2omp, j5omp
-         do ix = i2, i5
+         do ix = i2omp, i5omp
             resee(ix,iy) = 
      .             seec(ix,iy) + seev(ix,iy) * te(ix,iy)
      .           + pwrsore(ix,iy)
@@ -1021,7 +1021,7 @@ c******************************************************************
 
 
       do iy = j2omp, j5omp
-         do ix = i2, i5
+         do ix = i2omp, i5omp
             ix1 = ixm1(ix,iy)
             resee(ix,iy) = resee(ix,iy)
      .                  - ( feex(ix,iy) - feex(ix1,iy)
@@ -1042,7 +1042,7 @@ c     .                             cmneutdiv*cmneutdiv_feg*seg_ue(ix,iy,jfld)
       end do
 
       do iy = j2omp, j5omp
-         do ix = i2, i5
+         do ix = i2omp, i5omp
             ix1 = ixm1(ix,iy)
             w0(ix,iy) = vol(ix,iy) * eqp(ix,iy) * (te(ix,iy)-ti(ix,iy))
             resee(ix,iy) = resee(ix,iy) - w0(ix,iy) + vsoree(ix,iy)
@@ -1095,7 +1095,7 @@ c                   Ion energy source from mol. drift heating
       if (ngsp >= 2) then   # for now, specialized to igsp=2 only
         do ifld = nhsp+1, nisp
           do iy = j2omp, j5omp    # iys,iyf limits dont seem to work(?)
-            do ix = i2, i5
+            do ix = i2omp, i5omp
               resei(ix,iy) =resei(ix,iy) -cftiimpg*1.5*ni(ix,iy,ifld)*
      .                      (nucxi(ix,iy,ifld)+nueli(ix,iy,ifld))*
      .                      (ti(ix,iy) - tg(ix,iy,2))*vol(ix,iy)
@@ -1112,7 +1112,7 @@ c******************************************************************
 c...  Update resee over whole "box" because initially set to zero 
 c******************************************************************
          do iy = j2omp, j5omp
-            do ix = i2, i5               
+            do ix = i2omp, i5omp           
                resee(ix,iy) = resee(ix,iy) -
      .                            cnimp*pwrze(ix,iy)*vol(ix,iy) +
      .                                pwrebkg(ix,iy)*vol(ix,iy)
@@ -1170,7 +1170,7 @@ c******************************************************************
 *  -- on either side of the x-point where isxpty = 0
 
       do iy = j2omp, j5omp
-         do ix = i2, i5
+         do ix = i2omp, i5omp
             do ifld = 1, nusp  # if nusp --> nfsp, problems from y-term
                ix1 = ixm1(ix,iy)
                ix2 = ixm1(ix,iy+1)
@@ -1227,7 +1227,7 @@ c*******************************************************************
 c ... Define a background ion energy source to prevent very low Ti
 c******************************************************************
       do iy = j2omp, j5omp
-        do ix = i2, i5
+        do ix = i2omp, i5omp
           resei(ix,iy) = resei(ix,iy) + pwribkg(ix,iy)*vol(ix,iy)
         enddo
       enddo
@@ -1270,7 +1270,7 @@ c******************************************************************
 *  -- initialize to 0 --
 
       do iy = j1omp1, j6omp
-         do ix = i1, i6
+         do ix = i1momp, i6omp
             hcxe(ix,iy) = 0.0e0
             hcxi(ix,iy) = 0.0e0
             hcxineo(ix,iy) = 0.0e0
@@ -1315,7 +1315,7 @@ c...  Initialize w1 and w2 for each species
         end do
 
          do iy = j1omp1, j6omp
-            do ix = i1, i6
+            do ix = i1momp, i6omp
                ix1 = ixp1(ix,iy)
                iyp1 = min(ny+1, iy+1)
                ctaue(ix,iy,ifld) = 3.5e11*zi(ifld)/loglambda(ix,iy)
@@ -1374,7 +1374,7 @@ c ... Add ion temp. dep. for pol. terms, flux limit, & build total ion hcx,yi
         do ifld = 1, nisp
          if (zi(ifld) .ne. 0.e0) then
          do iy = j1omp1, j6omp
-            do ix = i1, i6
+            do ix = i1momp, i6omp
                ix1 = ixp1(ix,iy)
                if (concap .eq. 0) then
                   tiave = (ti(ix,iy)*gx(ix,iy) + ti(ix1,iy)*gx(ix1,iy)) /
@@ -1435,7 +1435,7 @@ c ... Flux limit individ. hcxij in poloidal direction if isflxldi=2
 
 c...  Now include elec. temp and other dep. in poloidal terms + diff. neut.
       do iy = j1omp1, j6omp
-         do ix = i1, i6
+         do ix = i1momp, i6omp
             ix1 = ixp1(ix,iy)
             iyp1 = min(ny+1, iy+1)
             if (concap .eq. 0) then
@@ -1493,7 +1493,7 @@ c ----- things than for the ions. Note third index=iigsp is neutral species
 c ----- The inertial neutrals coeff. are flux-limited and add to total here
          do iy = j1omp1, j6omp
             iy1 = min(iy,ny)   #dont use j5 because hcx also in loop (not imp.)
-            do ix = i1, i6
+            do ix = i1momp, i6omp
                ix1 = ixp1(ix,iy)
                tgavex = max(0.5*(tg(ix,iy,1) + tg(ix1,iy,1)), temin*ev)
                tgavey= max(0.5*(tgy0(ix,iy,1)+tgy1(ix,iy,1)), temin*ev)
@@ -1560,7 +1560,7 @@ c
 *  -- compute equipartition --
 ccc In detail, coef1 = qe**4*sqrt(me)*lnlam / ((2*pi)**1.5*eps0**2)
       do iy = j2omp, j5omp
-         do ix = i2, i5
+         do ix = i2omp, i5omp
             do ifld = 1, nisp
               tv = zi(ifld)**2/mi(ifld)
               w3(ix,iy) = w3(ix,iy) + tv*ni(ix,iy,ifld)
