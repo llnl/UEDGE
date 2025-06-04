@@ -84,7 +84,7 @@ c-----------------------------------------------------------------------
 *     Calculate fq2, the 2-current
 ************************************************************************
       do 37 iy = j1pomp, j6pomp
-         do 36 ix = i1, i5
+         do 36 ix = i1omp, i5omp
 	    iy1 = max(0,iy-1)
             ix1 = ixp1(ix,iy)
             ix2 = ixp1(ix,iy1)
@@ -109,7 +109,7 @@ c...  in subroutine nphygeo)
 ************************************************************************
 
       do 27 iy = j1pomp, j5pomp
-         do 26 ix = i1, i6
+         do 26 ix = i1omp, i6omp
             ix3 = ixm1(ix,iy)
             ix4 = ixm1(ix,iy+1)
   	    t0 = max(te(ix,iy+1),temin*ev)
@@ -161,7 +161,7 @@ ccc            fqy(ix,iy) = fqya(ix,iy) + cfydd*fqyd(ix,iy)
        if (zi(ifld) > 1.e-10) then
          do iy = max(j1pomp, 1), min(j5pomp, ny)  #min(j5p, ny-1)
            iyp2 = min(iy+2,ny+1)
-           do ix = i1, i6
+           do ix = i1omp, i6omp
              ix3 = ixm1(ix,iy)
              ix4 = ixm1(ix,iy-1)
              utm = (4/(btot(ix,iy-1)+btot(ix,iy))**2)*
@@ -240,7 +240,7 @@ c... Next diffs btwn interp pts (niy1&niy0), thus use 1/dynog, not gyf
 
 c ... Sum ion species contributions to fqya, fqym, fqydti
       do iy = max(j1pomp, 1), min(j5pomp, ny) ## min(j5p, ny-1)
-        do ix = i1, i6
+        do ix = i1omp, i6omp
           fqya(ix,iy) = 0.
           fqym(ix,iy) = 0.
           fqydt(ix,iy) = 0.
@@ -257,7 +257,7 @@ c ... Sum ion species contributions to fqya, fqym, fqydti
       enddo
 
 c ... Zero fqya on iy=0,1 and iy=ny,1 as unimportant (use isnewpot=0 bc)
-      do ix = i1, i6
+      do ix = i1omp, i6omp
          if (isixcore(ix)==1) then
             do iy = 0, nfqya0core
               fqya(ix,iy) = 0.
@@ -274,7 +274,7 @@ c ... Zero fqya on iy=0,1 and iy=ny,1 as unimportant (use isnewpot=0 bc)
 
 c ... Sum contributions for fqy; ave old fqyao & fqya with rnewpot
       do iy = j1pomp, j5pomp
-         do ix = i1, i6
+         do ix = i1omp, i6omp
             fqy(ix,iy) = (1.-rnewpot)*fqyao(ix,iy) +
      .                     rnewpot*fqya(ix,iy) + cfqybf*fqyb(ix,iy) +
      .          cfqym*fqym(ix,iy)+cfjpy*bfacyrozh(ix,iy)*fqyd(ix,iy)
@@ -296,7 +296,7 @@ c ... Add anomalous perp vis vy using calc_currents result - awkward,change
       if (cfvyavis > 0.) then
         do ifld = 1, 1  # nfsp  # only good for ifld=1
           do iy = max(j1omp1,2), min(j5omp,ny-1)
-            do ix = max(i1,2), min(i6,nx-1)
+            do ix = max(i1omp,2), min(i6omp,nx-1)
               vyavis(ix,iy,ifld) = fqya(ix,iy)*2/(
      .                  qe*(niy1(ix,iy,1)+niy0(ix,iy,1))*sy(ix,iy) )
               vy(ix,iy,ifld) = vy(ix,iy,ifld) + cfvyavis*vyavis(ix,iy,ifld)
@@ -686,7 +686,7 @@ c...  of the calculation in the grid.
 ***********************************************************************
 
       do 162 iy = j2p, j5p
-         do 161 ix = i2, i5
+         do 161 ix = i2omp, i5omp
             ix1 = ixm1(ix,iy)
             ix2 = ixp1(ix,iy)
             isgc = .false.
@@ -799,7 +799,7 @@ c-----------------------------------------------------------------------
 
 c ... Compute log_lambda
       do iy = j1omp1, j6omp
-        do ix = i1, i6
+        do ix = i1momp, i6pomp
           ix1 = ixp1(ix,iy)
           teev = 0.5*(te(ix,iy)+te(ix1,iy))/ev
           nexface = 0.5*(ne(ix,iy)+ne(ix1,iy))
@@ -819,7 +819,7 @@ c ... Compute log_lambda
 
 c ... Calculate collis. factors eta1 and rtaue for the simple Braginski model
       do iy = j1omp1, j6omp
-        do ix = i1, i6
+        do ix = i1momp, i6pomp
            eta1(ix,iy) = cfeta1*0.3*nm(ix,iy,1)*ti(ix,iy)*
      .                   (1/(qe*btot(ix,iy))) / omgci_taui
            rtaue(ix,iy) = cfrtaue*(1/(qe*btot(ix,iy))) / omgce_taue
@@ -878,7 +878,7 @@ c --- If this is the neutral species (zi(ifld).eq.0)) we dont want velocities
          do iy = j1omp1, j5omp
             iyp1 = min(iy+1,ny+1)
             iym1 = max(iy-1,0)
-            do ix = i1, i6
+            do ix = i1momp, i6pomp
               ix3 = ixm1(ix,iy)
               ix4 = ixm1(ix,iy+1)
               temp1 = 
@@ -972,7 +972,7 @@ c
 c ... Compute diffusive part of radial velocity.
 c .. Needs further cleaning; no turbulence model used now TDR 9/1/15
          do iy = j1omp1, j5omp
-            do ix = i1, i6
+            do ix = i1momp, i6pomp
               difnimix = diffusivwrk(ix,iy)
 
 c ... Alter diffusivity in the SOL by mixing fixed diffusivity
@@ -1080,7 +1080,7 @@ c --- If this is the neutral species (zi(ifld).eq.0)) we dont want velocities
          qion = zi(ifld)*qe
 
         do iy = j1omp1, j6omp
-	      do ix = i1, i6
+	      do ix = i1momp, i6pomp
 	      iy1 = max(0,iy-1)            # does iy=0 properly
               iy2 = min(ny+1,iy+1) # use ex*fqx since phi(0,) may be large 
 	      ix2 = ixp1(ix,iy)
@@ -1222,7 +1222,7 @@ c             non-physical interface between upper target plates for dnull
 
          end do
         end do
-         do ix = i1, i6
+         do ix = i1momp, i6pomp
             vy(ix,ny+1,ifld) = 0.0   
          end do
         else    # test on zi > 1.e-10 to skip whole loop
@@ -1236,7 +1236,7 @@ c ... Add anomalous perp vis vy using calc_currents result - awkward,change
           if (cfvyavis > 0.) then
             do ifld = 1, 1  # nfsp  # only good for ifld=1
               do iy = max(j1omp1,2), min(j5omp,ny-1)
-                do ix = max(i1,2), min(i6,nx-1)
+                do ix = max(i1momp,2), min(i6pomp,nx-1)
                   vyavis(ix,iy,ifld) = fqya(ix,iy)*2/(
      .                  qe*(niy1(ix,iy,1)+niy0(ix,iy,1))*sy(ix,iy) )
                   vy(ix,iy,ifld) = vy(ix,iy,ifld) + cfvyavis*vyavis(ix,iy,ifld)
