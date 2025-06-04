@@ -53,7 +53,7 @@ c!include "../sptodp.h"
          do iy = j4omp, j8omp
             flox(0,iy,ifld) = 0.0e0
             conx(0,iy,ifld) = 0.0e0
-            do ix = i2, i6
+            do ix = i2omp, i6pomp
                ix1 = ixm1(ix,iy)
                if (isimpon.ge.5 .and. ifld.eq.1) then
                    #up(,,1) is total mass vel, whereas uu(,,i) for each ion
@@ -90,7 +90,7 @@ ccc Distance between veloc. cell centers:
               ixpt1u = ixpt1(2)
               ixpt2u = ixpt2(2)
             endif
-            do ix = i4, i8
+            do ix = i4omp, i8omp
                ix2 = ixp1(ix,iy)
                ix4 = ixp1(ix,iy+1)
                cony(ix,iy,ifld) = .5 * syv(ix,iy) *
@@ -208,7 +208,7 @@ c     Average fym, etc in ix to get staggered velocity-grid values fymv, etc.
 c     The density-stencil dxnog has to be averaged as well.
          do iy = j2omp, j5omp
             iy1 = max(iy-1,0)
-            do ix = i2, i5+1    # ixp1(i5,iy)
+            do ix = i2omp, i5omp+1    # ixp1(i5,iy)
                ix1 = ixm1(ix,iy)
                ix3 = ixm1(ix,iy1)
                ix5 = ixm1(ix,iy+1)
@@ -254,7 +254,7 @@ c...  Now flux limit with flalfvgxy if ifld=2
 c...  Compute viscous drag from nonuniform B-field, then add to smoc
       if (isupdrag .eq. 1 .and. ifld .eq. 1) then
         do iy = j2omp, j5omp
-          do ix = i2, i5
+          do ix = i2omp, i5omp
             ix1 = ixm1(ix,iy)
             ix2 = ixp1(ix,iy)
 c ...   First, the short mfp drag 
@@ -390,7 +390,7 @@ cccMER erroneous multiplicative factor -1/2 (from original code) ???
 *  -- source term and pressure gradient --
 
          do iy = j2omp, j5omp
-            do ix = i2, i5
+            do ix = i2omp, i5omp
                ix2 = ixp1(ix,iy)
                if (zi(ifld) .ne. 0) then  # additions only for charged ions
                   dp1 =  cngmom(ifld)*(1/fac2sp)*
@@ -471,7 +471,7 @@ c     The neutral species, momentum coupling AND other source terms:
 
          if (isnonog.eq.1) then
             do iy = j2omp, j5omp
-               do ix = i2, i5
+               do ix = i2omp, i5omp
                   ix2 = ixp1(ix,iy)
 c ... IJ 2016/10/10 use cfneutdiv_fmg multiplier for neutrals 
 c                 if (ifld .ne. iigsp) then
@@ -488,7 +488,7 @@ c***	IJ 2017/09/21: Need to add similar fmgxy calculation for MC neutrals on non
          endif
 
          do iy = j2omp, j5omp
-            do ix = i2, i5
+            do ix = i2omp, i5omp
                ix2 = ixp1(ix,iy)
 c IJ 2016/10/10 add cfneutdiv_fmg multiplier for neutrals to control fraction of momentum to add 
 c               if (ifld .ne. iigsp) then
@@ -519,7 +519,7 @@ c  -- it is included in frici from mombal or mombalni
 *  -- w0 now accumulates friction coefficient --
 *     -- set w2 = vol*ti**(-1.5) --
          do iy = j1, j6
-           do ix = i1, i6
+           do ix = i1omp, i6omp
              fricnrl(ix,iy,ifld) = 0.  #diagnostic ~ ni*mi*nu*(up1-up2)
              w0(ix,iy) = 0.0e0
              w2(ix,iy) = vol(ix,iy) / (ti(ix,iy)*sqrt(ti(ix,iy)))
@@ -537,7 +537,7 @@ c  -- it is included in frici from mombal or mombalni
 
 *     -- frictional coupling --
              do iy = j1, j6
-               do ix = i1, i5
+               do ix = i1omp, i5omp
                  ix2 = ixp1(ix,iy)
                  t0 = ni(ix,iy,ifld) * ni(ix,iy,jfld) * w2(ix,iy)
                  t1 = ni(ix2,iy,ifld)*ni(ix2,iy,jfld)*w2(ix2,iy)
@@ -602,7 +602,7 @@ c ... Calc friction forces from Braginskii; no individ chg-states;isimpon < 5.
 
       if (isimpon < 5) then
          do iy = j1omp1, j6omp    #iys1, iyf6
-            do ix = i1, i6
+            do ix = i1omp, i6omp
                ix2 = ixp1(ix,iy)
                nbarx = 0.5*(ne(ix,iy)+ne(ix2,iy))
                ltmax = min( abs(te(ix,iy)/(rrv(ix,iy)*gtex(ix,iy) + cutlo)),
@@ -627,7 +627,7 @@ c     cfyef is included. Both isphiofft=0 or 1 cases included in one loop
 
       if (isphion .eq. 0) then   # ex calc here assumes no parallel current
          do iy = iys1, iyf6
-            do ix = i1, i6
+            do ix = i1omp, i6omp
                ix1 = ix
                do jx = 1, nxpt
                  if (ix==ixlb(jx) .and. ixmnbcl==1) then
@@ -751,7 +751,7 @@ c     to those from parallel flow.
      .               (cftef*v2ce(ix1,iy,ifld)+cftdd*v2cd(ix1,iy,ifld))*
      .                                                       rrv(ix1,iy)
             endif
-            do ix = i1, i6    #now the remainder of the uu(ix,,)
+            do ix = i1momp, i6pomp    #now the remainder of the uu(ix,,)
                ix2 = ixp1(ix,iy)
                uu(ix,iy,ifld) = uup(ix,iy,ifld) +
      .                          0.5 * (rbfbt(ix,iy) + rbfbt(ix2,iy)) *
@@ -1223,7 +1223,7 @@ c ... Calculate the Bohm diffusion rates (units are m**2/s)
        if (facbni+facbup+facbee+facbei>0 .and. isbohmcalc>0) then
          do iy = j1omp1, j6omp
             iyp1 = min(ny+1, iy+1)
-            do ix = i1, i6
+            do ix = i1omp, i6omp
                ix1 = ixp1(ix,iy)
                kybohm(ix,iy) = (te(ix,iy)+te(ix,iyp1)) /
      .                        (16*ev*(btot(ix,iy)+btot(ix,iyp1)))
@@ -1240,7 +1240,7 @@ c ... Calculate the Bohm diffusion rates (units are m**2/s)
          if (isbohmcalc.eq.2) then  # calc. recip. average with const D
            fcdif = 0.   # used to zero constant diff. if recip. ave used
            do iy = j1omp1, j6omp
-             do ix = i1, i6
+             do ix = i1omp, i6omp
                dif_use(ix,iy,ifld)  = 0.5*ave(difni(ifld),  dif_use(ix,iy,ifld))
                dif2_use(ix,iy,ifld) = 0.5*ave(difni2(ifld), dif2_use(ix,iy,ifld))
                tray_use(ix,iy,ifld)  = 0.5*ave(travis(ifld), tray_use(ix,iy,ifld))
@@ -1256,7 +1256,7 @@ c ... If isbohmcalc=3, then give (B0/B)**inbdif profile to diff
        if (isbohmcalc==3) then  # use inbtdif, inbpdif for btot, bpol scaling
          bpolmin = bpol(ixpt2(1)-ixbpmin,iysptrx,0)
          do iy = j1omp1, j6omp
-            do ix = i1, i6
+            do ix = i1omp, i6omp
               ix1 = ixp1(ix,iy)
 	      bscalf=((.5*(btot(ixmp,iysptrx)/btot(ix,iy)) +
      .               .5*(btot(ixmp,iysptrx)/btot(ix1,iy)))**inbtdif)
@@ -1281,7 +1281,7 @@ c ,,, Add diffusion propto betap**iexpbp and (B0/B)**inbdif (as for isbohmcalc=3
          if(zi(ifld) > 0.) then
            bpolmin = bpol(ixpt2(1)-ixbpmin,iysptrx,0)
            do iy = j1omp1, j6omp
-             do ix = i1, i6
+             do ix = i1omp, i6omp
                ix1 = ixp1(ix,iy)
                betap(ix,iy) = 8.*pi*1.e-7*pr(ix,iy)/bpol(ix,iy,0)**2
                bpfac = betap(ix,iy)**iexpbp
@@ -1332,8 +1332,8 @@ c ,,, Add diffusion propto betap**iexpbp and (B0/B)**inbdif (as for isbohmcalc=3
 ************************************************************************
 *     Calculate the electron velocities, vex, upe, ve2, vey
 ************************************************************************
-       do iy = j1, j6
-         do ix = i1, i6
+       do iy = j1omp1, j6omp
+         do ix = i1momp, i6omp
             vex(ix,iy) = 0.
             vey(ix,iy) = 0.
           end do
@@ -1342,14 +1342,14 @@ c ,,, Add diffusion propto betap**iexpbp and (B0/B)**inbdif (as for isbohmcalc=3
       if (isimpon.ne.5) then    # have upe from mombal
 
       do iy = j1omp1, j6omp    #iys1, iyf6
-         do ix = i1, i6
+         do ix = i1momp, i6omp
             upe(ix,iy) = 0.
          enddo
       enddo
 
       do ifld = 1, nfsp
          do iy = j1omp1, j6omp    #iys1, iyf6
-	    do ix = i1, i6
+	    do ix = i1momp, i6omp
                ix1 = ixp1(ix,iy)
 	       upe(ix,iy) = upe(ix,iy) + upi(ix,iy,ifld)*zi(ifld)*0.5*
      .                      ( ni(ix,iy,ifld)+ni(ix1,iy,ifld) )
@@ -1359,7 +1359,7 @@ c ,,, Add diffusion propto betap**iexpbp and (B0/B)**inbdif (as for isbohmcalc=3
       afqp = 1.
       if (isimpon.eq.6 .or. isimpon.eq.7) afqp = fupe_cur  #allows gradual fix for old cases
       do iy = j1omp1, j6omp    #iys1, iyf6
-         do ix = i1, i6
+         do ix = i1momp, i6omp
             ix1 = ixp1(ix,iy)
 	    upe(ix,iy) = (upe(ix,iy) -afqp*fqp(ix,iy)/
      .                               (rrv(ix,iy)*sx(ix,iy)*qe))/
@@ -1370,7 +1370,7 @@ c ,,, Add diffusion propto betap**iexpbp and (B0/B)**inbdif (as for isbohmcalc=3
       end if
 
       do iy = j1omp1, j6omp   # ExB same all species;if cf2dd=1, no imp yet
-	    do ix = i1, i6
+	    do ix = i1momp, i6omp
             ix1 = ixp1(ix,iy)
             vex(ix,iy) = upe(ix,iy)*rrv(ix,iy) + 
      .                   (cf2ef*v2ce(ix,iy,1) + cf2bf*ve2cb(ix,iy) + 
@@ -1383,7 +1383,7 @@ c ,,, Add diffusion propto betap**iexpbp and (B0/B)**inbdif (as for isbohmcalc=3
 
       do ifld = 1, nfsp
 	 do iy = j1omp1, j5omp
-	    do  ix = i1, i6   # grad_B will be ok as next fqy is subtr.
+	    do  ix = i1momp, i6omp   # grad_B will be ok as next fqy is subtr.
 	       vey(ix,iy) = vey(ix,iy) + vy(ix,iy,ifld)*zi(ifld)*0.5*
      .                      ( niy0(ix,iy,ifld)+niy1(ix,iy,ifld) )
           end do
@@ -1391,7 +1391,7 @@ c ,,, Add diffusion propto betap**iexpbp and (B0/B)**inbdif (as for isbohmcalc=3
         end do
 
         do iy = j1omp1, j5omp
-	     do ix = i1, i6
+	     do ix = i1momp, i6omp
 	      vey(ix,iy) = (vey(ix,iy)-cfjve*fqy(ix,iy)/(sy(ix,iy)*qe))/
      .                    (0.5*( ney0(ix,iy)+ney1(ix,iy) ))
          end do
@@ -1399,7 +1399,7 @@ c ,,, Add diffusion propto betap**iexpbp and (B0/B)**inbdif (as for isbohmcalc=3
 	 
 c ... if isnewpot=0, vey(,0) needs to be redone since fqy(,0)=0
       if (isnewpot==1) then
-        do ix = i1, i6  # ExB vyce same all species
+        do ix = i1momp, i6omp  # ExB vyce same all species
           vey(ix,0) = cfybf*veycb(ix,0) + vydd(ix,0,1) +
      .                cfyef*vyce(ix,0,1)
         enddo
@@ -1407,7 +1407,7 @@ c ... if isnewpot=0, vey(,0) needs to be redone since fqy(,0)=0
 
 c ... If isybdrywd = 1, make vey diffusive, just like vy
       if (isybdrywd == 1) then  #make vy diffusive in wall cells
-        do ix = i1, i6
+        do ix = i1momp, i6omp
           if (matwalli(ix) > 0) vey(ix,0)  = vydd(ix,0,1)
           if (matwallo(ix) > 0) vey(ix,ny) = vydd(ix,ny,1)
         enddo
