@@ -60,7 +60,7 @@ c  -- This v_grad_Pg term first added by MZhao
       do igsp = 1, ngsp
         if(istgon(igsp) == 1) then 
           do iy = j2omp, j5omp
-            do ix = i2, i5
+            do ix = i2omp, i5omp
               ix1 = ixm1(ix,iy)
               ix2 = ixp1(ix,iy)
               iy1 = max(0,iy-1)
@@ -94,7 +94,7 @@ c  -- This v_grad_Pg term first added by MZhao
 c ... Compute poloidal conduction
       do igsp = 1,ngsp
         do iy = j4omp, j8omp
-          do ix = i1, i5
+          do ix = i1momp, i5omp
             ix2 = ixp1(ix,iy)
 
             t0 = max (tg(ix,iy,igsp), temin*ev)
@@ -111,14 +111,14 @@ c... flux-limit occurs in building hcxg - do not flux-limit 2nd time
 *  -- compute radial conduction conyge
       do igsp = 1, ngsp
         do iy = j1omp1, j5omp
-          do ix = i4, i8
+          do ix = i4omp, i8omp
             conyge(ix,iy,igsp) = sy(ix,iy)*hcyg(ix,iy,igsp)/dynog(ix,iy)
           enddo
         enddo
       enddo
 
       do igsp = 1, ngsp
-        do ix = i1, i6
+        do ix = i1omp, i6omp
           conyge(ix,ny+1,igsp) = 0.0e0
         enddo
       enddo
@@ -130,7 +130,7 @@ c... flux-limit occurs in building hcxg - do not flux-limit 2nd time
 
       do igsp = 1, ngsp
         do iy = j4omp, j8omp
-          do ix = i1, i5
+          do ix = i1momp, i5omp
             floxge(ix,iy,igsp) = cfcvtg*2.5*fngx(ix,iy,igsp)
           enddo
           floxge(nx+1,iy,igsp) = 0.
@@ -164,7 +164,7 @@ c... flux-limit occurs in building hcxg - do not flux-limit 2nd time
 
       do igsp = 1, ngsp
         do iy = j1omp1, j5omp
-          do ix = i4, i8
+          do ix = i4omp, i8omp
             floyge(ix,iy,igsp) = cfcvtg*2.5*fngy(ix,iy,igsp)
           enddo
         enddo
@@ -172,7 +172,7 @@ c... flux-limit occurs in building hcxg - do not flux-limit 2nd time
  
 *  -- Correct bdry:remove any inward power from walls; ok in parallel
       do igsp = 1, ngsp
-        do ix = i4, i8
+        do ix = i4omp, i8omp
           do jx = 1, nxpt  #if on PF wall, sub (1-cfloygw)*neut-contrib
             if(iymnbcl==1) then  #real PFw-need for parallel UEDGE?
               if(ix <= ixpt1(jx) .or. ix > ixpt2(jx)) then
@@ -291,7 +291,7 @@ c...  Flux limit with flalftxt even though hcys have parallel FL built in
       if (ngsp >= 2) then   # for now, specialized to igsp=2 only
         do ifld = nhsp+1, nisp
           do iy = j2omp, j5omp    # iys,iyf limits dont seem to work(?)
-            do ix = i2, i5
+            do ix = i2omp, i5omp
               #      possible bugs here? resei is replaced with seic
 	      #      since resei is not defined before this subroutine called
 	      #      more needs to be done here.. e.g. for segc
@@ -339,7 +339,7 @@ c-----------------------------------------------------------------------
       do igsp = 1, ngsp
         do iy = j2omp, j5omp
           iy1 = max(0,iy-1)
-          do ix = i2, i5
+          do ix = i2omp, i5omp
             ix1 = ixm1(ix,iy)
 *           ------------------------------------------------------------
 *                                GAS-ION/ATOM TERMS
@@ -458,7 +458,7 @@ c               Only apply drift heating for inertial atoms?
 
       if(get_neutral_moments .and. cmneutdiv_feg .ne. 0.0) then   
       do iy = j2omp, j5omp
-         do ix = i2, i5
+         do ix = i2omp, i5omp
 c ... ## IJ 2016/10/19 add MC neutral flux
               jfld=1
               reseg(ix,iy,1) = reseg(ix,iy,1) +
@@ -469,7 +469,7 @@ c ... ## IJ 2016/10/19 add MC neutral flux
 
       if (isupgon(1).eq.1) then
       do iy = j2omp, j5omp
-         do ix = i2, i5
+         do ix = i2omp, i5omp
 c             ATOMS
 c             -------------------------------------------------------------
                reseg(ix,iy,1) = reseg(ix,iy,1)
@@ -498,7 +498,7 @@ c                   Atom kinetic energy source from mol. drift heating
 *  -- on either side of the x-point where isxpty = 0
 
       do iy = j2omp, j5omp
-         do ix = i2, i5
+         do ix = i2omp, i5omp
             do ifld = 1, nusp  # if nusp --> nfsp, problems from y-term
                ix1 = ixm1(ix,iy)
                ix2 = ixm1(ix,iy+1)
@@ -577,7 +577,7 @@ c                   Atom kinetic energy source from mol. drift heating
       do igsp = 1, ngsp
         do iy = j2omp, j5omp
           iy1 = max(0,iy-1)
-          do ix = i2, i5
+          do ix = i2omp, i5omp
             ix1 = ixm1(ix,iy)
 
 *           Compute thermal equipartition rate with ion-atom fluid
@@ -723,7 +723,7 @@ c ... Gas thermal conductivity coeffs - from self-collisions
        do igsp = 1, ngsp
         do iy = j1omp1, j6omp
         iy1 = min(iy,ny)
-          do ix = i1, i6
+          do ix = i1omp, i6omp
             ix1 = ixp1(ix,iy)
             tgavex = max( (tg(ix,iy,igsp)*gx(ix,iy) +
      .                              tg(ix1,iy,igsp)*gx(ix1,iy)) /
