@@ -379,6 +379,10 @@ c*****************************************************************
                  i2pwr = max(1,ixm1(xc,yc))
                  i5pwr = min(nx, ixp1(xc,yc))
                endif
+               if (ParallelPandfCall.gt.0) then
+                 i2pwr = i2omp
+                 i5pwr = i5omp
+               endif
                do ix = i2pwr, i5pwr
                  ix1 = ixm1(ix,iy)
                  ix2 = ixp1(ix,iy)
@@ -744,7 +748,7 @@ c *** Now do the gas
 
       if (ifixsrc .ne. 0) then
          do iy = j2omp, j5omp
-            do ix = i2, i5
+            do ix = i2omp, i5omp
                snic(ix,iy,1) = snic(ix,iy,1) + vol(ix,iy) * a1n *
      .                          exp(-b1n*(xcs(ix)-xxsrc)**2) *
      .                          exp(-c1n*(yyc(iy)-yysrc)**2)
@@ -816,7 +820,7 @@ c...  Force fluxes and gradients on cuts to be zero for half-space problems
 
 *  -- Set up electron parallel contribution to seec & smoc
       do iy = j2omp, j5omp
-         do ix = i2, i5
+         do ix = i2omp, i5omp
             ix1 = ixm1(ix,iy)
             ix2 = ixp1(ix,iy)
             nexface = 0.5*(ne(ix2,iy)+ne(ix,iy))
@@ -855,7 +859,7 @@ c...  Force fluxes and gradients on cuts to be zero for half-space problems
 *     -- coupling in the x-direction --
 *     -- (note sign change in pondomfpari_use term starting 031722)
            do iy = j2omp, j5omp
-             do ix = i2, i5
+             do ix = i2omp, i5omp
                ix1 = ixm1(ix,iy)
                ix2 = ixp1(ix,iy)
                tv = gpix(ix ,iy,ifld)/gxf(ix,iy)
@@ -889,7 +893,7 @@ c...  Add friction part of Q_e here
 
 *     -- coupling in the x & y-directions --
            do iy = j2omp, j5omp
-            do ix = i2, i5
+            do ix = i2omp, i5omp
              if (isgpye == 0) then
                ix1 = ixm1(ix,iy)
                ix2 = ixp1(ix,iy)
@@ -931,7 +935,7 @@ c ... Then "ion" species 2 (redundant as gas species 1) is hydr atom
       if(isupgon(1)==1 .and. zi(2)<1.e-20) then # .and. istgon(1)==0) then 
         if(cfvgpx(2) > 0.) then
           do iy = j2omp, j5omp
-            do ix = i2, i5
+            do ix = i2omp, i5omp
               ix1 = ixm1(ix,iy)
               ix2 = ixp1(ix,iy)
               iy1 = max(0,iy-1)
@@ -947,7 +951,7 @@ c ... Then "ion" species 2 (redundant as gas species 1) is hydr atom
           enddo
         else  # Here if cfvgpx(2)=0, old vpar_g*grad_Pg only => ifld=2
           do iy = j2omp, j5omp
-            do ix = i2, i5
+            do ix = i2omp, i5omp
                ix1 = ixm1(ix,iy)
                ix2 = ixp1(ix,iy)
                tv = gpix(ix ,iy,2)/gxf(ix,iy)
@@ -1010,7 +1014,7 @@ c ... Then "ion" species 2 (redundant as gas species 1) is hydr atom
 
 
       do iy = j2omp, j5omp
-         do ix = i2, i5
+         do ix = i2omp, i5omp
             do ifld = 1, nfsp
                snic(ix,iy,ifld) = 0.0
             enddo
@@ -1037,7 +1041,7 @@ c ... Then "ion" species 2 (redundant as gas species 1) is hydr atom
 
       if (ifixsrc .ne. 0) then
          do iy = j2omp, j5omp
-            do ix = i2, i5
+            do ix = i2omp, i5omp
                snic(ix,iy,1) = snic(ix,iy,1) + vol(ix,iy) * a1n *
      .                          exp(-b1n*(xcs(ix)-xxsrc)**2) *
      .                          exp(-c1n*(yyc(iy)-yysrc)**2)
@@ -1056,7 +1060,7 @@ c ... Then "ion" species 2 (redundant as gas species 1) is hydr atom
 
 *  -- Set up electron parallel contribution to seec & smoc
       do iy = j2omp, j5omp
-         do ix = i2, i5
+         do ix = i2omp, i5omp
             ix1 = ixm1(ix,iy)
             ix2 = ixp1(ix,iy)
             nexface = 0.5*(ne(ix2,iy)+ne(ix,iy))
@@ -1095,7 +1099,7 @@ c ... Then "ion" species 2 (redundant as gas species 1) is hydr atom
 *     -- coupling in the x-direction --
 *     -- (note sign change in pondomfpari_use term starting 031722)
            do iy = j2omp, j5omp
-             do ix = i2, i5
+             do ix = i2omp, i5omp
                ix1 = ixm1(ix,iy)
                ix2 = ixp1(ix,iy)
                tv = gpix(ix ,iy,ifld)/gxf(ix,iy)

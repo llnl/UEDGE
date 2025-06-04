@@ -746,12 +746,12 @@ END SUBROUTINE OMPSplitIndex
     j7 = ye+2
     j8 = min(ny+1, ye+2)
 
-    i1omp = xs
+    i1omp = max(0, xs-0)
     i2omp = max(1, xs-0)
     i3omp = xs
     i4omp = max(0, xs-0)
     i5omp = min(nx, xe+0)
-    i6omp = xe
+    i6omp = min(nx+1, xe)
     i7omp = xe
     i8omp = min(nx+1, xe+0)
 
@@ -768,12 +768,12 @@ END SUBROUTINE OMPSplitIndex
     j7omp = ye
     j8omp = min(ye+1,ny+1)
 
-    ixs = i2
-    ixf = i5
+    ixs = i2omp
+    ixf = i5omp
     iys = j2omp
     iyf = j5omp
-    ixs1 = i1
-    ixf6 = i6
+    ixs1 = max(i1omp-1, 0)
+    ixf6 = min(i6omp+2, nx+1)
     iys1 = j1omp1
     iyf6 = j8omp
 
@@ -954,9 +954,7 @@ END SUBROUTINE OMPSplitIndex
         call calc_elec_velocities
         ! Volumetric plasma and gas sinks & sources
         call calc_volumetric_sources(xc, yc)
-        if (TimingPandfOn.gt.0) TimeNeudif=tick()
         call neudifpg
-        if (TimingPandfOn.gt.0) TotTimeNeudif=TotTimeNeudif+tock(TimeNeudif)
         call calc_srcmod
         ! Calculate plasma & gas conductivities etc.
         call calc_plasma_viscosities
