@@ -747,13 +747,13 @@ END SUBROUTINE OMPSplitIndex
     j8 = min(ny+1, ye+2)
 
     i1omp = xs
-    i2omp = max(xs-2,1)
+    i2omp = max(1, xs-0)
     i3omp = xs
-    i4omp = xs
-    i5omp = xe
+    i4omp = max(0, xs-0)
+    i5omp = min(nx, xe+0)
     i6omp = xe
     i7omp = xe
-    i8omp = xe
+    i8omp = min(nx+1, xe+0)
 
     j1omp = max(ys, 0)
     j1pomp = max(ys-1,0)

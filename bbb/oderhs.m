@@ -553,6 +553,7 @@ c...  variables are used, i.e., n,nv,nT, or n,v,T, or n,v,nT
       Use(Rhsides)   # resco
       Use(Comgeo)    # vol
 
+      Use(ParallelEval)
 *  -- Input parameters
       real yl(*), yldot(*)
 
@@ -572,7 +573,7 @@ c...  potential are not reordered (loops from i2-i5 and j2-j5).
 *****************************************************************
 
       do 270 iy = j2omp, j5omp
-         do 260 ix = i2, i5
+         do 260 ix = i2omp, i5omp
             nbedot = 0.
             nbidot = 0.
             nbgdot = 0.
@@ -633,9 +634,6 @@ c ....            Fix limiter case with algebraic eqns, not ODEs
      .                                                              /nbv
                 endif
                endif
-                if ((ix.eq.3) .and. (iy.eq.3)) then
-!                    write(*,*) yldot(iv2), yl(iv2)
-                endif
   257       continue
             if (isflxvar .eq. 0) then
                if(isteonxy(ix,iy) == 1) then

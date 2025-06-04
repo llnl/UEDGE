@@ -108,29 +108,6 @@ c         j6 = min(ny+1, yc+yinc_loc+1)
       endif
 
 
-        i1omp = i1
-        i2omp = i2
-        i3omp = i3
-        i4omp = i4
-        i5omp = i5
-        i6omp = i6
-        i7omp = i7
-        i8omp = i8
-        j1omp = j1
-        j1pomp = j1p
-        j1omp1 = j1
-        j2omp = j2
-        j3omp = j3
-        j4omp = j4
-        j5omp = j5
-        j5pomp = j5p
-        j6omp = j6
-        j6pomp = j6p
-        j7omp = j7
-        j8omp = j8
-        
-
-
 
 c...  We will expand the range of possible responses when perturbing the
 c...  plasma in a cell near one of the cuts.
@@ -237,6 +214,32 @@ c...  boundary cells of a mesh region.  Used in subroutine bouncon.
       enddo
       if (xc .lt. 0) xcnearrb = .true.
 
+
+        i1omp = i1
+        i2omp = i2
+        i3omp = i3
+        i4omp = i4
+        i5omp = i5
+        i6omp = i6
+        i7omp = i7
+        i8omp = i8
+        j1omp = j1
+        j1pomp = j1p
+        j1omp1 = j1
+        j2omp = j2
+        j3omp = j3
+        j4omp = j4
+        j5omp = j5
+        j5pomp = j5p
+        j6omp = j6
+        j6pomp = j6p
+        j7omp = j7
+        j8omp = j8
+        
+
+
+
+
       END SUBROUTINE initialize_ranges
 
 
@@ -262,7 +265,7 @@ c...  boundary cells of a mesh region.  Used in subroutine bouncon.
 *  --  Equations to be solved --
 **********************************************************************
       do iy = j2omp, j5omp
-         do ix = i2, i5
+         do ix = i2omp, i5omp
             do ifld = 1, nisp
 	       if(isnionxy(ix,iy,ifld) .eq. 1) then
                   iv = idxn(ix,iy,ifld)
@@ -311,7 +314,7 @@ c ... subroutine bouncon.
 
       if (isphion.eq.1) then 
       do iy = j2p, j5p
-         do ix = i2, i5
+         do ix = i2omp, i5omp
             iv3 = idxphi(ix,iy)
             isgc = .false.
             isgc1 = .false.
@@ -415,13 +418,13 @@ cccMER   NOTE: what about internal guard cells (for dnbot,dnull,limiter) ???
              if (isbcwdt .eq. 0) then  # omit b.c. eqns
                 j2l = j2omp
                 j5l = j5omp
-                i2l = i2
-                i5l = i5
+                i2l = i2omp
+                i5l = i5omp
             else
                 j2l = j4omp
                 j5l = j8omp
-                i2l = i4
-                i5l = i8
+                i2l = i4omp
+                i5l = i8omp
             endif
          endif
          do iy = j2l, j5l    # if j2l=j2, etc., omit the boundary equations
