@@ -558,7 +558,7 @@ c ..Timing;initialize
       if(istimingon==1) tsngxlog = tick()
 
       do 888 iy = j4omp, j8omp
-         do 887 ix = i1, i5
+         do 887 ix = i1momp, i5pomp
             iy1 = max(0,iy-1)
             iy2 = min(ny+1,iy+1)
             ix2 = ixp1(ix,iy)
@@ -671,7 +671,7 @@ c ..Timing; initiate time for y-direction calc
       if(istimingon==1) tsngylog = tick()
 
       do iy = j1omp1, j5omp
-         do ix = i4, i8
+         do ix = i4momp, i8pomp
             ngyface = 0.5*(ng(ix,iy,igsp)+ng(ix,iy+1,igsp))
 	    t0 = max(tg(ix,iy,igsp),tgmin*ev)
 	    t1 = max(tg(ix,iy+1,igsp),tgmin*ev)
@@ -783,7 +783,7 @@ c ..Timing
 
          do iy = j1omp1, min(j6omp, ny)
             iy1 = max(iy-1,0)
-            do ix = i1, min(i6, nx)
+            do ix = i1momp, min(i6pomp, nx)
                ix1 = ixm1(ix,iy)
                ix2 = ixp1(ix,iy)
                ix3 = ixm1(ix,iy1)
@@ -878,7 +878,7 @@ c ..Timing
 c...  Fix the total fluxes; note the loop indices same as fd2tra
 c...  Flux-limit the total poloidal flux here
             do iy = j4omp, j8omp
-               do ix = i1, i5
+               do ix = i1momp, i5pomp
                   ix2 = ixp1(ix,iy)
                   fngx(ix,iy,igsp) = fngx(ix,iy,igsp)-fngxy(ix,iy,igsp)
                   t0 = max(tg(ix,iy,igsp),temin*ev)
@@ -897,7 +897,7 @@ c ...          adjust fluxes to prevent pumpout
             enddo
 c ...   adjust y-fluxes to prevent pumpout
             do iy = j1, j5    # same loop ranges as for fngy in fd2tra
-               do ix = i4, i8
+               do ix = i4omp, i8omp
                      fngy(ix,iy,igsp) = fngy(ix,iy,igsp)/( 1-2*nlimgy +
      .                         nlimgy*(ng(ix,iy+1,igsp)/ng(ix,iy,igsp)+
      .                                ng(ix,iy,igsp)/ng(ix,iy+1,igsp)) )
@@ -921,7 +921,7 @@ c...  Add 4th order radial diffusion op; damp grid-scale oscill
             iym1 = max(iy-1,0)
             iyp1 = min(iy+1,ny+1)
             iyp2 = min(iy+2,ny+1)
-            do ix = i4, i8
+            do ix = i4omp, i8omp
               dndym1 = (ng(ix,iy,igsp)-ng(ix,iym1,igsp))*gyf(ix,iym1)
               dndy0 = (ng(ix,iyp1,igsp)-ng(ix,iy,igsp))*gyf(ix,iy)
               dndyp1 = (ng(ix,iyp2,igsp)-ng(ix,iyp1,igsp))*gyf(ix,iyp1)
@@ -942,7 +942,7 @@ C...  NOTE: PRESENTLY ONLY CODED FOR SIMPLY-CONNECTED DOMAIN
             ixm1b = max(ix-1,0)
             ixp1b = min(ix+1,nx+1)
             ixp2b = min(ix+2,nx+1)
-            do iy = j4, j8
+            do iy = j4omp, j8omp
               dndxm1 = (ng(ix,iy,igsp)-ng(ixm1b,iy,igsp))*gxf(ixm1b,iy)
               dndx0 = (ng(ixp1b,iy,igsp)-ng(ix,iy,igsp))*gxf(ix,iy)
               dndxp1 = (ng(ixp2b,iy,igsp)-ng(ixp1b,iy,igsp))*gxf(ixp1b,iy)
@@ -963,7 +963,7 @@ c ... fluxes are fngx -> fnix and fngy -> fngy in pandf, i.e., methg
 c ... determines the differencing for the inertial particle fluxes, not 
 c ... methn
       do iy = j1omp1, j5omp
-        do ix = i1,i5
+        do ix = i1momp,i5pomp
           ix1 = ixp1(ix,iy)
           if (1.-rrv(ix,iy) > 1.e-4 .or. isupgon(igsp)==0) then 
                            #combine binormal/par comps or x only diffusive
@@ -992,7 +992,7 @@ cfw ----   If doing only the outer half we want this boundary condition:
 c **- loop for uu just as in the previous version - needed for correct Jac?
       if (isupgon(igsp) .eq. 1) then
          do iy = j4omp, j6omp
-            do ix = i1, i6
+            do ix = i1momp, i6pomp
                uu(ix,iy,iigsp) = uug(ix,iy,igsp)
                v2(ix,iy,iigsp) = ( uuxg(ix,iy,igsp) 
      .                            - up(ix,iy,iigsp)*rrv(ix,iy) )
@@ -1043,7 +1043,7 @@ c.... Calculate the residual for the gas equation for diffusive neutral case
 	  endif
           if (islimon.ne.0.and.iy.ge.iy_lims) fngx(ix_lim,iy,igsp)=0.
           if (nxpt==2.and.ixmxbcl==1) fngx(ixrb(1)+1,iy,igsp)=0.
-          do ix = i2, i5
+          do ix = i2omp, i5omp
             ix1 = ixm1(ix,iy)
 
 c ... 2016/09/16 IJ: coding to blend MC neutral flux !!! here ***

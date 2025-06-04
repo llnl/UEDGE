@@ -220,9 +220,11 @@ c...  boundary cells of a mesh region.  Used in subroutine bouncon.
         i2omp = i2
         i3omp = i3
         i4omp = i4
+        i4momp = i4
         i5omp = i5
         i5pomp = i5
         i6omp = i6
+        i6pomp = i6
         i7omp = i7
         i8omp = i8
         i8pomp = i8
