@@ -1194,7 +1194,7 @@ c...  Add friction part of Q_e here
 
       do ifld = 1, nfsp
        do iy = j2omp, j5omp
-         do ix = i2, i5
+         do ix = i2omp, i5pomp
 	   if(isnionxy(ix,iy,ifld) == 1) then
               resco(ix,iy,ifld) = 
      .           snic(ix,iy,ifld)+sniv(ix,iy,ifld)*ni(ix,iy,ifld) +
@@ -1215,7 +1215,7 @@ c           if (ifld .ne. iigsp) then
         end do
 
        do iy = j2omp, j5omp
-         do ix = i2, i5
+         do ix = i2omp, i5pomp
 	       if(isnionxy(ix,iy,ifld) == 1) then
               ix1 = ixm1(ix,iy)
 	        if(zi(ifld) .ne. 0) then # IJ 2016 skip if neutral  zi(ifld)=0
@@ -1279,7 +1279,7 @@ c                   if (ix .eq. 1 .and. iy .eq. 1) write(*,*) 'sng_ue', ifld, jf
          methnx = mod(methn, 10)
          methny = methn/10
          do iy = j4omp, j8omp
-            do ix = i1, i5
+            do ix = i1momp, i5pomp
               if ( zi(ifld).eq.0. .and. ineudif.ne.0 .and.
      .                                   1.-rrv(ix,iy) > 1.e-4 ) then
                  fnix(ix,iy,ifld) = fngx(ix,iy,1)
@@ -1345,7 +1345,7 @@ c                   if (ix .eq. 1 .and. iy .eq. 1) write(*,*) 'sng_ue', ifld, jf
 *  -- compute fniy  --
 
          do iy = j1omp1, j5omp
-            do ix = i4, i8
+            do ix = i4omp, i8pomp
                if (zi(ifld).eq.0.) then #inertial gas must follow ion index
                   fniy(ix,iy,ifld) = fngy(ix,iy,ifld-1)
                else
@@ -1395,7 +1395,7 @@ c...  Note: nonorthogonality comes in through calc. of vy
         end do
 
 c ... cosmetic setting of fniy - not used         
-         do ix = i4, i8
+         do ix = i4omp, i8omp
             fniy(ix,ny+1,ifld) = 0.0e0
          enddo
 
@@ -1408,7 +1408,7 @@ c ... Add rad flux of 4th order diff operator; damp grid-scale oscillations
             iym1 = max(iy-1,0)
             iyp1 = min(iy+1,ny+1)
             iyp2 = min(iy+2,ny+1)
-            do ix = i4, i8
+            do ix = i4omp, i8omp
               dndym1 = (ni(ix,iy,ifld)-ni(ix,iym1,ifld))*gyf(ix,iym1)
               dndy0 = (ni(ix,iyp1,ifld)-ni(ix,iy,ifld))*gyf(ix,iy)
               dndyp1 = (ni(ix,iyp2,ifld)-ni(ix,iyp1,ifld))*gyf(ix,iyp1)

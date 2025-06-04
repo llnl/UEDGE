@@ -1084,13 +1084,16 @@ ixs         integer +threadprivate
 ixf         integer +threadprivate
 iyf         integer +threadprivate
 i1omp       integer +threadprivate
+i1momp       integer +threadprivate
 i2omp       integer +threadprivate
 i3omp       integer +threadprivate
 i4omp       integer +threadprivate
 i5omp       integer +threadprivate
+i5pomp      integer +threadprivate
 i6omp       integer +threadprivate
 i7omp       integer +threadprivate
 i8omp       integer +threadprivate
+i8pomp       integer +threadprivate
 j1omp       integer +threadprivate
 j1omp1      integer +threadprivate
 j1pomp      integer +threadprivate
