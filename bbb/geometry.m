@@ -907,10 +907,10 @@ cc      limit dx to avoid large Jacobian terms; test impact by changing
              dx(ix,iy) = max(dx(ix,iy), dxmin)
 cc      for nonorthogonal mesh, dy gets reduced by cosine(average_angle)
             if ((islimon .ne. 0) .and. (ix .eq. ix_lim+1)) then
-               dy(ix,iy) = dy(ix,iy)*cos( angfx(ix,iy) )
+               dy(ix,iy) = dy(ix,iy)*cosangfx(ix,iy) 
             elseif (nxpt==2 .and. ix==ixlb(nxpt)) then  # full double null
 c              Effectively, use angfx(ix-1,iy)=angfx(ix,iy) at left boundaries
-               dy(ix,iy) = dy(ix,iy)*cos( angfx(ix,iy) )
+               dy(ix,iy) = dy(ix,iy)*cosangfx(ix,iy) 
             else
                dy(ix,iy) = dy(ix,iy)*cos( 0.5*
      .                          (angfx(ix,iy) + angfx(ixm1(ix,iy),iy)) )
@@ -945,12 +945,12 @@ c              Effectively, use angfx(ix-1,iy)=angfx(ix,iy) at left boundaries
 *     -- 1/gyc is length*cos(angfx) between vertex (ix,iy) and (ix,iy-1)
             dyc = sqrt((rm(ix+nj,iy,4)-rm(ix+nj,iy,2))**2
      .              + (zm(ix+nj,iy,4)-zm(ix+nj,iy,2))**2) *
-     .               cos(angfx(ix,iy))
+     .               cosangfx(ix,iy)
             gyc(ix,iy) = 1/dyc
             dz = 2 * pi * 0.5*(rm(ix+nj,iy,4)+rm(ix+nj,iy,2))
             if (mhdgeo == -1) dz = 1.
             sx(ix,iy) = dyc * dz
-	    sxnp(ix,iy) = sx(ix,iy)/(cos(angfx(ix,iy)))
+	    sxnp(ix,iy) = sx(ix,iy)/(cosangfx(ix,iy))
 ctdr .. Special case - xgbx is used as reduction factor - not related to G.B.
 ccc            if (ix.eq.ixpt1(1) .and. iy.le.iysptrx1(1)) then
 ccc              sx(ix,iy) = xgbx*sx(ix,iy)
@@ -1174,7 +1174,7 @@ c...  Setup the isixcore(ix) array: =1 if ix on iy=0 core bdry; =0 if not
           gradb2(ix,iy) = 0.5*( 1/b(ix+nj,iy,4)**2 +
      .                          1/b(ix+nj,iy,2)**2 )*
      .                    (b(ix+nj,iy,4)-b(ix+nj,iy,2))*gyc(ix,iy)*
-     .                        cos(angfx(ix,iy)) # cos corrects gyc
+     .                        cosangfx(ix,iy) # cos corrects gyc
 ccc          if (iy .ge. ny-1) then
 ccc            curvrby(ix,iy) = 0.
 ccc            gradby(ix,iy) = 0.
