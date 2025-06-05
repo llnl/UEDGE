@@ -43,8 +43,6 @@ c...  local variables
                   if (zi(ifld).eq.0. .and. ineudif.eq.3) then
                      yl(iv) = log(ni(ix,iy,ifld))
                   endif
-!                  if (isnonog.eq.1) 
-!     .                  logni(ix,iy,ifld) = log(ni(ix,iy,ifld))
                   rtol(iv) = rtolv(igrid)*bfac
                   atol(iv) = cniatol*rtol(iv)*bfac*abs(yl(iv))
                   idxn(ix,iy,ifld) = iv
@@ -291,6 +289,8 @@ c... Added the following for OMPPandf1rhs call (added by .J.Guterl)
                   nz2(ix,iy) = nz2(ix,iy) + ni(ix,iy,ifld)*zi(ifld)**2
                endif
                nm(ix,iy,ifld) = ni(ix,iy,ifld)*mi(ifld)
+!               if (isnonog.eq.1) 
+!     .                  logni(ix,iy,ifld) = log(ni(ix,iy,ifld))
    30       continue
    40    continue
    50   continue
@@ -1108,31 +1108,6 @@ c ... Last test (ie.gt.nx) to fix parallel version with mpi - check
       return
       end
 c ***** end of subroutine convsr_aux ********
-c ----------------------------------------------------------------------
-      function intpnog (nxl,nyl,i,j,k,ary)   # not used just now
-
-c ... Interpolate a set of function values using the nonorthogonal stencil
-c ... fxm, fx0, fxp, fxmy, fxpy
-
-      implicit none
-
-      real intpnog
-      integer nxl,nyl,i,j,k   # i=ix,j=iy, and k=0/1 for lower/upper interp
-      real ary(0:nxl,0:nyl)   # array to be be interpolated
-
-      Use(Dim)                # nx,ny
-      Use(Noggeo)             # fxm,fx0,fxp,fxmy,fxpy
-      Use(Selec)              # ixp1,ixm1
-
-      intpnog =  fxm (i,j,k)*ary(ixm1(i,j+k)  ,j+k  ) + 
-     .           fx0 (i,j,k)*ary(i            ,j+k  ) +
-     .           fxp (i,j,k)*ary(ixp1(i,j+k)  ,j+k  ) +
-     .           fxmy(i,j,k)*ary(ixm1(i,j+1-k),j+1-k) +
-     .           fxpy(i,j,k)*ary(ixp1(i,j+1-k),j+1-k)
-
-      return
-      end
-c ***** end of function intpnog **************
 c ----------------------------------------------------------------------
 
       subroutine comp_vertex_vals
