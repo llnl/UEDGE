@@ -250,7 +250,7 @@ c --- a nonorthogonal mesh because of ngy1,0 - see def. of hcyn
                fegxy(ix,iy,igsp) = cfegxy*exp( 0.5*
      .                 (logtg(ix2,iy,igsp)+logtg(ix,iy,igsp)) )*
      .                      difgx2*ave(ng(ix2,iy,igsp),ng(ix,iy,igsp))*
-     .                                 ( grdnv/cos(angfx(ix,iy))
+     .                                 ( grdnv/cosangfx(ix,iy)
      .                  - (logtg(ix2,iy,igsp) - logtg(ix,iy,igsp))*
      .                                        gxf(ix,iy) )*sx(ix,iy)
 c...  Flux limit with flalftxt even though hcys have parallel FL built in

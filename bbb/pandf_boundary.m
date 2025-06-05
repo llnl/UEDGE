@@ -1176,7 +1176,7 @@ c------------------------------------------------------------------------
 c   Compute fluxes along left (inner divertor - need to change sign)
       do jx = 1, nxpt  #number of x-points; =1 for single null
         do iy = 1, ny
-          sxcos = sx(ixlb(jx),iy)*cos(angfx(ixlb(jx),iy))
+          sxcos = sx(ixlb(jx),iy)*cosangfx(ixlb(jx),iy)
           ue_ion_flux_sum = 0.
           do ifld = 1, 1  #placeholder; needs extension for impurities
             ue_part_fluxh2p1lb(iy,jx) = -fnix(ixlb(jx),iy,1)/sxcos
@@ -1207,7 +1207,7 @@ c   Compute fluxes along right (outer divertor)
         nxt = ixrb(jx)-1   #effec nx
         nxt1 = ixrb(jx)    #effec nx+1
         do iy = 1, ny
-          sxcos = sx(nxt,iy)*cos(angfx(nxt,iy))
+          sxcos = sx(nxt,iy)*cosangfx(nxt,iy)
           ue_ion_flux_sum = 0.
           do ifld = 1, 1  #placeholder; needs extension for impurities
             ue_part_fluxh2p1rb(iy,jx) = fnix(nxt,iy,1)/sxcos

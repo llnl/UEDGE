@@ -3076,7 +3076,7 @@ c ... First do the divertor plate surfaces
      .                            rm(ixv+nj,iyv,3)-rm(ix+nj,iy,0) )
               dthgy = abs(theta_ray1-theta_ray2)
               frth = min(dthgy, 2*pi-dthgy)/(2*pi)  # frac.; need angle < pi
-              sxo = sx(ixv,iyv)/(cos(angfx(ixv,iyv)))
+              sxo = sx(ixv,iyv)/(cosangfx(ixv,iyv))
               pwr_pltz(iyv,ip) = pwr_pltz(iyv,ip) + 
      .                                 prdu(ix,iy)*vol(ix,iy)*frth/sxo
               pwr_plth(iyv,ip) = pwr_plth(iyv,ip) + (
@@ -3197,8 +3197,8 @@ c  Local variables
         ixi=ixlb(jx)	# ixi=0
         ixo=ixrb(jx)	# ixo=nx
         do iy=1,ny+1
-          sxo(iy,jx) = sx(ixo,iy)/(cos(angfx(ixo,iy)))
-          sxi(iy,jx) = sx(ixi,iy)/(cos(angfx(ixi,iy)))
+          sxo(iy,jx) = sx(ixo,iy)/(cosangfx(ixo,iy))
+          sxi(iy,jx) = sx(ixi,iy)/(cosangfx(ixi,iy))
           do id = 1, nfsp
 	    gdilb(iy,id,jx) = -fnix(ixi,iy,id)/sxi(iy,jx)
 	    gdirb(iy,id,jx) =  fnix(ixo,iy,id)/sxo(iy,jx)

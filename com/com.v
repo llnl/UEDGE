@@ -456,6 +456,7 @@ lconeg(0:nx+1,0:ny+1) _real [m]   #glob banana-wid corrected elec conn leng
 vtag(0:nx+1,0:ny+1)    _real  [ ]  #angle at upper-right vertex; 0 rad. is orthg
                                    #clockwise rot. of face => vtag > 0
 angfx(0:nx+1,0:ny+1)   _real  [ ]  #angle on x-face;=.5*(vtag(,iy)+vtag(,iy-1))
+cosangfx(0:nx+1,0:ny+1) _real [ ]  #cos-angle on x-face;=cos(.5*(vtag(,iy)+vtag(,iy-1)))
 fxm(0:nx+1,0:ny+1,0:1) _real  [ ]  #frac. of (ix-1,iy+k) pt used for y deriv,ave
                                    # for (ix,iy) cell where k is third index
 fx0(0:nx+1,0:ny+1,0:1) _real  [ ]  #frac. of (ix,iy+k) pt used for y deriv,ave

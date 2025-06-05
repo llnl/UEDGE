@@ -445,7 +445,7 @@ c...  First do the Te equation
      .                         (logte(ix2,iy) + logte(ix,iy)) )* 
      .                               (fcdif*kye+kye_use(ix,iy))*0.5*
      .                                       (ne(ix2,iy)+ne(ix,iy))*
-     .                                     (grdnv/cos(angfx(ix,iy)) - 
+     .                                     (grdnv/cosangfx(ix,iy) - 
      .                         (logte(ix2,iy) - logte(ix,iy))* 
      .                                         gxf(ix,iy))*sx(ix,iy)
 
@@ -475,7 +475,7 @@ c --- a nonorthogonal mesh because of niy1,0 - see def. of hcyn
      .                                     (nit(ix2,iy)+nit(ix,iy))
      .          + cftiexclg*cfneut*cfneutsor_ei*0.25*(hcyn(ix ,iy)+hcyn(ix ,iy1)
      .                              +hcyn(ix2,iy)+hcyn(ix4,iy1)) ) *
-     .                                 (  grdnv/cos(angfx(ix,iy))
+     .                                 (  grdnv/cosangfx(ix,iy)
      .                         - (logti(ix2,iy) - logti(ix,iy))*
      .                                        gxf(ix,iy) )*sx(ix,iy)
 c...  Flux limit with flalftxt even though hcys have parallel FL built in

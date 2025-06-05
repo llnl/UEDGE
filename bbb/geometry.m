@@ -846,6 +846,7 @@ c ... Jump to here for domain decomposition
 *  -- of a cell, vtag; in radians (0 is orthogonal); angfx is angle on x-face
          call s2fill (nx+2, ny+2, 0., vtag, 1, nx+2)
          call s2fill (nx+2, ny+2, 0., angfx, 1, nx+2)
+         call s2fill (nx+2, ny+2, 0., cosangfx, 1, nx+2)
          do iu = 0, 1
             call s2fill (nx+2, ny+2, 1., fx0(0:nx+1,0:ny+1,iu), 1, nx+2)
             call s2fill (nx+2, ny+2, 0., fxm(0:nx+1,0:ny+1,iu), 1, nx+2)
@@ -2051,6 +2052,12 @@ c...  reset values for midplane guard cells of double-null configuration
             vtag(nxc+1,iy) = 0.
          enddo
       endif      
+
+      do iy = 0, ny+1
+        do ix = 0, nx+1
+          cosangfx(ix,iy) = cos(angfx(ix,iy))
+        end do
+      end do
 
 c...  Calculate the fraction-stencil for variables to use at ix-1, ix, ix+1
 c...  when forming y-derivatives and averages for the nonorthogonal grid

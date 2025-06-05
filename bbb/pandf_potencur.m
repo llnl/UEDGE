@@ -1208,7 +1208,7 @@ cc     .                                                    dxnog(ix,iy)
      .                     fypx(ix,iy,0)*log(ni(ix6,iy2,ifld)) ) ) /
      .                                                      dxnog(ix,iy)
             vytan(ix,iy,ifld)=(fcdif*difni(ifld) + dif_use(ix,iy,ifld)) *
-     .                                      (grdnv/cos(angfx(ix,iy)) - 
+     .                                      (grdnv/cosangfx(ix,iy) - 
      .                       (log(ni(ix2,iy,ifld)) - log(ni(ix,iy,ifld)))
      .                                                 * gxf(ix,iy) )
             if (islimon.eq.1.and. ix.eq.ix_lim.and. iy.ge.iy_lims) then

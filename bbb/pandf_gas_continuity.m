@@ -109,7 +109,7 @@ c.... First the flux in the x-direction
                vygtan(ix,iy,igsp) = exp( 0.5*
      .                     (logtg(ix2,iy,igsp)+logtg(ix,iy,igsp)) )*
      .                      ( cngfx(igsp) / (mg(igsp)*0.5*(nu1+nu2)) ) *
-     .                                     ( grdnv/cos(angfx(ix,iy)) - 
+     .                                     ( grdnv/cosangfx(ix,iy) - 
      .                       (logtg(ix2,iy,igsp) - logtg(ix,iy,igsp))
      .                                                 * gxf(ix,iy) ) 
              if (islimon.eq.1.and. ix.eq.ix_lim.and. iy.ge.iy_lims) then
@@ -309,11 +309,11 @@ ccc            MER: Set flag to apply xy flux limit except at target plates
               if (methgx .eq. 6) then
                fngxy(ix,iy,igsp) =  exp( 0.5*
      .                     (logng(ix2,iy,igsp)+logng(ix,iy,igsp)) )*
-     .                               difgx2*(grdnv/cos(angfx(ix,iy)) -
+     .                               difgx2*(grdnv/cosangfx(ix,iy) -
      .                     (logng(ix2,iy,igsp) - logng(ix,iy,igsp))*
      .                                 gxf(ix,iy) ) * sx(ix,iy)
               else
-               fngxy(ix,iy,igsp) = difgx2*( grdnv/cos(angfx(ix,iy)) -
+               fngxy(ix,iy,igsp) = difgx2*( grdnv/cosangfx(ix,iy) -
      .                             (ng(ix2,iy,igsp) - ng(ix,iy,igsp))*
      .                                 gxf(ix,iy) ) * sx(ix,iy)
               endif
@@ -606,7 +606,7 @@ c ..Timing;initialize
                vygtan(ix,iy,igsp) = exp( 0.5*
      .                     (logtg(ix2,iy,igsp)+logtg(ix,iy,igsp)) )*
      .                      ( alftng / (mg(igsp)*0.5*(nu1+nu2)) ) *
-     .                                     ( grdnv/cos(angfx(ix,iy)) - 
+     .                                     ( grdnv/cosangfx(ix,iy) - 
      .                       (logtg(ix2,iy,igsp) - logtg(ix,iy,igsp))
      .                                                 * gxf(ix,iy) ) 
              if (islimon.eq.1.and. ix.eq.ix_lim.and. iy.ge.iy_lims) then
@@ -846,11 +846,11 @@ ccc            MER: Set flag to apply xy flux limit except at target plates
               if (methgx .eq. 6) then
                fngxy(ix,iy,igsp) =  exp( 0.5*
      .                     (logpg(ix2,iy,igsp)+logpg(ix,iy,igsp)) )*
-     .                               difgx2*(grdnv/cos(angfx(ix,iy)) -
+     .                               difgx2*(grdnv/cosangfx(ix,iy) -
      .                     (logpg(ix2,iy,igsp) - logpg(ix,iy,igsp))*
      .                                 gxf(ix,iy) ) * sx(ix,iy)
               else
-               fngxy(ix,iy,igsp) = difgx2*(grdnv/cos(angfx(ix,iy)) -
+               fngxy(ix,iy,igsp) = difgx2*(grdnv/cosangfx(ix,iy) -
      .                             (pg(ix2,iy,igsp) - pg(ix,iy,igsp))*
      .                                 gxf(ix,iy) ) * sx(ix,iy)
               endif
@@ -1208,7 +1208,7 @@ c.... First the flux in the x-direction
      .                     (logtg(ix2,iy,igsp)+logtg(ix,iy,igsp)) )*
      .                                  ( cngfx(igsp) / (mg(igsp)*0.5*
      .                         (nuix(ix,iy,igsp)+nuix(ix2,iy,igsp))) ) *
-     .                             ( grdnv/cos(angfx(ix,iy)) - 
+     .                             ( grdnv/cosangfx(ix,iy) - 
      .                       (logtg(ix2,iy,igsp) - logtg(ix,iy,igsp))
      .                                                 * gxf(ix,iy) ) 
                if (islimon.eq.1.and. ix.eq.ix_lim.and. iy.ge.iy_lims) then
@@ -1371,7 +1371,7 @@ ccc            MER: Set flag to apply xy flux limit except at target plates
      .                         + rld2dxg(igsp)**2*(1/gxf(ix,iy)**2)*
      .                           0.5*(nuiz(ix,iy,igsp)+nuiz(ix2,iy,igsp))
 
-               flngxy(ix,iy,igsp) = difgx2*(grdnv/cos(angfx(ix,iy)) -
+               flngxy(ix,iy,igsp) = difgx2*(grdnv/cosangfx(ix,iy) -
      .                             (lng(ix2,iy,igsp) - lng(ix,iy,igsp))*
      .                                 gxf(ix,iy) ) * sx(ix,iy)
 
@@ -1619,7 +1619,7 @@ c     .                 (nuix(ix,iy,igsp)+nuix(ix2,iy,igsp))
                endif
                vygtan(ix,iy,igsp) = ( cngfx(igsp) / (mg(igsp)*0.5*
      .                         (nuix(ix,iy,igsp)+nuix(ix2,iy,igsp))) ) *
-     .                             ( grdnv/cos(angfx(ix,iy)) - 
+     .                             ( grdnv/cosangfx(ix,iy) - 
      .                             (tg(ix2,iy,igsp) - tg(ix,iy,igsp))
      .                                                 * gxf(ix,iy) ) 
                if (islimon.eq.1.and. ix.eq.ix_lim.and. iy.ge.iy_lims) then
@@ -1837,7 +1837,7 @@ c...  Addition for nonorthogonal mesh
      .                       tg(ix2,iy,igsp)/nuix(ix2,iy,igsp) )/mg(igsp)
      .                         + rld2dxg(igsp)**2*(1/gxf(ix,iy)**2)*
      .                           0.5*(nuiz(ix,iy,igsp)+nuiz(ix2,iy,igsp))
-               fngxy(ix,iy,igsp) = difgx2*(grdnv/cos(angfx(ix,iy)) -
+               fngxy(ix,iy,igsp) = difgx2*(grdnv/cosangfx(ix,iy) -
      .                             (ng(ix2,iy,igsp) - ng(ix,iy,igsp))*
      .                                 gxf(ix,iy) ) * sx(ix,iy)
             end do
