@@ -34,7 +34,7 @@ SUBROUTINE InitParallel
             call InitOMPJac
             ParallelJac=1
         endif
-        call InitOMPPandf1()
+        call InitOMPPandf1(0)
         ParallelPandf1=1
     else
         ParallelPandf1=0

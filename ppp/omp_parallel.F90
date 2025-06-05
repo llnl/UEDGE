@@ -228,7 +228,7 @@ SUBROUTINE InitOMPJac()
 END SUBROUTINE InitOMPJAC
 
 
-SUBROUTINE InitOMPPandf1
+SUBROUTINE InitOMPPandf1(rechunk_in)
     USE OMPPandf1, ONLY: Nxchunks,Nychunks, Nxptchunks, rangechunk, &
     &   rangexptchunk, Nchunks, Nxptchunks, ivchunk, ivxptchunk, &
     &   Nchunksmax, Nxptchunksmax, Nivxptchunk, Nivchunk, Nivxptchunksmax, &
@@ -242,46 +242,91 @@ SUBROUTINE InitOMPPandf1
     &   istgonxy, isphionxy
     USE CHUNK 
     IMPLICIT NONE
+    INTEGER, INTENT(IN) :: rechunk_in
     INTEGER, ALLOCATABLE, DIMENSION(:,:,:,:) :: rangexptchunk_tmp
     INTEGER, ALLOCATABLE, DIMENSION(:,:,:) ::  ivxptchunk_tmp
     INTEGER, ALLOCATABLE, DIMENSION(:,:) ::  ivchunk_tmp, rangechunk_tmp, &
     &       Nivxptchunk_tmp
     INTEGER, ALLOCATABLE, DIMENSION(:) ::  Nivchunk_tmp
-    INTEGER :: ixpt
+    INTEGER :: ixpt, rechunk
+    rechunk = rechunk_in
 
-    if (Nychunks.lt.0) then
-        call xerrab('Nychunks<0. Nxchunks must be >=0')
-    endif
-    if (Nxchunks.lt.0) then
-        call xerrab('Nxchunks<0. Nxchunks must be >=0')
-    endif
-    ! Set default to be approx 5x5 chunks
-    if (Nychunks.eq.0) then
-        Nychunks=int(ny/5)
-    endif
-    if (Nxchunks.eq.0) then
-        Nxchunks=int(ny/5)
-    endif
-    do ixpt = 1, nxpt
-        if (Nxptchunks(ixpt).eq.0) then
-            Nxptchunks(ixpt) = int(iysptrx1(ixpt)/5)
+    if (nx_old.ne.nx) then
+        rechunk = 1
+    elseif (ny_old.ne.ny) then
+        rechunk = 1
+    elseif (nisp_old.ne.nisp) then
+        rechunk = 1
+    elseif (ngsp_old.ne.ngsp) then
+        rechunk = 1
+    elseif (MAXVAL(ABS(Nxptchunks_old-Nxptchunks)).ne.0) then
+        rechunk = 1
+    elseif (Nxchunks_old.ne.Nxchunks) then
+        rechunk = 1
+    elseif (Nychunks_old.ne.Nychunks) then
+        rechunk = 1
+    elseif (neq_old.ne.neq) then
+        rechunk = 1
+    elseif (MAXVAL(ABS(isnionxy_old-isnionxy)).ne.0) then
+        rechunk = 1
+    elseif (MAXVAL(ABS(isngonxy_old-isngonxy)).ne.0) then
+        rechunk = 1
+    elseif (MAXVAL(ABS(isuponxy_old-isuponxy)).ne.0) then
+        rechunk = 1
+    elseif (MAXVAL(ABS(istionxy_old-istionxy)).ne.0) then
+        rechunk = 1
+    elseif (MAXVAL(ABS(isteonxy_old-isteonxy)).ne.0) then
+        rechunk = 1
+    elseif (MAXVAL(ABS(istgonxy_old-istgonxy)).ne.0) then
+        rechunk = 1
+    elseif (MAXVAL(ABS(isphionxy_old-isphionxy)).ne.0) then
+        rechunk = 1
+    end if
+
+    ! TODO: Add checks wheter anything has changed
+
+    if (rechunk.ne.0) then
+        call gchange('OMPPandf1',0)
+
+        if (Nychunks.lt.0) then
+            call xerrab('Nychunks<0. Nxchunks must be >=0')
         endif
-    enddo
+        if (Nxchunks.lt.0) then
+            call xerrab('Nxchunks<0. Nxchunks must be >=0')
+        endif
+        ! Set default to be approx 5x5 chunks
+        if (Nychunks.eq.0) then
+            Nychunks=int(ny/5)
+        endif
+        if (Nxchunks.eq.0) then
+            Nxchunks=int(ny/5)
+        endif
+        do ixpt = 1, nxpt
+            if (Nxptchunks(ixpt).eq.0) then
+                Nxptchunks(ixpt) = int(iysptrx1(ixpt)/5)
+            endif
+        enddo 
 
+        call Make2DChunks(Nxchunks, Nychunks, Nchunks, Nivchunk_tmp, &
+        &   ivchunk_tmp, rangechunk_tmp, Nxptchunks, Nivxptchunk_tmp, &
+        &   ivxptchunk_tmp, rangexptchunk_tmp, Nchunksmax, Nxptchunksmax, &
+        &   Nivxptchunksmax)
 
-    call Make2DChunks(Nxchunks, Nychunks, Nchunks, Nivchunk_tmp, &
-    &   ivchunk_tmp, rangechunk_tmp, Nxptchunks, Nivxptchunk_tmp, &
-    &   ivxptchunk_tmp, rangexptchunk_tmp, Nchunksmax, Nxptchunksmax, &
-    &   Nivxptchunksmax)
+        call gchange('OMPPandf1',0)
 
-    call gchange('OMPPandf1',0)
+        rangechunk=rangechunk_tmp; 
+        ivchunk=ivchunk_tmp(:,:Nchunksmax)
+        Nivchunk=Nivchunk_tmp
+        rangexptchunk=rangexptchunk_tmp
+        ivxptchunk=ivxptchunk_tmp(:,:,:Nivxptchunksmax)
+        Nivxptchunk=Nivxptchunk_tmp;
+    end if
 
-    rangechunk=rangechunk_tmp; 
-    ivchunk=ivchunk_tmp(:,:Nchunksmax)
-    Nivchunk=Nivchunk_tmp
-    rangexptchunk=rangexptchunk_tmp
-    ivxptchunk=ivxptchunk_tmp(:,:,:Nivxptchunksmax)
-    Nivxptchunk=Nivxptchunk_tmp;
+    isnionxy_old = isnionxy; isngonxy_old = isngonxy; isuponxy_old = isuponxy
+    istionxy_old = istionxy; isteonxy_old = isteonxy; istgonxy_old = istgonxy
+    isphionxy_old = isphionxy;  nisp_old = nisp; ngsp_old = ngsp
+    nx_old = nx; ny_old = ny; neq_old = neq; Nxptchunks_old = Nxptchunks
+    Nxchunks_old = Nxchunks; Nychunks_old=Nychunks
 
     RETURN
 END SUBROUTINE InitOMPPandf1
@@ -796,8 +841,6 @@ END SUBROUTINE OMPSplitIndex
     yldotcopy = yldot
     yldottot = 0
 
-    call InitOMPPandf1
-
     if (ijactot.gt.0) then
         !$OMP PARALLEL DO PRIVATE(ichunk) SCHEDULE(dynamic) &
         !$OMP &      FIRSTPRIVATE(ylcopy, yldotcopy) REDUCTION(+:yldottot)
@@ -839,6 +882,7 @@ END SUBROUTINE OMPSplitIndex
             write(*,'(a,i4)') "  Serial and parallel pandf are identical for nfe = ", comnfe
         endif
     else
+       call InitOMPPandf1(1)
        call pandf (-1,-1, neq, time, yl, yldot)
     endif
     ParallelPandfCall = 0
