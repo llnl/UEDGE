@@ -54,7 +54,7 @@ c     For each search region, call the contouring routines
   500 continue
 
 c     For core/p.f. contours, find the "jump" index:
-      if (nycore(1) .gt. 0) then
+      if (nycore .gt. 0) then
          do j=jsptrx(1)+1,jsptrx(2)-1
             ijumpf(j)=0
             do n=1,npoint(j)-1

@@ -233,15 +233,15 @@ bg(0:nxm+1,0:nym+1,0:4)     _real [T]    # global total B field, 0 is center
 
 ***** Share:
 # Variables used by more than one package
-nycore(30)	integer	/30*0/	+regrid +gridgen
+nycore	integer	/0/	+regrid +gridgen
    # number of radial zones in the core region of the edge plasma
-nysol(30)	integer	/30*2/	+regrid +gridgen
+nysol	integer	/2/	+regrid +gridgen
    # number of radial zones in the open flux surface region of the edge plasma
-nyout(30)	integer	/30*0/	+regrid +gridgen
+nyout	integer	/0/	+regrid +gridgen
    # number of radial zones beyond second separatrix of full double-null
-nxleg(30,2)	integer	/0, 59*2/	+regrid +gridgen
+nxleg(2)	integer	/2*0/	+regrid +gridgen
    # number of cells along divertor legs:  (,1) inside, (,2) outside
-nxcore(30,2)	integer	/0, 59*4/	+regrid +gridgen
+nxcore(2)	integer	/2*0/	+regrid +gridgen
    # number of cells along core boundary:  (,1) inside, (,2) outside
 nxomit		integer /0/ +gridgen
    # number of x-cells to omit from ix=0; if <0, omit from ix=nx for fluid eqns
@@ -250,7 +250,6 @@ nxxpt +gridgen
    # number of extra poloidal cells at x-point (per quadrant)
 nyomitmx	integer /0/ +gridgen
    # number of y-cells to omit from iy=ny; used to do core only for fluid eqns
-igrid		integer	/1/	# loop index for which grid; e.g., nysol(igrid)
 isgriduehdf5   integer /0/  
 geometry	character*16 /"snull"/ +input
 				# specifies magnetic configuration, e.g.,

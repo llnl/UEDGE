@@ -398,7 +398,7 @@ END SUBROUTINE InitOMPPandf1
 
     USE Timing, ONLY: istimingon,ttjstor,ttotjf,ttimpjf
     USE PandfTiming
-    USE Grid, ONLY: ngrid,ig,ijac,ijactot
+    USE Grid, ONLY: ijac,ijactot
     USE Jacobian_csc, ONLY: rcsc,jcsc,icsc,yldot_pert,yldot_unpt
     USE OMPJac, ONLY: NchunksJac,nnzmxperchunk
     USE ParallelSettings, ONLY: Nthreads, OMPParallelPandf1
@@ -475,10 +475,10 @@ END SUBROUTINE InitOMPPandf1
 
     !   Count Jacobian evaluations, both for total and for this case
     ijactot = ijactot + 1
-    ijac(ig) = ijac(ig) + 1
+    ijac = ijac + 1
     if ((svrpkg.eq.'nksol') .and. (iprint .ne. 0)) then
         write(*,'(a,i4,a,i6,a,i9)') ' Updating OMP Jacobian [', &
-                    Nthreads,'|',NchunksJac, ']: npe = ', ijac(ig)
+                    Nthreads,'|',NchunksJac, ']: npe = ', ijac
     endif
     !   Set up diagnostic arrays for debugging
     do iv = 1, neq
@@ -505,7 +505,7 @@ END SUBROUTINE InitOMPPandf1
 
     !   for Debug purpose
     if (WriteJacobian.eq.1) then
-        write(filename,'(a,3i3,a)') "jac_omp_",ijac(ig),".txt"
+        write(filename,'(a,3i3,a)') "jac_omp_",ijac,".txt"
         call jac_write(filename,neq, rcsc, icsc, jcsc)
     endif
 

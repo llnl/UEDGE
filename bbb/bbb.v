@@ -1142,7 +1142,7 @@ trange       real /1.e7/      #factor multiplying runtim to give total sim. time
 neq          integer          #total number of equations over whole domain
 jacflg       integer /1/      #flag for computing Jacobian in vodpk
 jpre         integer /1/      #flag for using the preconditioning step in vodpk
-rtolv(30)    real  /30*1.e-4/ #relative tol. vector used in convert.m
+rtolv    real  /1.e-4/ #relative tol. vector used in convert.m
 itol         integer /4/
 itask        integer /1/
 istate       integer /1/
@@ -2014,24 +2014,25 @@ isvarphi(numvar)		_integer  # flag(=1) for variable being phi
 
 ***** Stat:
 #Variables for statistics of solver performance
-hu(nsteps,ngrid)   _real    [1/s]  #present timestep
-gpe(nsteps,ngrid)  _real           #ratio, linear to nonlinear iter, nli/nni
-npe(nsteps,ngrid)  _integer        #cumulative number of precond. eval.
-nps(nsteps,ngrid)  _integer        #cumulative number of precond. solves
-nfe(nsteps,ngrid)  _integer        #cumulative number of RHS eval.
-nst(nsteps,ngrid)  _integer        #cum. number of steps taken
-nni(nsteps,ngrid)  _integer        #cumulative number of nonlinear iter.
-nli(nsteps,ngrid)  _integer        #cumulative number of linear iter.
-nje(nsteps,ngrid)  _integer        #cumulative number of Jacobian eval.
-ncfn(nsteps,ngrid) _integer        #number of nonlinear converg. failures
-ncfl(nsteps,ngrid) _integer        #number of linear converg. failures
-nqu(nsteps,ngrid)  _integer        #method order last used
-iddas(nsteps,ngrid)  _integer      #idid for daspk
-eqmxer(nsteps,ngrid) _integer      #eqn. number giving maximum error in lsode
+npe(nsteps)  _integer        #cumulative number of precond. eval.
+nps(nsteps)  _integer        #cumulative number of precond. solves
+nfe(nsteps)  _integer        #cumulative number of RHS eval.
+nni(nsteps)  _integer        #cumulative number of nonlinear iter.
+nli(nsteps)  _integer        #cumulative number of linear iter.
+nje(nsteps)  _integer        #cumulative number of Jacobian eval.
+ncfl(nsteps) _integer        #number of linear converg. failures
+npsn        integer        #cum. number of Jacobian solves for Newton
+njen        integer        #cum. Jacobian evals. for Newton iter.
+
+nst(nsteps)  _integer        #cum. number of steps taken
+hu(nsteps)   _real    [1/s]  #present timestep
+gpe(nsteps)  _real           #ratio, linear to nonlinear iter, nli/nni
+ncfn(nsteps) _integer        #number of nonlinear converg. failures
+nqu(nsteps)  _integer        #method order last used
+iddas(nsteps)  _integer      #idid for daspk
+eqmxer(nsteps) _integer      #eqn. number giving maximum error in lsode
 lacor               integer        #location in rwork where error vector begins
 lewt                integer        #location in rwork where ewt**-1 begins
-npsn(ngrid)        _integer        #cum. number of Jacobian solves for Newton
-njen(ngrid)        _integer        #cum. Jacobian evals. for Newton iter.
 
 ***** Poten:
 #Variables required for the calculation of the potential.
@@ -2114,13 +2115,11 @@ alfe(1:nisp)       /1./   _real           +threadprivate #grad_Te thm force coef
 betai(1:nisp)      /1./   _real           +threadprivate #grad_Ti thm force coeff isbetaicalc=0
 
 ***** Grid:
-ngrid          /1/	 integer +regrid
-ig             /1/       integer  #counter for mesh-seq number
-inewton(30)   /30*0/     integer  #=1 for Newton iter., =0 for time-dependent
+inewton   /30/     integer  #=1 for Newton iter., =0 for time-dependent
                                   #reset=1 internally if svrpkg=nksol or newton
 imeth            /0/     integer  #imeth=inewton(igrid)
 nurlx           /1.e8/   real    [1/s] #rate coeff. to relax to boundary cond.
-ijac(ngrid)             _integer
+ijac                 integer
 ijactot          /0/     integer  # tot Jac calcs, used as check when icntnunk=1
 
 ***** Wkspace:
@@ -2918,7 +2917,7 @@ ubw                  integer
 lbw                  integer
 
 ***** Condition_number:
-rconds(300,ngrid)	_real	# condition numbers of Jacobians
+rconds(300)	_real	# condition numbers of Jacobians
 
 ***** Jacobian:
 #Jacobian matrix in compressed sparse row format

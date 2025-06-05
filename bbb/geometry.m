@@ -520,7 +520,7 @@ c            write(6,*) "Calling flxrun in globalmesh."
       endif
 
 c...  Reset separatrix index if nyomitmx > 0
-      if (nyomitmx >= nysol(1)+nyout(1)) then
+      if (nyomitmx >= nysol+nyout) then
         do jx = 1, nxpt
           iysptrx1(jx) = min( ny, iysptrx1(jx) )
           iysptrx2(jx) = min( ny, iysptrx2(jx) )
@@ -539,7 +539,7 @@ c...  If new grid is generated, initialize b0old=1
 
 c...  Here we reset ixpt1,2 because it is different in the grid package
 c...  for nxomit > 0, and the grid package value is read from file gridue.
-      nxc = nxleg(igrid,1) + nxcore(igrid,1)
+      nxc = nxleg(1) + nxcore(1)
       nj = 0
       if (nxomit .gt. 0) then
         do jx = 1, nxpt
@@ -616,7 +616,7 @@ c-----------------------------------------------------------------------
 
       implicit none
       Use(Dim)            # nx,ny,nxm,nym,nxpt
-      Use(Share)          # nxleg,nxcore,nxomit,igrid,isnonog,ismmon,
+      Use(Share)          # nxleg,nxcore,nxomit,isnonog,ismmon,
                           # geometry,ismpsym,simagxs,sibdrys
       Use(Xpoint_indices) # ixpt1,ixpt2,iysptrx1,iysptrx2,iysptrx
       Use(Cut_indices)    # ixcut1,ixcut2,ixcut3,ixcut4
@@ -669,7 +669,7 @@ c ... Generate grid information or read it from file 'gridue'.
          if(gengrid .eq. 1) then
             if(geometry=="isoleg") then
               geometry = "dnbot" #Used only to computer mesh, the set back
-              ixpt2(1) = nxleg(1,1)+nxcore(1,1)+nxcore(1,2)
+              ixpt2(1) = nxleg(1)+nxcore(1)+nxcore(2)
               call flxrun
               call grdrun
               geometry = "isoleg"
@@ -730,7 +730,7 @@ c ...  now that the grid is read in, we can manipulate dnull for nxomit>0
         endif # End test on manualgrid
 
 c...  Reset separatrix index if nyomitmx > 0
-      if (nyomitmx >= nysol(1)+nyout(1)) then
+      if (nyomitmx >= nysol+nyout) then
         do jx = 1, nxpt
           iysptrx1(jx) = min( ny, iysptrx1(jx) )
           iysptrx2(jx) = min( ny, iysptrx2(jx) )
@@ -753,7 +753,7 @@ c...  for nxomit > 0, and the grid package value is read from file gridue.
      .    (geometry=="dnXtarget")) then     # nxc is read from gridue file
          continue
       else
-         nxc = nxleg(igrid,1) + nxcore(igrid,1) + 2*nxxpt
+         nxc = nxleg(1) + nxcore(1) + 2*nxxpt
       endif
       nj = 0
       if (nxomit .gt. 0) then
@@ -980,7 +980,7 @@ c...  If serial case (ndomain=1), compute area_core (if ||, see globalmesh)
 
 c...  Readjust rr in corner cells near x-point for the guard cells if
 c...  this case is for core only (nyomitmx.ne.0)
-      if (nyomitmx >= nysol(1)+nyout(1)) then
+      if (nyomitmx >= nysol+nyout) then
          rr(0,ny+1) = 0.5*(rr(0,ny)+rr(1,ny+1))
          rr(nx+1,ny+1) = 0.5*(rr(nx+1,ny)+rr(nx,ny+1))
       endif
@@ -1013,7 +1013,7 @@ c         at upper x-point:
      .          sy(ixpt2(1)+nj,iysptrx2(1)) + sy(ixpt2(1)+1+nj,iysptrx2(1)) ) 
 c
       else  # there is only one x-point in the simulation domain
-        if (nyomitmx < nysol(1)+nyout(1)) then
+        if (nyomitmx < nysol+nyout) then
         if (ixpt1(1)+nj.ge.0 .and. ixpt2(1)+nj.ge.0 .and. ixpt2(1)+nj.le.nx) then
           ghxpt = 2. / sqrt( 
      .         (rm(ixpt2(1)+nj,iysptrx2(1)+1,4) - rm(ixpt1(1)+nj,iysptrx1(1)+1,4))**2
@@ -1322,8 +1322,8 @@ c ... Fix the core boundary; just a convention
 
 *  -- define y on density faces -- at outboard midplane (?)
       if (ixpt2(1) > 0 .and. (isudsym.ne.1) .and.isddcon==0) then
-         rmmax = rm(nxleg(1,1)+nxcore(1,1)+1,ny,0)
-         do ix = nxleg(1,1)+nxcore(1,1)+1, ixpt2(1)
+         rmmax = rm(nxleg(1)+nxcore(1)+1,ny,0)
+         do ix = nxleg(1)+nxcore(1)+1, ixpt2(1)
            if (rm(ix,ny,0) >= rmmax) then
               rmmax = rm(ix,ny,0)
               ixmp = ix
@@ -1622,13 +1622,13 @@ c ... isxpty=0 if y-face touches Xpt from below; =-1 if touches from above
 c ... one-side y-deriv from below if isxpty=0 & from above if isxpty=-1
 c ... May be needed for parallel domain decomp cases
             isxpty(ix,iy)=1
-            if ( (iy==iysptrx1(jx)) .and. nyomitmx < nysol(1)+nyout(1) .and.
+            if ( (iy==iysptrx1(jx)) .and. nyomitmx < nysol+nyout .and.
      .           (ix==ixpt1(jx) .or. ix==ixpt1(jx)+1) ) isxpty(ix,iy)=0
-            if ( (iy==iysptrx2(jx)) .and. nyomitmx < nysol(1)+nyout(1) .and.
+            if ( (iy==iysptrx2(jx)) .and. nyomitmx < nysol+nyout .and.
      .           (ix==ixpt2(jx) .or. ix==ixpt2(jx)+1) ) isxpty(ix,iy)=0
-             if ( (iy==iysptrx1(jx)+1) .and. nyomitmx < nysol(1) .and.
+             if ( (iy==iysptrx1(jx)+1) .and. nyomitmx < nysol .and.
      .             ix==ixpt1(jx)+1 ) isxpty(ix,iy)=-1
-             if ( (iy==iysptrx2(jx)+1) .and. nyomitmx < nysol(1) .and.
+             if ( (iy==iysptrx2(jx)+1) .and. nyomitmx < nysol .and.
      .             ix==ixpt2(jx)+1 ) isxpty(ix,iy)=-1
            else  #parallel decomposed domains
               if ( (ix==ixpt1g(mype+1)) .and. (iy==iysptrxg(mype+1) .or.

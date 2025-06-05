@@ -42,7 +42,7 @@ c...  Order poloidal regions from old mesh (as new mesh in ueinit)
         ixsto(2) = max(ixlb(1), ixcut1+1)
       endif
       ixendo(2) = ixcut2
-      if (nyomitmx >= nysol(1)) then   # no inner/outer leg region
+      if (nyomitmx >= nysol) then   # no inner/outer leg region
          ixsto(2) = 0
          ixendo(2) = nx+1
       endif
@@ -79,7 +79,7 @@ c..   Continue ordering if double null or snowflake
       call s2copy (nx+2, ny+2, yvnrm, 1, nx+2, yvnrmo, 1, nx+2)
 
       do 705 ifld = 1, nisp
-         if (nyomitmx >= nysol(1)+nyout(1)) then
+         if (nyomitmx >= nysol+nyout) then
 c           # fill dead guard cells with adjacent values
             do iy = 0, ny+1
                ni(0,iy,ifld) = ni(1,iy,ifld)
@@ -90,7 +90,7 @@ c           # fill dead guard cells with adjacent values
      .            nis(0:nx+1,0:ny+1,ifld), 1, nx+2)
   705 continue
       do 706 ifld = 1, nusp
-         if (nyomitmx >= nysol(1)+nyout(1)) then
+         if (nyomitmx >= nysol+nyout) then
 c           # fill dead guard cells with adjacent values
             do iy = 0, ny+1
                up(0,iy,ifld) = up(1,iy,ifld)
@@ -102,7 +102,7 @@ c           # fill dead guard cells with adjacent values
   706 continue
 
       do 707 igsp = 1, ngsp
-         if (nyomitmx >= nysol(1)+nyout(1)) then
+         if (nyomitmx >= nysol+nyout) then
 c           # fill dead guard cells with adjacent values
             do iy = 0, ny+1
                ng(0,iy,igsp) = ng(1,iy,igsp)
@@ -115,7 +115,7 @@ c           # fill dead guard cells with adjacent values
      .            tgs(0:nx+1,0:ny+1,igsp), 1, nx+2)
   707 continue
 
-         if (nyomitmx >=nysol(1)+nyout(1)) then
+         if (nyomitmx >=nysol+nyout) then
 c           # fill dead guard cells with adjacent values
             do iy = 0, ny+1
                te(0,iy) = te(1,iy)
@@ -964,7 +964,7 @@ c...  first intermediate mesh (xnrmox,ynrmox)
          if (iysptrx .gt. 0) then
             iyend = iysptrx
             iyendo = iysptrxo
-            if (nyomitmx >= nysol(1)+nyout(1)) then
+            if (nyomitmx >= nysol+nyout) then
                iyend = iysptrx+1
                iyendo = iysptrxo+1
             endif
@@ -975,7 +975,7 @@ c...  first intermediate mesh (xnrmox,ynrmox)
          iysto = iysptrxo + 1
          if (iysptrx .eq. 0) iyst = 0
          if (iysptrxo .eq. 0) iysto = 0
-         if (nyomitmx < nysol(1)+nyout(1)) then
+         if (nyomitmx < nysol+nyout) then
             call radintp (iyst,ny+1,iysto,nnyold+1,0,nnxold+1,
      .                 nx,ny,nnxold,nnyold,ynrmox,ynrmo,varo,wrkint)
          endif
@@ -991,7 +991,7 @@ c...  Next do radial interpolation using wrkint2 on second intermediate
 c...  mesh to the final mesh (xnrm,ynrm); result is varn
          if (iysptrx .gt. 0) then
             iyend = iysptrx
-            if (nyomitmx >= nysol(1)+nyout(1)) then
+            if (nyomitmx >= nysol+nyout) then
                iyend = iysptrx+1
             endif
             call radintp (0,iyend,0,iyend,0,nx+1,
@@ -999,7 +999,7 @@ c...  mesh to the final mesh (xnrm,ynrm); result is varn
          endif
          iyst = iysptrx + 1
          if (iysptrx .eq. 0) iyst = 0
-         if (nyomitmx < nysol(1)+nyout(1)) then
+         if (nyomitmx < nysol+nyout) then
             call radintp (iyst,ny+1,iyst,ny+1,0,nx+1,
      .                    nx,ny,nx,ny,ynrm,ynrmnx,wrkint2,varn)
          endif
@@ -1022,7 +1022,7 @@ c...   First do the radial interpolation
          if (iysptrx .gt. 0) then
             iyend = iysptrx
             iyendo = iysptrxo
-            if (nyomitmx >= nysol(1)+nyout(1)) then
+            if (nyomitmx >= nysol+nyout) then
                iyend = iysptrx+1
                iyendo = iysptrxo+1
             endif
@@ -1033,7 +1033,7 @@ c...   First do the radial interpolation
          iysto = iysptrxo + 1
          if (iysptrx .eq. 0) iyst = 0
          if (iysptrxo .eq. 0) iysto = 0
-         if (nyomitmx < nysol(1)+nyout(1)) then
+         if (nyomitmx < nysol+nyout) then
             call radintp (iyst,ny+1,iysto,nnyold+1,0,nnxold+1,
      .                 nx,ny,nnxold,nnyold,yvnrmox,yvnrmo,varo,wrkint)
          endif
@@ -1048,7 +1048,7 @@ c...  Next do radial interpolation using wrkint2 on second intermediate
 c...  mesh to the final mesh (xvnrm,yvnrm); result is varn
          if (iysptrx .gt. 0) then
             iyend = iysptrx
-            if (nyomitmx >= nysol(1)+nyout(1)) then
+            if (nyomitmx >= nysol+nyout) then
                iyend = iysptrx+1
             endif
             call radintp (0,iyend,0,iyend,0,nx+1,
@@ -1056,7 +1056,7 @@ c...  mesh to the final mesh (xvnrm,yvnrm); result is varn
          endif
          iyst = iysptrx + 1
          if (iysptrx .eq. 0) iyst = 0
-         if (nyomitmx < nysol(1)+nyout(1)) then
+         if (nyomitmx < nysol+nyout) then
             call radintp (iyst,ny+1,iyst,ny+1,0,nx+1,
      .                 nx,ny,nx,ny,yvnrm,yvnrmnx,wrkint2,varn)
          endif

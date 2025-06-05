@@ -6,20 +6,20 @@ c ... Compute dimension variables nx, ny, nxm, and nym
 
 c ... Common blocks:
       Use(Dim)     # nx,ny,nxm,nym,nxpt
-      Use(Share)   # nycore,nysol,nxleg,nxcore,nxomit,igrid,geometry
+      Use(Share)   # nycore,nysol,nxleg,nxcore,nxomit,geometry
 
 c ... Compute variables used for grid and xpoint index dimensions.
 
       nxpt = 1
-      nxm = nxleg(igrid,1) + nxcore(igrid,1) + nxcore(igrid,2)
-     .                     + nxleg(igrid,2)  + 4*nxxpt
-      nym = nycore(igrid) + nysol(igrid)
+      nxm = nxleg(1) + nxcore(1) + nxcore(2)
+     .                     + nxleg(2)  + 4*nxxpt
+      nym = nycore + nysol
       if (geometry=="dnull" .or. geometry(1:9)=="snowflake" .or.
      .    geometry=="isoleg") then
 	 nxpt = 2   # for geometry=isoleg, set after flxrun/grdrun
          if(geometry=="dnull") then  #Symmetric double-null config
            nxm = 2*nxm - 2
-           nym = nycore(igrid) + nysol(igrid) + nyout(igrid)
+           nym = nycore + nysol + nyout
          endif
       endif
       nx = nxm - abs(nxomit)

@@ -23,7 +23,7 @@ c     ------------------------------------------------------------------
 
       subroutine readflx
       implicit none
-Use(Share)	#nycore,nysol,igrid
+Use(Share)	#nycore,nysol
 Use(Dimflxgrd)	#jdim,noregs,npts,nxefit,nyefit,nlim,nwork
 Use(Comflxgrd)
 Use(Aeqflxgrd)
@@ -51,7 +51,7 @@ c **************** read the output of the flx package ******************
 
 c     read dimensioning parameters and allot storage space for arrays --
 
-      read(iunit) jdim,noregs,npts,nycore(igrid),nysol(igrid)
+      read(iunit) jdim,noregs,npts,nycore,nysol
       read(iunit) jmin,jmax,jsptrx,jaxis
       call gallot("Dimensions",0)
       call gallot("Curves",0)
@@ -307,11 +307,11 @@ c     Set angle-like parameters and allocate space for arrays --
 
       if ( (geometry .eq. "dnbot") .or. (geometry .eq. "dnull") .or.
      .     (geometry == "isoleg") .or. (islimon .ne. 0) ) then
-         nxuse(1) = max(0,nxcore(igrid,1)-1)  # nxcore includes guard cells
-         nxuse(2) = nxcore(igrid,2) - 1       # at the internal mesh boundaries
+         nxuse(1) = max(0,nxcore(1)-1)  # nxcore includes guard cells
+         nxuse(2) = nxcore(2) - 1       # at the internal mesh boundaries
       else
-         nxuse(1) = nxcore(igrid,1)           # nxcore specifies the number
-         nxuse(2) = nxcore(igrid,2)           # of finite-size cells
+         nxuse(1) = nxcore(1)           # nxcore specifies the number
+         nxuse(2) = nxcore(2)           # of finite-size cells
       endif
 
 c     Set some angle-surface parameters --
@@ -320,7 +320,7 @@ c     Set some angle-surface parameters --
          ixpoint(1,region) = nxuse(region) + 1
          ixpoint(2,region) = ixpoint(1,region) + 1
          ixpoint(3,region) = ixpoint(2,region) + 1
-         ilmax(region) = ixpoint(3,region) + nxleg(igrid,region)
+         ilmax(region) = ixpoint(3,region) + nxleg(region)
          idim = max( idim, ilmax(region) )
       enddo
 

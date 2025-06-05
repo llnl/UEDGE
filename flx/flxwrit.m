@@ -2,7 +2,7 @@ c     ------------------------------------------------------------------
       subroutine flxfin
       implicit none
 
-Use(Share)	#nycore,nysol,igrid
+Use(Share)	#nycore,nysol
 Use(Dimflxgrd)	#jdim,noregs,npts,nxefit,nyefit,nlim,nwork
 Use(Comflxgrd)	#
 Use(Aeqflxgrd)	#
@@ -16,7 +16,7 @@ Use(Inpf)
       data nunit /66/
       open (nunit, file='flx-grd', form='unformatted', status='unknown')
 
-      write(nunit) jdim,noregs,npts,nycore(igrid),nysol(igrid)
+      write(nunit) jdim,noregs,npts,nycore,nysol
       write(nunit) jmin,jmax,jsptrx,jaxis
       write(nunit) npoint,xcurve,ycurve
       write(nunit) nxefit,nyefit

@@ -19,7 +19,7 @@ c-----------------------------------------------------------------------
                                # iysptrx1,iysptrx2,iysptrx
       Use(Math_problem_size)   # neqmx,numvar,numvarbwpad
       Use(Cdv)      # ifexmain, iallcall
-      Use(Share)    # nycore,nysol,nxleg,nxcore,nxomit,igrid,isgrdsym,
+      Use(Share)    # nycore,nysol,nxleg,nxcore,nxomit,isgrdsym,
                     # nyomitmx,geometry
       Use(UEpar)    # svrpkg,,isnion,isupon,isupgon,isteon,
                     # istion,isngon,isphion
@@ -64,15 +64,14 @@ cc      Use(Rccoef)
 *=======================================================================
 *//computation//
       id = 1
-      call gallot("Grid",0)
       call gallot("Stat",0)
 
 c...  reset inewton to unity if a Newton iteration is used
-      inewton(igrid) = 0
+      inewton = 0
       if((svrpkg.eq.'nksol') .or. (svrpkg.eq.'petsc') .or. 
-     .                        (svrpkg.eq.'newton')) inewton(igrid) = 1
+     .                        (svrpkg.eq.'newton')) inewton = 1
 c...  Be sure nufak and dtreal are large if this is time-dependent run
-      if (inewton(igrid) .eq. 0) then
+      if (inewton .eq. 0) then
          nufak = 1.e-20
          dtreal = 1.e20
       endif
@@ -93,20 +92,20 @@ c----------------------------------------------------------------------c
             elseif (geometry=="isoleg") then
                call set_isoleg_indices
             else
-               iysptrx1(1) = nycore(igrid)
-               iysptrx2(1) = nycore(igrid)
-               iysptrx = nycore(igrid)
+               iysptrx1(1) = nycore
+               iysptrx2(1) = nycore
+               iysptrx = nycore
                ixlb(1) = 0
-               ixpt1(1) = nxleg(igrid,1) + nxxpt
-               ixpt2(1) = nxleg(igrid,1) + nxcore(igrid,1) +
-     .                                     nxcore(igrid,2) + 3*nxxpt
-               ixrb(1) = ixpt2(1) + nxleg(igrid,2) + nxxpt
+               ixpt1(1) = nxleg(1) + nxxpt
+               ixpt2(1) = nxleg(1) + nxcore(1) +
+     .                                     nxcore(2) + 3*nxxpt
+               ixrb(1) = ixpt2(1) + nxleg(2) + nxxpt
                if (nxomit .gt. 0) then
                   ixpt1(1) = ixpt1(1) - nxomit
                   ixpt2(1) = ixpt2(1) - nxomit
                   ixrb(1) = ixrb(1) - nxomit
                endif
-               if (nyomitmx >= nysol(igrid)) then  # special case for core only
+               if (nyomitmx >= nysol) then  # special case for core only
                   ixmnbcl = 0
                   ixmxbcl = 0
                endif
@@ -114,31 +113,31 @@ c----------------------------------------------------------------------c
 c----------------------------------------------------------------------c
          elseif (mhdgeo == 2) then   #toroidal geo with circular cross-sec
 c----------------------------------------------------------------------c
-            iysptrx1(1) = nycore(igrid)
-            iysptrx2(1) = nycore(igrid)
-            iysptrx = nycore(igrid)
+            iysptrx1(1) = nycore
+            iysptrx2(1) = nycore
+            iysptrx = nycore
             ixlb(1) = 0
-            ixpt1(1) = nxleg(igrid,1)
-            ixpt2(1) = nxleg(igrid,1) + nxcore(igrid,1) +
-     .                                  nxcore(igrid,2)
-            ixrb(1) = ixpt2(1) + nxleg(igrid,2)
+            ixpt1(1) = nxleg(1)
+            ixpt2(1) = nxleg(1) + nxcore(1) +
+     .                                  nxcore(2)
+            ixrb(1) = ixpt2(1) + nxleg(2)
             ixmnbcl = 0
             ixmxbcl = 0
 c----------------------------------------------------------------------c
 	 else	# cases mhdgeo=0 (cyl), mhdgeo=-1 (slab), mhdgeo=-2 (mirror)
 c----------------------------------------------------------------------c
-            iysptrx1(1) = nycore(igrid)
-            iysptrx2(1) = nycore(igrid)
-            iysptrx = nycore(igrid)
+            iysptrx1(1) = nycore
+            iysptrx2(1) = nycore
+            iysptrx = nycore
             ixlb(1) = 0
             ixpt1(1) = -1
-            ixpt2(1) = nxcore(igrid,2)
-            ixrb(1) = ixpt2(1) + nxleg(igrid,2) + nxxpt
+            ixpt2(1) = nxcore(2)
+            ixrb(1) = ixpt2(1) + nxleg(2) + nxxpt
             if (isgrdsym .eq. 1) then
                ixpt1(1) = (nxm - ixpt2(1))/2
                ixpt2(1) = (nxm + ixpt2(1))/2
             endif
-            if (nyomitmx >= nysol(igrid)+nyout(1)) then
+            if (nyomitmx >= nysol+nyout) then
                ixmnbcl = 0
                ixmxbcl = 0
             endif
@@ -153,20 +152,20 @@ c----------------------------------------------------------------------c
             nxpt=1
             call gchange("Xpoint_indices",0)  #needed to allocate ixrb
 	    if (ixrb(1) == 0) then  #calc indices if not in gridue file
-               iysptrx1(1) = nycore(igrid)
-               iysptrx2(1) = nycore(igrid)
-               iysptrx = nycore(igrid)
+               iysptrx1(1) = nycore
+               iysptrx2(1) = nycore
+               iysptrx = nycore
                ixlb(1) = 0
-               ixpt1(1) = nxleg(igrid,1) + nxxpt
-               ixpt2(1) = nxleg(igrid,1) + nxcore(igrid,1) +
-     .                                     nxcore(igrid,2) + 3*nxxpt
-               ixrb(1) = ixpt2(1) + nxleg(igrid,2) + nxxpt
+               ixpt1(1) = nxleg(1) + nxxpt
+               ixpt2(1) = nxleg(1) + nxcore(1) +
+     .                                     nxcore(2) + 3*nxxpt
+               ixrb(1) = ixpt2(1) + nxleg(2) + nxxpt
                if (nxomit .gt. 0) then
                   ixpt1(1) = ixpt1(1) - nxomit
                   ixpt2(1) = ixpt2(1) - nxomit
                   ixrb(1) = ixrb(1) - nxomit
                endif
-               if (nyomitmx >= nysol(igrid)) then  # special case for core only
+               if (nyomitmx >= nysol) then  # special case for core only
                   ixmnbcl = 0
                   ixmxbcl = 0
                endif
@@ -334,17 +333,17 @@ c...  yields uniform BCs versus ix and 1 utilizes array values set by user
          lbw = neq       # use full matrix & search full range for Jacobian
       endif
       lda = 2*lbw + ubw + 1
-      if (jpre+jacflg+inewton(igrid) .eq. 0) lda = 1
+      if (jpre+jacflg+inewton .eq. 0) lda = 1
 c...  Increase of mmaxu with problem size is empirical
       if (ismmaxuc .eq. 1) mmaxu = neq**0.5
       if (ismmaxuc.eq.0 .and. icntnunk.eq.1) then
          call remark('WARNING: ismmaxuc=0 & icntnunk=1; Jac storage ok?')
       endif
-c check to make sure premeth, inewton(igrid) and svrpkg do not conflict.
-c when inewton(igrid)=1 and svrpkg .ne. 'nksol', then premeth must equal
+c check to make sure premeth, inewton and svrpkg do not conflict.
+c when inewton=1 and svrpkg .ne. 'nksol', then premeth must equal
 c 'banded'.
 
-      if (inewton(igrid) .eq. 1) then
+      if (inewton .eq. 1) then
          if (svrpkg .ne. 'nksol' .and. svrpkg.ne.'petsc') then
             if ((premeth .eq. 'ilut') .or. (premeth .eq. 'inel')) then
               write(STDOUT,*) "*** Invalid option:  premeth=",premeth
@@ -687,21 +686,21 @@ c     Define characteristic indices for a full double-null configuration.
       Use(Share)          # nycore,nxleg,nxcore,nxxpt
 
 c     For up/down symmetric double-null:
-      iysptrx1(1) = nycore(igrid)
-      iysptrx2(1) = nycore(igrid)
-      iysptrx = nycore(igrid)
+      iysptrx1(1) = nycore
+      iysptrx2(1) = nycore
+      iysptrx = nycore
       iysptrx1(2) = iysptrx2(1)
       iysptrx2(2) = iysptrx1(1)
       ixlb(1)  = 0
-      ixpt1(1) = nxleg(igrid,1) + nxxpt
-      ixmdp(1) = ixpt1(1) + nxcore(igrid,1) - 1 + nxxpt
-      ixpt2(1) = ixmdp(1) + nxcore(igrid,1) - 1 + nxxpt
-      ixrb(1)  = ixpt2(1) + nxleg(igrid,1) + nxxpt
+      ixpt1(1) = nxleg(1) + nxxpt
+      ixmdp(1) = ixpt1(1) + nxcore(1) - 1 + nxxpt
+      ixpt2(1) = ixmdp(1) + nxcore(1) - 1 + nxxpt
+      ixrb(1)  = ixpt2(1) + nxleg(1) + nxxpt
       ixlb(2)  = ixrb(1) + 2
-      ixpt1(2) = ixlb(2) + nxleg(igrid,2) + nxxpt
-      ixmdp(2) = ixpt1(2) + nxcore(igrid,2) - 1 + nxxpt
-      ixpt2(2) = ixmdp(2) + nxcore(igrid,2) - 1 + nxxpt
-      ixrb(2)  = ixpt2(2) + nxleg(igrid,2) + nxxpt
+      ixpt1(2) = ixlb(2) + nxleg(2) + nxxpt
+      ixmdp(2) = ixpt1(2) + nxcore(2) - 1 + nxxpt
+      ixpt2(2) = ixmdp(2) + nxcore(2) - 1 + nxxpt
+      ixrb(2)  = ixpt2(2) + nxleg(2) + nxxpt
 
 cccMER 23 Nov 1999
 cccMER Although the above is not correct for general un-balanced double-
@@ -730,21 +729,21 @@ cc      nxpt = 2
 cc      call gchange("Xpoint_indices",0)
 cc      write(*,*) "After gchange; iysptrx1=", iysptrx1
 c...  Set indices
-      iysptrx1(1) = nycore(igrid)
-      iysptrx2(1) = nycore(igrid)
-      iysptrx = nycore(igrid)
+      iysptrx1(1) = nycore
+      iysptrx2(1) = nycore
+      iysptrx = nycore
       iysptrx1(2) = iysptrx2(1)
       iysptrx2(2) = iysptrx1(1)
       ixlb(1)  = 0
-      ixpt1(1) = nxleg(igrid,1) + nxxpt
-cc      ixmdp(1) = ixpt1(1) + nxcore(igrid,1) - 1 + nxxpt
-      ixpt2(1) = ixpt1(1) + nxcore(igrid,1) - 1 + nxxpt
+      ixpt1(1) = nxleg(1) + nxxpt
+cc      ixmdp(1) = ixpt1(1) + nxcore(1) - 1 + nxxpt
+      ixpt2(1) = ixpt1(1) + nxcore(1) - 1 + nxxpt
       ixrb(1)  = ixpt2(1)
       ixlb(2)  = ixrb(1) + 2
       ixpt1(2) = ixlb(2)
-cc      ixmdp(2) = ixpt1(2) + nxcore(igrid,2) - 1 + nxxpt
-      ixpt2(2) = ixlb(2) + nxcore(igrid,2) - 1 + nxxpt
-      ixrb(2)  = ixpt2(2) + nxleg(igrid,2) + nxxpt
+cc      ixmdp(2) = ixpt1(2) + nxcore(2) - 1 + nxxpt
+      ixpt2(2) = ixlb(2) + nxcore(2) - 1 + nxxpt
+      ixrb(2)  = ixpt2(2) + nxleg(2) + nxxpt
 
       return
       end
@@ -757,7 +756,7 @@ c-----------------------------------------------------------------------
       implicit none
 
       Use(Dim)      # nx,ny,nhsp,nusp,nzspt,nisp,ngsp,nxpt
-      Use(Share)    # nxomit,igrid,geometry,isnonog,nyomitmx
+      Use(Share)    # nxomit,geometry,isnonog,nyomitmx
                     # nzdf,mcfilename,coronalimpfname
       Use(Multicharge)  # rtnt,rtnn,rtnsd
       Use(Comgeo)   # vol,gx,gy,dx,dy,xnrm,xvnrm,ynrm,yvnrm,sx,sy,rr,
@@ -1061,7 +1060,7 @@ c     this (3/26/96)?
 c...  Set net variable perturbation for vodpk finite-diff deriv. to del
 c...  If using FORTHON (Python), use delpy to set del as del is special word
       if (delpy > 0.) del = delpy
-      srtolpk = del / rtolv(igrid)
+      srtolpk = del / rtolv
 
 c...  Set boundary conditions for Te,i on walls if arrays are zero
       if (tewalli(nx+1).lt.1.e-10) call sfill (nx+2,tedge,tewalli(0:),1)
@@ -1191,7 +1190,7 @@ c...  Calculate parallel connection length along B
              lcone(ix,iy) = 1e50
            enddo
          enddo
-         if (iysptrx >= 1 .and. nxleg(1,1)+nxleg(1,2) > 0) then 
+         if (iysptrx >= 1 .and. nxleg(1)+nxleg(2) > 0) then 
                                           # need sep for this calc of lconi,e
            if(ndomain <=1) call conlen    #if parall, compute only at setup
          endif
@@ -1359,7 +1358,7 @@ c ... Initialize molecular thermal equilibration array in case not computed
       enddo
 
 *---  bbbbbb begin ifloop b  bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
-      if (ig .eq. 1 .and. restart .eq. 0) then
+      if (restart .eq. 0) then
 *---  bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 *     ------------------------------------------------------------------
 *     initialize plasma state.
@@ -1647,7 +1646,7 @@ c...  Previous values of ixsto and ixendo computed in subr gridseq
         ixst(2) = max(ixlb(1), ixcut1+1)
       endif
       ixend(2) = ixcut2
-      if (nyomitmx >= nysol(1)) then   # no inner/outer leg region
+      if (nyomitmx >= nysol) then   # no inner/outer leg region
          ixst(2) = 0
          ixend(2) = nx+1
       endif
@@ -1680,7 +1679,7 @@ c..   Continue ordering if double null or snowflake
               
 c...  Set number of regions for interpolation; 3 for single null, 6
 c...  for double null, and 1 for core-only simulations
-      if (nysol(1) <= nyomitmx) then  #core only, no divertor legs
+      if (nysol <= nyomitmx) then  #core only, no divertor legs
          irstart = 2
          irend = 2
          ixst(2) = 1
@@ -1784,7 +1783,7 @@ c...  Reset gas density to minimum if too small or negative
       endif          # end of very-large 2-branch-if: (1), same mesh size
                      # or (2), index-based interp with isnintp=1 
 
-      if (nyomitmx >= nysol(1)+nyout(1)) then
+      if (nyomitmx >= nysol+nyout) then
         call filldead_guardcells
       endif
 c...  Check if any ion density is zero
@@ -1873,7 +1872,7 @@ c...  Set boundary conditions for ni and Te,i on walls if end-element zero
       if (tiwallo(nx+1).lt.1.e-10) call sfill (nx+2,tedge,tiwallo(0:),1)
 
 c...  Initialize dead pol guard cells if core-only simulation
-      if (nyomitmx >= nysol(1)+nyout(1)) then
+      if (nyomitmx >= nysol+nyout) then
         call filldead_guardcells
       endif
          
@@ -2368,7 +2367,7 @@ c ...  First case is the default geometry=snull
       enddo  # end do-loop over iy
 
 c...  Special fix for core-only cases
-      if (nyomitmx >= nysol(1)) then
+      if (nyomitmx >= nysol) then
          ixm1(1,ny+1) = ixpt2(1)
          ixp1(nx,ny+1) = 1
       endif
@@ -2556,21 +2555,21 @@ c ... Initialize bndry conditions to be of the interior type (domain-domain)
 c ... Number of indices (including guard cells) in each region (left leg,
 c ... core, and right leg)
       if (isgrdsym .eq. 0) then
-        nxsd1 =int(float(nxleg(1,1)+1)/(ndleg(1,1)+.00001) + 0.999999 )
-        nxsd2 =int(float(nxcore(1,1)+nxcore(1,2))/(ndxcore(1)+.00001)+
+        nxsd1 =int(float(nxleg(1)+1)/(ndleg(1,1)+.00001) + 0.999999 )
+        nxsd2 =int(float(nxcore(1)+nxcore(2))/(ndxcore(1)+.00001)+
      .             0.999999 )
-        if (nxleg(1,1).eq.0 .or. nxleg(1,2).eq.0) nxsd2 = int( float(
-     .       nxcore(1,1)+nxcore(1,2)+1)/(ndxcore(1)+.00001)+0.999999 )
-        nxsd3 =int(float(nxleg(1,2)+1)/(ndleg(1,2)+.00001) + 0.999999 )
+        if (nxleg(1).eq.0 .or. nxleg(2).eq.0) nxsd2 = int( float(
+     .       nxcore(1)+nxcore(2)+1)/(ndxcore(1)+.00001)+0.999999 )
+        nxsd3 =int(float(nxleg(2)+1)/(ndleg(1,2)+.00001) + 0.999999 )
       elseif (isgrdsym .eq. 1) then
-        nxsd1 =int(float(nxleg(1,2)/2+1)/(ndleg(1,1)+.00001) + 0.999999 )
-        nxsd2 =int(float(nxcore(1,2))/(ndxcore(1)+.00001) + 0.999999 )
-        nxsd3 =int(float(nxleg(1,2)/2+1)/(ndleg(1,2)+.00001) + 0.999999 )
+        nxsd1 =int(float(nxleg(2)/2+1)/(ndleg(1,1)+.00001) + 0.999999 )
+        nxsd2 =int(float(nxcore(2))/(ndxcore(1)+.00001) + 0.999999 )
+        nxsd3 =int(float(nxleg(2)/2+1)/(ndleg(1,2)+.00001) + 0.999999 )
       endif
-      nysd1 = int(float(nycore(1)+1)/(ndycore(1)+.00001) + 0.99999 )
-      nysd2 = int(float(nysol(1)+1)/(ndysol(1)+.00001) + 0.99999 )
-      if (nycore(1) .eq. 0) then
-        nysd2 = int(float(nysol(1)+2)/(ndysol(1)+.00001) + 0.99999 )
+      nysd1 = int(float(nycore+1)/(ndycore(1)+.00001) + 0.99999 )
+      nysd2 = int(float(nysol+1)/(ndysol(1)+.00001) + 0.99999 )
+      if (nycore .eq. 0) then
+        nysd2 = int(float(nysol+2)/(ndysol(1)+.00001) + 0.99999 )
       endif
 
 c ... Do a special case if isddcon=2: only divides into domains in y-direction
@@ -6320,7 +6319,6 @@ C$$$      real      vrsendlv_mype(nvrsendl),vrsendlz_mype(nvrsendl)
             call allocate
             call gallot("Comgeo_g",0)
          ifexmain = 0
-         ig = 1
          call ueinit
          call s2copy (nx+2,ny+2,lcon,1,nx+2,lcong,1,nx+2)
          call s2copy (nx+2,ny+2,lconi,1,nx+2,lconig,1,nx+2)
@@ -6334,19 +6332,21 @@ c ...    Section for interpolating to new mesh size
             nyold = ny
             call gchange("Interp",0)
             call gridseq
-            nxleg(1,1) = nxleg(2,1)
-            nxleg(1,2) = nxleg(2,2)
-            nxcore(1,1) = nxcore(2,1)
-            nxcore(1,2) = nxcore(2,2)
-            nysol(1) = nysol(2)
-            nycore(1) = nycore(2)
+!           AH 25/06/05
+!           Comment out the below, while removing
+!           ngrid
+!            nxleg(1,1) = nxleg(2,1)
+!            nxleg(1,2) = nxleg(2,2)
+!            nxcore(1,1) = nxcore(2,1)
+!            nxcore(1,2) = nxcore(2,2)
+!            nysol(1) = nysol(2)
+!            nycore(1) = nycore(2)
 ccc            nxomit = ??
             restart = 1
             ifexmain = 1
                call allocate
                call gallot("Comgeo_g",0)
             ifexmain = 0
-            ig = 1
             call ueinit
             isimesh = 1
             nxoldg = nx
@@ -6610,7 +6610,7 @@ c ---------------------------------------------------------------------c
       Use(Lsode)    # iterm,icntnunk
       Use(Grid)     # ngrid,inewton,imeth,nurlx,ijac,ijactot
       Use(Decomp)   # ubw,lbw
-      Use(Share)    # igrid
+      Use(Share)    # 
       Use(Interp)   # isnintp,nxold,nyold
       Use(RZ_grid_info)  # rm,zm
       Use(Indices_domain_dcl)  # nx_loc,ny_loc
@@ -6639,7 +6639,6 @@ c=======================================================================
 c//computation//
 c_mpi         call MPI_BARRIER(uedgeComm, ierr)
 
-      do 100 igrid = 1, ngrid
 
 *     -- allocate memory for arrays --
 *     -- set ifexmain=1 so that allocate knows exmain is the calling
@@ -6778,8 +6777,8 @@ c... Roadblockers for  call to pandf through openmp structures (added by J.Guter
 
 c_mpi         call MPI_BARRIER(uedgeComm, myfoo)
 
-         imeth = inewton(igrid)
-         ijac(igrid) = 0
+         imeth = inewton
+         ijac = 0
          nurlxn = cnurn*nurlx
          nurlxu = cnuru*nurlx
          nurlxe = cnure*nurlx
@@ -6837,9 +6836,7 @@ c ...    If a parallel run, send and gather data to PE0 first
         if (iprint .ne. 0) write(6,*) "Interpolants created; mype =", mype
          endif
 
-  100 continue
 
-      igrid = min(igrid, ngrid)  # prevents igrid>1 problem for ngrid=1
 
       return
       end
@@ -7320,7 +7317,7 @@ c *** -------------------------------------------------------------------
       Use(Dim)           # nx,ny,nisp,ngsp
       Use(Compla)        # ni,up,te,ti,ng,phi
       Use(Phyvar)        # ev
-      Use(Share)         # nxomit,igrid,geometry,isnonog,nyomitmx
+      Use(Share)         # nxomit,geometry,isnonog,nyomitmx
       Use(RZ_grid_info)  # rm,zm
 
 c     Local variables
@@ -7376,7 +7373,7 @@ c ------------------------------------------------------------------------
       Use(Dim)           # nx,ny,nisp,ngsp
       Use(Interp)        # nis,ups,tes,tis,ngs,phis
       Use(Phyvar)        # ev
-      Use(Share)         # nxomit,igrid,geometry,isnonog,nyomitmx
+      Use(Share)         # nxomit,geometry,isnonog,nyomitmx
       Use(RZ_grid_info)  # rm,zm
 
 c     Input variables

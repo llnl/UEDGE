@@ -9,7 +9,7 @@
 
       implicit none
 
-      Use(Share)    # igrid,cutlo
+      Use(Share)    # cutlo
       Use(Dim)      # nx,ny,nhsp,nisp,ngsp
       Use(Math_problem_size)   # neqmx
       Use(Timing)
@@ -19,8 +19,7 @@
       Use(Jac_work_arrays)      # lwp, liwp
       Use(Timary)   # nsteps,istep_nk,nsteps_nk
       Use(Compla)   # ni,up,vy,te,ti,phi,zeff,nil,upl,tel,til,ngl,phil
-      Use(Grid)     # ngrid,ig,imeth,ijac,iyld,yldmax
-      Use(Stat)
+      Use(Grid)     # ig,imeth,ijac,iyld,yldmax
       Use(Ident_vars) # exmain_evals
       Use(Ynorm)    # suscal,sfscal
       Use(Oldpla)
@@ -36,7 +35,7 @@
       Use(Parallv)       # nlocal, neqg,meth,itmeth,iatol,igs,iopt,ropt,
                          # rtol_pv,atol_pv,delt_pv
       Use(Interp)        # nis,ups,tes,tis,ngs,phis,nxold,nyold
-
+      Use(Stat)
       Use(Jacreorder)    # ireorder
       Use(Jacobian)      # nnzmx
       Use(Flags)         # iprint
@@ -97,7 +96,6 @@ c ... Save initial time and set accumulated times to zero.
 c ... Set switch to time other packages if this one is being timed.
       call sapitim (istimingon)
 
-      ig = igrid
 
 *  -- initialize counters --
 c...  imeth = inewton(igrid) is set in allocate & selects between
@@ -251,38 +249,6 @@ c_mpicvode          CALL FCVODE (tout, ts, yl, itask, istate)
          call xerrab("")
        endif
 
-       if (svrpkg.eq.'daspk') then # gather some data
-         hu(istep+1,igrid) = rwork(3)
-         nst(istep+1,igrid) = iwork(11)
-         nfe(istep+1,igrid) = iwork(12)
-         npe(istep+1,igrid) = iwork(13)
-         nni(istep+1,igrid) = iwork(19)
-         nli(istep+1,igrid) = iwork(20)
-         nps(istep+1,igrid) = iwork(21)
-         ncfn(istep+1,igrid) = iwork(15)
-         ncfl(istep+1,igrid) = iwork(16)
-         nje(istep+1,igrid) = ijac(ig)
-         gpe(istep+1,igrid) =
-     .       float(nli(istep+1,igrid))/(float(nni(istep+1,igrid))+cutlo)
-         iddas(istep+1,igrid) = idid
-         if (issfon .eq. 1) then   #this needed for nksol-like initialization
-            if (icntnunk .eq. 0) call sfsetnk (neq, yl, suscal, sfscal)
-         endif
-       elseif (svrpkg.eq.'vodpk') then
-         hu(istep+1,igrid) = rwork(11)
-         nst(istep+1,igrid) = iwork(11)
-         nfe(istep+1,igrid) = iwork(12)
-         npe(istep+1,igrid) = iwork(13)
-         nqu(istep+1,igrid) = iwork(14)
-         nni(istep+1,igrid) = iwork(20)
-         nli(istep+1,igrid) = iwork(23)
-         nps(istep+1,igrid) = iwork(24)
-         ncfn(istep+1,igrid) = iwork(21)
-         ncfl(istep+1,igrid) = iwork(25)
-         nje(istep+1,igrid) = ijac(ig)
-         gpe(istep+1,igrid) =
-     .       float(nli(istep+1,igrid))/(float(nni(istep+1,igrid))+cutlo)
-       endif
        ts = tout
 
       elseif(imeth .eq. 1) then    # Second option for imeth if test
@@ -393,19 +359,19 @@ cpetsc        close(55)
 cpetsc      endif
 
 cpetsc      if (snesdebug. eq. 1) then
-              nni(1,igrid) = iwork(10)
-              nli(1,igrid) = iwork(11)
-              nfe(1,igrid) = iwork(12)
-              nje(1,igrid) = iwork(13)
-              npe(1,igrid) = iwork(14)
-              nps(1,igrid) = iwork(15)
-              ncfl(1,igrid) = iwork(16)
+              nni(1) = iwork(10)
+              nli(1) = iwork(11)
+              nfe(1) = iwork(12)
+              nje(1) = iwork(13)
+              npe(1) = iwork(14)
+              nps(1) = iwork(15)
+              ncfl(1) = iwork(16)
 cpetsc      endif
 *-------------------------------------------------------------------------
          else
-            call newton (ffun,neq,yl,yldot0,yldot1,npsn(igrid),
+            call newton (ffun,neq,yl,yldot0,yldot1,npsn,
      .                   rwork,iwork,jacnw,psolnw)
-            njen(igrid) = ijac(igrid)
+            njen = ijac
          endif
 
       endif               # End of large imeth if test
@@ -550,7 +516,7 @@ c_mpi      endif
       iopts = inopt
       if (svrpkg.eq."cvode" .or. svrpkg.eq."kinsol") iopts=0
       if (iopts .eq. 1) then
-         rwork(5) = hu(istep,igrid)/tadj
+         rwork(5) = hu(istep)/tadj
          rwork(6) = 0.
          rwork(7) = 0.
          rwork(8) = 0.

@@ -1042,7 +1042,7 @@ c ... Common blocks:
                                    # nusp[for fnorm not used here]
       Use(Timing)                  # istimingon,ttjstor,ttotjf,ttimpjf
       Use(Math_problem_size)       # neqmx,numvar
-      Use(Grid)                    # ngrid,ig,ijac,ijactot
+      Use(Grid)                    # ig,ijac,ijactot
       Use(Indexes)                 # igyl,iseqalg
       Use(Variable_perturbation)   # del,dylconst
       Use(Jacobian_clipping)       # jaccliplim,istopjac,irstop,icstop
@@ -1077,10 +1077,10 @@ c ... Get initial value of system cpu timer.
 c ... Pause from BASIS if a ctrl_c is typed
       call ruthere
 
-      ijac(ig) = ijac(ig) + 1
+      ijac = ijac + 1
 
       if ((svrpkg.eq.'nksol') .and. (iprint .ne. 0)) 
-     .      write(*,*) ' Updating Jacobian, npe =  ', ijac(ig)
+     .      write(*,*) ' Updating Jacobian, npe =  ', ijac
 
 c ... Set up diagnostic arrays for debugging
       do iv = 1, neq
@@ -1260,7 +1260,7 @@ c ... Output arguments:
 c ... Common blocks:
       Use(Timing)                  # ttmatfac
       Use(Decomp)                  # lbw,ubw
-      Use(Grid)                    # ngrid,ig,ijac
+      Use(Grid)                    # ig,ijac
       Use(Condition_number)        # rconds
       Use(Preconditioning)         # premeth,lenplumx
       Use(Ilutv)                    # lfililut,tolilut
@@ -1295,8 +1295,8 @@ c     factorization routine sgbco from Linpack/SLATEC.
          iwp(3) = ubw
 
 c ... Save condition number.
-         i = ijac(ig)
-         if (i .le. 300) rconds(i,ig) = rcond
+         i = ijac
+         if (i .le. 300) rconds(i) = rcond
          go to 99
       endif
 
@@ -3438,7 +3438,7 @@ c-------------------------------------------------------------------------c
       subroutine bbb2wdf
       implicit none
 Use(Dim)		# nx,ny
-Use(Share)		# nycore,nysol,nxcore,nxleg,igrid,geometry
+Use(Share)		# nycore,nysol,nxcore,nxleg,geometry
 Use(RZ_grid_info)	# br,bz,bpol,bphi,b
 Use(Bfield)             # rbfbt
 Use(Bcond)		# fngysi,fngyso
@@ -3456,12 +3456,12 @@ c     Compute data for output to wdf package
 
       nxbbb=nx
       nybbb=ny
-      nycorebbb=nycore(igrid)
-      nysolbbb=nysol(igrid)
-      nxleg1bbb=nxleg(igrid,1)
-      nxcore1bbb=nxcore(igrid,1)
-      nxleg2bbb=nxleg(igrid,2)
-      nxcore2bbb=nxcore(igrid,2)
+      nycorebbb=nycore
+      nysolbbb=nysol
+      nxleg1bbb=nxleg(1)
+      nxcore1bbb=nxcore(1)
+      nxleg2bbb=nxleg(2)
+      nxcore2bbb=nxcore(2)
       geometrybbb=geometry
 
       do ix=0,nx+1

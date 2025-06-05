@@ -74,7 +74,7 @@ c     Last seedpoints --
 c     at the strike point for each region
       if (isspnew .eq. 0) then		# use eqdsk values
 ccc Temporary code for FRC mesh generation --
-         if (nxleg(igrid,1)==0) then
+         if (nxleg(1)==0) then
             xlast(1) = rseps
             ylast(1) = zseps
          else
@@ -108,12 +108,11 @@ c     ------------------------------------------------------------------
 
       implicit none
 
-      Use(Share)      # igrid,nxomit
+      Use(Share)      # nxomit
 
       external com_set_dims, gallot
 
 c ... Compute dimension variables nx, nym, and nxm.
-      igrid = 1
       nxomit = 0
       call com_set_dims
 
@@ -152,7 +151,7 @@ c     --------------------------------------------------------------------
 
       runidl = 'ideal geometry'
 
-      ixpt2_init = nxcore(1,2)  # define to allow isgrdsym=1 case to work
+      ixpt2_init = nxcore(2)  # define to allow isgrdsym=1 case to work
       if (iysptrx1(1) .eq. 0) rad0 = radm  #allows old cases without rad0 to run
       if (ixpt2_init .gt. 0) dznu = (zaxpt - za0) / float(ixpt2_init)
       if (tctr .gt. 0.0000001) dznl = tctr*(zax - zaxpt - za0) / 
@@ -419,12 +418,11 @@ c     ------------------------------------------------------------------
 
       implicit none
 
-      Use(Share)      # igrid,nxomit
+      Use(Share)      # nxomit
 
       external com_set_dims, gallot
 
 c ... Compute dimension variables nx, nym, and nxm.
-      igrid = 1
       nxomit = 0
       call com_set_dims
 
@@ -461,17 +459,17 @@ c     ------------------------------------------------------------------
       runtoran = 'Circular toroidal annulus'
 
 c ... Compute the poloidal angle and radial position of cell faces
-      dely = edgewid/(float(nycore(1)))
+      dely = edgewid/(float(nycore))
       if (islimon==0) then   # bottom of annulus is theta=pi/2; clockwise
-        delthp = 2*pi/(float(nxcore(1,1)+nxcore(1,2)))
+        delthp = 2*pi/(float(nxcore(1)+nxcore(2)))
 	thpf(1,1) = 0.5*pi  
 	thpf(1,2) = 0.5*pi + delthp
 	thpf(1,3) = 0.5*pi  
 	thpf(1,4) = 0.5*pi + delthp
 	thpf(1,0) = 0.5*pi + 0.5*delthp
       else  
-        delthp = 2*(pi-dthlim)/(float(nxcore(1,1)+nxcore(1,2)-2)) 
-        wshf = 2*float(nxcore(1,2)-1)/float(nxcore(1,1)+nxcore(1,2)-2)           
+        delthp = 2*(pi-dthlim)/(float(nxcore(1)+nxcore(2)-2)) 
+        wshf = 2*float(nxcore(2)-1)/float(nxcore(1)+nxcore(2)-2)           
 	thpf(1,1) = 0.5*pi + wshf*dthlim 
 	thpf(1,2) = 0.5*pi + wshf*dthlim + delthp
 	thpf(1,3) = 0.5*pi + wshf*dthlim 
@@ -487,7 +485,7 @@ c ... Compute the poloidal angle and radial position of cell faces
       enddo
 
 c ... Compute poloidal angles
-      do ix = 2, nxcore(1,1)-islimon   # ix=1 set above
+      do ix = 2, nxcore(1)-islimon   # ix=1 set above
         thpf(ix,1) = thpf(ix-1,2)
         thpf(ix,2) = thpf(ix-1,2) + delthp
         thpf(ix,3) = thpf(ix-1,4)
@@ -496,7 +494,7 @@ c ... Compute poloidal angles
       enddo
 c ... Insert limiter angles if switched on
       if (islimon==1) then
-        do ix = nxcore(1,1), nxcore(1,1)+1
+        do ix = nxcore(1), nxcore(1)+1
           thpf(ix,1) = thpf(ix-1,2) 
           thpf(ix,2) = thpf(ix-1,2) + dthlim
           thpf(ix,3) = thpf(ix-1,4)
@@ -505,7 +503,7 @@ c ... Insert limiter angles if switched on
         enddo
       endif
 c ... Finish angles
-      do ix = nxcore(1,1)+1+islimon, nxm   # ix=nx set above
+      do ix = nxcore(1)+1+islimon, nxm   # ix=nx set above
         thpf(ix,1) = thpf(ix-1,2)
         thpf(ix,2) = thpf(ix-1,2) + delthp
         thpf(ix,3) = thpf(ix-1,4)
@@ -554,14 +552,13 @@ c     ------------------------------------------------------------------
 
       implicit none
 
-      Use(Share)      # igrid,nxomit
+      Use(Share)      # nxomit
       Use(Dim)        # nx,ny,nxm,nym
       Use(Magmirror)  # zu,ru,bru,bzu,bmag
 
       external com_set_dims, gallot
 
 c ... Compute dimension variables nx, nym, and nxm.
-      igrid = 1
       nxomit = 0
       nxm = nzc
       nym = nrc
@@ -3338,7 +3335,7 @@ c     Distance from first seed point to x-point is
 c----------------------------------------------------------------------c
 c     Insert the last seed point --
 
-      if (nxleg(igrid,region)==0) then
+      if (nxleg(region)==0) then
 c        Modification for FRC mesh generation
          cmeshx(ilmax(region),j) = rseps
          cmeshy(ilmax(region),j) = zseps
@@ -3375,13 +3372,13 @@ c     Compute data for xfcn(t) --
       xdat(3)=xdat(2)+distxp(1)
       xdat(4)=xdat(3)+distxp(2)
       xdat(5)=xdat(4)+distxpxl(2)
-      nxtotal=nxleg(igrid,1)+nxuse(1)
-     &                      +nxuse(2)+nxleg(igrid,2)
+      nxtotal=nxleg(1)+nxuse(1)
+     &                      +nxuse(2)+nxleg(2)
       tdat(1)=0.
-      tdat(2)=tdat(1)+float(nxleg(igrid,1))/float(nxtotal)
+      tdat(2)=tdat(1)+float(nxleg(1))/float(nxtotal)
       tdat(3)=tdat(2)+float(nxuse(1))/float(nxtotal)
       tdat(4)=tdat(3)+float(nxuse(2))/float(nxtotal)
-      tdat(5)=tdat(4)+float(nxleg(igrid,2))/float(nxtotal)
+      tdat(5)=tdat(4)+float(nxleg(2))/float(nxtotal)
 
       if (kxmesh .eq. 0) then           # use manual x-mesh as for PLANET code
 
@@ -3401,7 +3398,7 @@ c     Compute data for xfcn(t) --
 
       elseif (kxmesh .eq. 1) then       # use analytic x-mesh from xfcn(t)
 
-      ixtop = nxuse(1) + nxleg(igrid,1)      # B2 code poloidal index
+      ixtop = nxuse(1) + nxleg(1)      # B2 code poloidal index
                                         # ix at PLANET code index i=1
       xtop = distxp(1) + distxpxl(1)    # B2 code poloidal distance x at
                                         # PLANET code index i=1
@@ -3435,7 +3432,7 @@ c     Compute data for xfcn(t) --
 
       elseif (kxmesh .eq. 2) then       # use analytic x-mesh from xfcn2(t)
 
-      ixtop = nxuse(1) + nxleg(igrid,1)      # B2 code poloidal index
+      ixtop = nxuse(1) + nxleg(1)      # B2 code poloidal index
                                         # ix at PLANET code index i=1
       xtop = distxp(1) + distxpxl(1)    # B2 code poloidal distance x at
                                         # PLANET code index i=1
@@ -3485,7 +3482,7 @@ c     set derivative values at endpoints --
 c     compute spline coefficients for xfcn3(t) --
          call xcscoef
 
-      ixtop = nxuse(1) + nxleg(igrid,1)       # B2 code poloidal index ix at
+      ixtop = nxuse(1) + nxleg(1)       # B2 code poloidal index ix at
                                         # PLANET code index i=1
       xtop = distxp(1) + distxpxl(1)    # B2 code poloidal distance x at
                                         # PLANET code index i=1
@@ -3537,7 +3534,7 @@ c     set derivative values at endpoints --
 c     compute spline coefficients for xfcn4(t) --
          call xcscoef
 
-      ixtop = nxuse(1) + nxleg(igrid,1)       # B2 code poloidal index ix at
+      ixtop = nxuse(1) + nxleg(1)       # B2 code poloidal index ix at
                                         # PLANET code index i=1
       xtop = distxp(1) + distxpxl(1)    # B2 code poloidal distance x at
                                         # PLANET code index i=1
@@ -3635,11 +3632,11 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       real seedunifm,rleg2core_len(2)
 
       if (geometry=="snull") then
-        nxcore_use(1) = nxcore(1,1)
-        nxcore_use(2) = nxcore(1,2)
+        nxcore_use(1) = nxcore(1)
+        nxcore_use(2) = nxcore(2)
       elseif (geometry == "dnbot") then
-        nxcore_use(1) = nxcore(1,1) - 1
-        nxcore_use(2) = nxcore(1,2) - 1
+        nxcore_use(1) = nxcore(1) - 1
+        nxcore_use(2) = nxcore(2) - 1
       endif
 
 c.. Compute seedxpxl in divertor legs
@@ -5926,7 +5923,7 @@ Use(Limiter) # dslims
       real ds
 
 # Set the poloidal index, ix_lim, of the limiter interface:
-      ix_lim = nxleg(1,1) + nxcore(1,1) + 2*nxxpt - max(0, nxomit)
+      ix_lim = nxleg(1) + nxcore(1) + 2*nxxpt - max(0, nxomit)
 
 # Starting at the innermost core flux surface, search radially
 # outward for the index of the first flux surface that has a poloidal

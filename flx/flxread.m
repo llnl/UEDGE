@@ -29,15 +29,15 @@ c     Set the number of x-points in the mesh:
       endif
 # Set contour data array dimensions
       npts = 4*mrfac*(nxefit+nyefit)
-      if (nycore(igrid) .eq. 0) then
+      if (nycore .eq. 0) then
          nsearch = 2
       else
          nsearch = 4
       endif
       if (kymesh==0 .or. geometry=="dnull") then
-         nym = nycore(igrid) + nysol(igrid) + nyout(igrid)
+         nym = nycore + nysol + nyout
       else
-         nym = nycore(igrid) + nysol(igrid)
+         nym = nycore + nysol
       endif
       jdim = 2*(nym+1) + 1       # includes magnetic axis point
 # Allot storage space for arrays
@@ -59,46 +59,46 @@ cccMER       results based on nycore and nysol (nyout=0 is default).
 c
          if (iseqdskr==0) then  # we are doing the lower half mesh
             if (psi0sep1 .gt. psi0sep2) then
-               jsptrx(1) = jmin(1) + nyout(igrid)
-               jmax(1) = jsptrx(1) + nysol(igrid) + nycore(igrid)
+               jsptrx(1) = jmin(1) + nyout
+               jmax(1) = jsptrx(1) + nysol + nycore
                jaxis = jmax(1) + 1
                jmin(2) = jaxis + 1
-               jsptrx(2) = jmin(2) + nycore(igrid) + nysol(igrid)
-               jmax(2) = jsptrx(2) + nyout(igrid)
+               jsptrx(2) = jmin(2) + nycore + nysol
+               jmax(2) = jsptrx(2) + nyout
             else
-               jsptrx(1) = jmin(1) + nyout(igrid) + nysol(igrid)
-               jmax(1) = jsptrx(1) + nycore(igrid)
+               jsptrx(1) = jmin(1) + nyout + nysol
+               jmax(1) = jsptrx(1) + nycore
                jaxis = jmax(1) + 1
                jmin(2) = jaxis + 1
-               jsptrx(2) = jmin(2) + nycore(igrid)
-               jmax(2) = jsptrx(2) + nysol(igrid) + nyout(igrid)
+               jsptrx(2) = jmin(2) + nycore
+               jmax(2) = jsptrx(2) + nysol + nyout
             endif
          else                   # we are doing the upper half mesh
             if (psi0sep2 .gt. psi0sep1) then
-               jsptrx(1) = jmin(1) + nyout(igrid)
-               jmax(1) = jsptrx(1) + nysol(igrid) + nycore(igrid)
+               jsptrx(1) = jmin(1) + nyout
+               jmax(1) = jsptrx(1) + nysol + nycore
                jaxis = jmax(1) + 1
                jmin(2) = jaxis + 1
-               jsptrx(2) = jmin(2) + nycore(igrid) + nysol(igrid)
-               jmax(2) = jsptrx(2) + nyout(igrid)
+               jsptrx(2) = jmin(2) + nycore + nysol
+               jmax(2) = jsptrx(2) + nyout
             else
-               jsptrx(1) = jmin(1) + nyout(igrid) + nysol(igrid)
-               jmax(1) = jsptrx(1) + nycore(igrid)
+               jsptrx(1) = jmin(1) + nyout + nysol
+               jmax(1) = jsptrx(1) + nycore
                jaxis = jmax(1) + 1
                jmin(2) = jaxis + 1
-               jsptrx(2) = jmin(2) + nycore(igrid)
-               jmax(2) = jsptrx(2) + nysol(igrid) + nyout(igrid)
+               jsptrx(2) = jmin(2) + nycore
+               jmax(2) = jsptrx(2) + nysol + nyout
             endif
          endif  # end if-test on iseqdskr
       else  # use only nycore and nysol for kymesh > 0
-         jsptrx(1) = jmin(1) + nysol(igrid)
-         jmax(1) = jsptrx(1) + nycore(igrid)
+         jsptrx(1) = jmin(1) + nysol
+         jmax(1) = jsptrx(1) + nycore
          jaxis = jmax(1) + 1	# There is a dummy surface
 				# between jmax(1) and jmin(2)
 				# that represents the magnetic axis.
          jmin(2) = jaxis + 1
-         jsptrx(2) = jmin(2) + nycore(igrid)
-         jmax(2) = jsptrx(2) + nysol(igrid)
+         jsptrx(2) = jmin(2) + nycore
+         jmax(2) = jsptrx(2) + nysol
       endif  # end if-test on kymesh and geometry
 
 # Special coding for field-reversed configuration
@@ -604,8 +604,8 @@ c----------------------------------------------------------------------c
          tflx(i) = i
       enddo
       t1 = tflx(0)
-      t2 = tflx(nycore(igrid))
-      t3 = tflx(nycore(igrid)+nysol(igrid))
+      t2 = tflx(nycore)
+      t3 = tflx(nycore+nysol)
 
 c     Set some parameters for various mesh forms:
       if (kymesh==1) then # Set SOL exponential factors
@@ -672,14 +672,14 @@ c     Set some parameters for various mesh forms:
         endif
 
       elseif (kymesh==2) then   # Set radial mesh slope factor at separatrix
-        r2p = (psi0sep-psi0min1)/float(nycore(igrid))   # rho'(t2)
+        r2p = (psi0sep-psi0min1)/float(nycore)   # rho'(t2)
       endif     # end if-test on kymesh for setting mesh parameters
 
 # For inboard half of mesh:
 # In core region + SOL
       t1 = tflx(0)
-      t2 = tflx(nycore(igrid))
-      t3 = tflx(nycore(igrid)+nysol(igrid))
+      t2 = tflx(nycore)
+      t3 = tflx(nycore+nysol)
       r1 = psi0min1
       r2 = psi0sep
       r3 = psi0max_inner
@@ -691,8 +691,8 @@ c     Set some parameters for various mesh forms:
 # Core region may be modified for limiter configuration --
       if ((islimon .ne. 0) .and. (sfaclim .ne. 1.) .and.
      .    (psi0lim .le. psi0sep) .and. (psi0lim .ge. psi0min1)) then
-         nc2 = int(((psi0lim-psi0min1)/(psi0sep-psi0min1))*nycore(igrid))
-         nc3 = nycore(igrid)
+         nc2 = int(((psi0lim-psi0min1)/(psi0sep-psi0min1))*nycore)
+         nc3 = nycore
          t1 = tflx(0)
          t2 = tflx(nc2)
          t3 = tflx(nc3)
@@ -708,8 +708,8 @@ c     Set some parameters for various mesh forms:
 
 # In private region + SOL
       t1 = tflx(0)
-      t2 = tflx(nycore(igrid))
-      t3 = tflx(nycore(igrid)+nysol(igrid))
+      t2 = tflx(nycore)
+      t3 = tflx(nycore+nysol)
       r1 = psi0min2
       r2 = psi0sep
       r3 = psi0max_inner
@@ -726,8 +726,8 @@ c     Set some parameters for various mesh forms:
 # For outboard half of mesh:
 # In core region + SOL
       t1 = tflx(0)
-      t2 = tflx(nycore(igrid))
-      t3 = tflx(nycore(igrid)+nysol(igrid))
+      t2 = tflx(nycore)
+      t3 = tflx(nycore+nysol)
       r1 = psi0min1
       r2 = psi0sep
       r3 = psi0max_outer
@@ -739,8 +739,8 @@ c     Set some parameters for various mesh forms:
 # Core region may be modified for limiter configuration --
       if ((islimon .ne. 0) .and. (sfaclim .ne. 1.) .and.
      .    (psi0lim .le. psi0sep) .and. (psi0lim .ge. psi0min1)) then
-         nc2 = int(((psi0lim-psi0min1)/(psi0sep-psi0min1))*nycore(igrid))
-         nc3 = nycore(igrid)
+         nc2 = int(((psi0lim-psi0min1)/(psi0sep-psi0min1))*nycore)
+         nc3 = nycore
          t1 = tflx(0)
          t2 = tflx(nc2)
          t3 = tflx(nc3)
@@ -755,8 +755,8 @@ c     Set some parameters for various mesh forms:
 
 # In private region + SOL
       t1 = tflx(0)
-      t2 = tflx(nycore(igrid))
-      t3 = tflx(nycore(igrid)+nysol(igrid))
+      t2 = tflx(nycore)
+      t3 = tflx(nycore+nysol)
       r1 = psi0min2
       r2 = psi0sep
       r3 = psi0max_outer
@@ -859,7 +859,7 @@ c----------------------------------------------------------------------c
       jstepf0(ns) = 0
       endif
 
-      if (nycore(igrid) .gt. 0) then
+      if (nycore .gt. 0) then
          ns=ns+1
 # Search region 2 (inboard half of divertor triangle) :
 	 ncmin0(ns) = jsptrx(1) + 1
@@ -926,7 +926,7 @@ ccc	 ymaxf0(ns)=zseps*1.1
       istepf0(ns) = 1
       jstepf0(ns) = 0
 
-      if (nycore(igrid) .gt. 0) then
+      if (nycore .gt. 0) then
          ns=ns+1
 # Search region 4 (outboard half of divertor triangle) 
 	 ncmin0(ns) = jmin(2)

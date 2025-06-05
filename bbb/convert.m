@@ -16,7 +16,7 @@ c-----------------------------------------------------------------------
       Use(Indexes)     # igyl
       Use(Selec)       # ixm1,ixp1
       Use(Ynorm)       # isflxvar,nnorm,ennorm,fnorm,temp0,n0,n0g
-      Use(Share)       # igrid
+      Use(Share)       # 
       Use(Coefeq)      # cngtgx,cngtgy
       Use(Constraints) # icnstr
       Use(Indices_domain_dcl)   #ixmxbcl,ixmnbcl,iymxbcl,iymnbcl
@@ -43,7 +43,7 @@ c...  local variables
                   if (zi(ifld).eq.0. .and. ineudif.eq.3) then
                      yl(iv) = log(ni(ix,iy,ifld))
                   endif
-                  rtol(iv) = rtolv(igrid)*bfac
+                  rtol(iv) = rtolv*bfac
                   atol(iv) = cniatol*rtol(iv)*bfac*abs(yl(iv))
                   idxn(ix,iy,ifld) = iv
                   if (isfirstvar==0) ivfirst(ix,iy) = iv
@@ -60,7 +60,7 @@ c...  local variables
                   if(isflxvar.eq.0 .or. isflxvar.eq.2) ntemp = mi(ifld)*
      .                                                           n0(ifld)
                   yl(iv) = up(ix,iy,ifld)*ntemp/fnorm(ifld)
-                  rtol(iv) = rtolv(igrid)*bfac
+                  rtol(iv) = rtolv*bfac
                   atol(iv) = cupatol*rtol(iv)*bfac*sqrt(te(ix,iy)/
      .                                     mi(ifld))*ntemp/fnorm(ifld)
                   idxu(ix,iy,ifld) = iv 
@@ -76,7 +76,7 @@ c...  local variables
             ntemp = ne(ix,iy)
             if(isflxvar .eq. 0) ntemp = nnorm
             yl(iv) = 1.5*ntemp*te(ix,iy)/ennorm
-            rtol(iv) = rtolv(igrid)*bfac
+            rtol(iv) = rtolv*bfac
             atol(iv) = cteatol*rtol(iv)*bfac*abs(yl(iv))
             idxte(ix,iy) = iv
             if (isfirstvar==0) ivfirst(ix,iy) = iv
@@ -90,7 +90,7 @@ c...  local variables
             ntemp = nit(ix,iy) + cngtgx(1)*ng(ix,iy,1)
             if(isflxvar .eq. 0) ntemp = nnorm
             yl(iv) = 1.5*ntemp*ti(ix,iy)/ennorm
-            rtol(iv) = rtolv(igrid)*bfac
+            rtol(iv) = rtolv*bfac
             atol(iv) = ctiatol*rtol(iv)*bfac*abs(yl(iv))
             idxti(ix,iy) = iv
             if (isfirstvar==0) ivfirst(ix,iy) = iv
@@ -109,7 +109,7 @@ c...  Omit constraint check on x-boundaries for Ti - ckinfl problem
             elseif(ineudif .eq. 3) then
               yl(iv) = lng(ix,iy,igsp)
             endif
-            rtol(iv) = rtolv(igrid)*bfac
+            rtol(iv) = rtolv*bfac
             atol(iv) = cngatol*rtol(iv)*bfac*abs(yl(iv))
             idxg(ix,iy,igsp) = iv
             if (isfirstvar==0) ivfirst(ix,iy) = iv
@@ -126,7 +126,7 @@ c...  Omit constraint check on x-boundaries for Ti - ckinfl problem
             ntemp = ng(ix,iy,igsp)
             if(isflxvar == 0) ntemp=n0g(igsp)
 	    yl(iv) = 1.5*ntemp*tg(ix,iy,igsp)/ennorm
-            rtol(iv) = rtolv(igrid)*bfac
+            rtol(iv) = rtolv*bfac
             atol(iv) = cngatol*rtol(iv)*bfac*abs(yl(iv))
             idxtg(ix,iy,igsp) = iv
             if (isfirstvar==0) ivfirst(ix,iy) = iv
@@ -139,7 +139,7 @@ c...  Omit constraint check on x-boundaries for Ti - ckinfl problem
 	 if(isphionxy(ix,iy) .eq. 1) then
             iv = iv + 1
             yl(iv) = phi(ix,iy)/temp0
-            rtol(iv) = rtolv(igrid)*bfac
+            rtol(iv) = rtolv*bfac
             atol(iv) = cphiatol*rtol(iv)*bfac*abs(yl(iv))
             idxphi(ix,iy) = iv
             if (isfirstvar==0) ivfirst(ix,iy) = iv
@@ -1059,7 +1059,7 @@ c...  add electron contribution to prtv; ion contribution added below
 c.... reset the x-point value(s) all the time as it is easier and perhaps
 c.... cheaper than checking
 
-      if (nyomitmx < nysol(1)+nyout(1)) then  # otherwise core only - skip
+      if (nyomitmx < nysol+nyout) then  # otherwise core only - skip
 
       do jx = 1, nxpt  # loop over mesh regions
          is = ixpt1(jx)
@@ -1188,7 +1188,7 @@ c.. Do all y-bdry cells as 2-pt x-ave to upper vertex
       enddo
 
 c.. Now reset x-point values; mostly 8-pt ave
-      if (nyomitmx < nysol(1)) then  # otherwise core only - skip
+      if (nyomitmx < nysol) then  # otherwise core only - skip
 
         do jx = 1, nxpt  # loop over mesh regions
           is = ixpt1(jx)
