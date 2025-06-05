@@ -231,16 +231,16 @@ c...  already added to uug(ix,iy,igsp)
 c --- Note: this four-point average results in not getting the full Jac. for
 c --- a nonorthogonal mesh because of ngy1,0 - see def. of hcyn
 
-                grdnv =( ( fym (ix,iy,1)*log(tg(ix2,iy1 ,igsp)) +  
-     .                     fy0 (ix,iy,1)*log(tg(ix2,iy  ,igsp)) +
-     .                     fyp (ix,iy,1)*log(tg(ix2,iy+1,igsp)) +  
-     .                     fymx(ix,iy,1)*log(tg(ix ,iy1 ,igsp)) +
-     .                     fypx(ix,iy,1)*log(tg(ix ,iy+1,igsp)) ) 
-     .                  -( fym (ix,iy,0)*log(tg(ix ,iy1 ,igsp)) +
-     .                     fy0 (ix,iy,0)*log(tg(ix ,iy  ,igsp)) +
-     .                     fyp (ix,iy,0)*log(tg(ix ,iy+1,igsp)) +
-     .                     fymx(ix,iy,0)*log(tg(ix4,iy1 ,igsp)) +  
-     .                     fypx(ix,iy,0)*log(tg(ix6,iy+1,igsp)) ) ) / 
+                grdnv =( ( fym (ix,iy,1)*logtg(ix2,iy1 ,igsp) +  
+     .                     fy0 (ix,iy,1)*logtg(ix2,iy  ,igsp) +
+     .                     fyp (ix,iy,1)*logtg(ix2,iy+1,igsp) +  
+     .                     fymx(ix,iy,1)*logtg(ix ,iy1 ,igsp) +
+     .                     fypx(ix,iy,1)*logtg(ix ,iy+1,igsp) ) 
+     .                  -( fym (ix,iy,0)*logtg(ix ,iy1 ,igsp) +
+     .                     fy0 (ix,iy,0)*logtg(ix ,iy  ,igsp) +
+     .                     fyp (ix,iy,0)*logtg(ix ,iy+1,igsp) +
+     .                     fymx(ix,iy,0)*logtg(ix4,iy1 ,igsp) +  
+     .                     fypx(ix,iy,0)*logtg(ix6,iy+1,igsp) ) ) / 
      .                                                  dxnog(ix,iy)  
                difgx2 = ave( tg(ix ,iy,igsp)/nu1,
      .                       tg(ix2,iy,igsp)/nu2 )/mg(igsp)
@@ -248,10 +248,10 @@ c --- a nonorthogonal mesh because of ngy1,0 - see def. of hcyn
      .                           0.5*(nuiz(ix,iy,igsp)+nuiz(ix2,iy,igsp))
 
                fegxy(ix,iy,igsp) = cfegxy*exp( 0.5*
-     .                 (log(tg(ix2,iy,igsp))+log(tg(ix,iy,igsp))) )*
+     .                 (logtg(ix2,iy,igsp)+logtg(ix,iy,igsp)) )*
      .                      difgx2*ave(ng(ix2,iy,igsp),ng(ix,iy,igsp))*
      .                                 ( grdnv/cos(angfx(ix,iy))
-     .                  - (log(tg(ix2,iy,igsp)) - log(tg(ix,iy,igsp)))*
+     .                  - (logtg(ix2,iy,igsp) - logtg(ix,iy,igsp))*
      .                                        gxf(ix,iy) )*sx(ix,iy)
 c...  Flux limit with flalftxt even though hcys have parallel FL built in
                t0 = max(tg(ix,iy,igsp),tgmin*ev)

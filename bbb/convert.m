@@ -43,8 +43,8 @@ c...  local variables
                   if (zi(ifld).eq.0. .and. ineudif.eq.3) then
                      yl(iv) = log(ni(ix,iy,ifld))
                   endif
-                  if (isnonog.eq.1) 
-     .                  logni(ix,iy,ifld) = log(ni(ix,iy,ifld))
+!                  if (isnonog.eq.1) 
+!     .                  logni(ix,iy,ifld) = log(ni(ix,iy,ifld))
                   rtol(iv) = rtolv(igrid)*bfac
                   atol(iv) = cniatol*rtol(iv)*bfac*abs(yl(iv))
                   idxn(ix,iy,ifld) = iv
@@ -318,6 +318,7 @@ c... Added the following for OMPPandf1rhs call (added by .J.Guterl)
                    lng(ix,iy,igsp) = yl(idxg(ix,iy,igsp))
                    ng(ix,iy,igsp) = exp(lng(ix,iy,igsp))
                  endif
+                 if (isnonog.eq.1) logng(ix,iy,igsp) = log(ng(ix,iy,igsp))
                endif
 	       if(istgonxy(ix,iy,igsp) .eq. 1) then
                  ntemp = ng(ix,iy,igsp)
@@ -325,6 +326,7 @@ c... Added the following for OMPPandf1rhs call (added by .J.Guterl)
 		 tg(ix,iy,igsp) = yl(idxtg(ix,iy,igsp))*ennorm/
      .                                                  (1.5*ntemp)
                  tg(ix,iy,igsp) = max(tg(ix,iy,igsp), tgmin*ev) 
+                 if (isnonog.eq.1) logtg(ix,iy,igsp) = log(tg(ix,iy,igsp))
                endif
  65         continue
             ntemp = nit(ix,iy) + cngtgx(1)*ng(ix,iy,1)
@@ -596,6 +598,7 @@ ccc         enddo
      .                       (1-istgcon(igsp))*rtg2ti(igsp)*ti(ix,iy) + 
      .                          istgcon(igsp)*tgas(igsp)*ev
 	       pg(ix,iy,igsp) = ng(ix,iy,igsp)*tg(ix,iy,igsp)
+           if(mod(methg,10).eq.6) logpg(ix,iy,igsp) = log(pg(ix,iy,igsp))
            enddo
         enddo
       enddo
