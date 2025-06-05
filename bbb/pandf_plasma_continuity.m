@@ -765,27 +765,6 @@ c *** Now do the gas
 
 
 *****************************************************************
-c In the case of neutral parallel mom, call neudif to get
-c flux fngy, vy and uu, now that we have evaluated nuix etc.
-*****************************************************************
-! Moved to Pandf - AH 250602
-!      if (TimingPandfOn.gt.0) TimeNeudif=tick()
-ccc      if (isupgon .eq. 1 .and. zi(ifld) .eq. 0.0) call neudif
-!      if (ineudif .eq. 1) then
-!         call neudif
-!      elseif (ineudif .eq. 2) then
-c ..Timing
-!      if(istimingon==1) tsnpg=tick()
-!         call neudifpg
-c ..Timing
-!      if(istimingon==1) ttnpg = ttnpg + tock(tsnpg)
-!      elseif (ineudif .eq. 3) then
-!         call neudifl
-!      else
-!         call neudifo
-!      endif
-!      if (TimingPandfOn.gt.0) TotTimeNeudif=TotTimeNeudif+tock(TimeNeudif)
-*****************************************************************
 *  Other volume sources calculated in old SRCMOD
 *****************************************************************
 *  ---------------------------------------------------------------------
@@ -1280,8 +1259,7 @@ c                   if (ix .eq. 1 .and. iy .eq. 1) write(*,*) 'sng_ue', ifld, jf
          methny = methn/10
          do iy = j4omp, j8omp
             do ix = i1momp, i5pomp
-              if ( zi(ifld).eq.0. .and. ineudif.ne.0 .and.
-     .                                   1.-rrv(ix,iy) > 1.e-4 ) then
+              if ( (zi(ifld).eq.0.) .and. (1.-rrv(ix,iy) > 1.e-4) ) then
                  fnix(ix,iy,ifld) = fngx(ix,iy,1)
               else
                ix2 = ixp1(ix,iy)

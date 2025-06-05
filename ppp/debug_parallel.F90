@@ -443,8 +443,6 @@ subroutine DebugHelper(FileName)
       call WriteArrayReal(kye_use,size(kye_use),iunit)
       write(iunit,*) "kyi_use"
       call WriteArrayReal(kyi_use,size(kyi_use),iunit)
-      write(iunit,*) "lng"
-      call WriteArrayReal(lng,size(lng),iunit)
       write(iunit,*) "loglambda"
       call WriteArrayReal(loglambda,size(loglambda),iunit)
       write(iunit,*) "msor"

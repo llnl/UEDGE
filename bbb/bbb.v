@@ -170,11 +170,6 @@ isxmpog   integer  /0/  +input
 iexclnxc1 integer  /0/  +input 
                         #if=0; include nxc+1 for fee,iytotc if geometry=dnbot;
                         #if=1; exclude nxc+1 for fee,iytotc
-ineudif   integer  /2/  +input 
-                #=1 gas sub. neudif uses ng, tg for gas vel & fngx->fnix
-		        #=2 gas sub. neudifgp uses pg for gas vel & fngx->fnix
-		        #=3 gas sub. neudifl use log_ng, tg for gas vel
-		       #otherwise, old case has ug=ui (strong cx coupling)
 thetar    real    /0./  +input #rotate (R,Z) coordinates by angle theta (degrees)
 isbcwdt   integer /0/   +solver #include dtreal in B.C. if isbcwdt=1
 ishosor   integer /0/   +input #if=1, integrate hydr. sources over cell; full RHS only
@@ -1675,7 +1670,6 @@ logte(0:nx+1,0:ny+1)       _real  [J]	  +threadprivate #log electron temperature
 logti(0:nx+1,0:ny+1)       _real  [J]	  +threadprivate #log ion temperature in primary cell
 ng(0:nx+1,0:ny+1,1:ngsp)   _real  [m^-3]  +threadprivate #gas density in primary cell (ix,iy)
 logng(0:nx+1,0:ny+1,1:ngsp)   _real  [m^-3]   +threadprivate #log gas density in primary cell (ix,iy)
-lng(0:nx+1,0:ny+1,1:ngsp)  _real  [m^-3]  +threadprivate #log(gas dens) in prim. cell (ix,iy)
 uug(0:nx+1,0:ny+1,1:ngsp)  _real  [m/s]   +threadprivate #ratio gas-flux/density at x-face;
                                             #if orthog mesh, poloidal gas velocity
 uuxg(0:nx+1,0:ny+1,1:ngsp) _real  [m/s]   +threadprivate #poloidal-only component of uug;

@@ -40,9 +40,6 @@ c...  local variables
 	       if(isnionxy(ix,iy,ifld) .eq. 1) then
                   iv = iv + 1
                   yl(iv) = ni(ix,iy,ifld)/n0(ifld)
-                  if (zi(ifld).eq.0. .and. ineudif.eq.3) then
-                     yl(iv) = log(ni(ix,iy,ifld))
-                  endif
                   rtol(iv) = rtolv*bfac
                   atol(iv) = cniatol*rtol(iv)*bfac*abs(yl(iv))
                   idxn(ix,iy,ifld) = iv
@@ -104,11 +101,7 @@ c...  Omit constraint check on x-boundaries for Ti - ckinfl problem
          do igsp = 1, ngsp
 	  if(isngonxy(ix,iy,igsp) .eq. 1) then
             iv = iv + 1
-            if(ineudif .ne. 3) then
-              yl(iv) = ng(ix,iy,igsp)/n0g(igsp)
-            elseif(ineudif .eq. 3) then
-              yl(iv) = lng(ix,iy,igsp)
-            endif
+            yl(iv) = ng(ix,iy,igsp)/n0g(igsp)
             rtol(iv) = rtolv*bfac
             atol(iv) = cngatol*rtol(iv)*bfac*abs(yl(iv))
             idxg(ix,iy,igsp) = iv
@@ -266,22 +259,18 @@ c... Added the following for OMPPandf1rhs call (added by .J.Guterl)
         do 50 ifld = 1, nisp  # use full loop even if some isnionxyy=0;
          do 40 iy = js, je
             do 30 ix = is, ie  # was nx+1
-	       if(isnionxy(ix,iy,ifld).eq.1) then
+           if(isnionxy(ix,iy,ifld).eq.1) then
                  ni(ix,iy,ifld) =  yl(idxn(ix,iy,ifld))*n0(ifld)
                  if (ni(ix,iy,ifld) < 0) then
-		   inegni = 1
-		   ixneg = ix
-		   iyneg = iy
-		   ifldneg = ifld
-                 endif
-                 if (zi(ifld).eq.0 .and. ineudif.eq.3) then
-                   ni(ix,iy,ifld) = exp(yl(idxn(ix,iy,ifld)))
+                   inegni = 1
+                   ixneg = ix
+                   iyneg = iy
+                   ifldneg = ifld
                  endif
                endif
                ne(ix,iy) = ne(ix,iy) + zi(ifld)*ni(ix,iy,ifld)
                if (isupgon(1).eq.1 .and. zi(ifld).eq.0) then
                   ng(ix,iy,1) = ni(ix,iy,ifld)
-                  if (ineudif .eq. 3) lng(ix,iy,1)=log(ng(ix,iy,1))
                else
                   nit(ix,iy) = nit(ix,iy) + ni(ix,iy,ifld)
                   if (isimpon.ge.5 .and. nusp_imp.eq.0) 
@@ -299,31 +288,26 @@ c... Added the following for OMPPandf1rhs call (added by .J.Guterl)
          do 6 ix = is, ie
             ntemp = ne(ix,iy)
             if(isflxvar .eq. 0) ntemp = nnorm
-	    if(isteonxy(ix,iy) .eq. 1) then
+        if(isteonxy(ix,iy) .eq. 1) then
                te(ix,iy)=yl(idxte(ix,iy))*ennorm/(1.5*ntemp)
                te(ix,iy) = max(te(ix,iy), temin*ev)  #NEW Feb4,2018
                if (isnonog.eq.1) logte(ix,iy) = log(te(ix,iy))
             endif
             do 65 igsp =1, ngsp
-	       if(isngonxy(ix,iy,igsp) .eq. 1) then
-                 if(ineudif .ne. 3) then
-                   ng(ix,iy,igsp) = yl(idxg(ix,iy,igsp))*n0g(igsp)
-                   if (ng(ix,iy,igsp) < 0) then
-		     inegng = 1
-  		     ixneg = ix
-		     iyneg = iy
-		     igspneg = igsp
-                   endif
-                 elseif(ineudif .eq. 3) then
-                   lng(ix,iy,igsp) = yl(idxg(ix,iy,igsp))
-                   ng(ix,iy,igsp) = exp(lng(ix,iy,igsp))
-                 endif
-                 if (isnonog.eq.1) logng(ix,iy,igsp) = log(ng(ix,iy,igsp))
+             if(isngonxy(ix,iy,igsp) .eq. 1) then
+               ng(ix,iy,igsp) = yl(idxg(ix,iy,igsp))*n0g(igsp)
+               if (ng(ix,iy,igsp) < 0) then
+                     inegng = 1
+                     ixneg = ix
+                     iyneg = iy
+                     igspneg = igsp
                endif
-	       if(istgonxy(ix,iy,igsp) .eq. 1) then
+              endif
+               if (isnonog.eq.1) logng(ix,iy,igsp) = log(ng(ix,iy,igsp))
+               if(istgonxy(ix,iy,igsp) .eq. 1) then
                  ntemp = ng(ix,iy,igsp)
                  if(isflxvar == 0) ntemp = n0g(igsp)
-		 tg(ix,iy,igsp) = yl(idxtg(ix,iy,igsp))*ennorm/
+                 tg(ix,iy,igsp) = yl(idxtg(ix,iy,igsp))*ennorm/
      .                                                  (1.5*ntemp)
                  tg(ix,iy,igsp) = max(tg(ix,iy,igsp), tgmin*ev) 
                  if (isnonog.eq.1) logtg(ix,iy,igsp) = log(tg(ix,iy,igsp))
@@ -331,24 +315,24 @@ c... Added the following for OMPPandf1rhs call (added by .J.Guterl)
  65         continue
             ntemp = nit(ix,iy) + cngtgx(1)*ng(ix,iy,1)
             if(isflxvar .eq. 0) ntemp = nnorm
-	    if(istionxy(ix,iy) .eq. 1) then
+            if(istionxy(ix,iy) .eq. 1) then
                ti(ix,iy)=yl(idxti(ix,iy))*ennorm/(1.5*ntemp)
                ti(ix,iy) = max(ti(ix,iy), temin*ev)
                if (isnonog.eq.1) logti(ix,iy) = log(ti(ix,iy))
             endif
-	    if(isphionxy(ix,iy) .eq. 1)
+            if(isphionxy(ix,iy) .eq. 1)
      .                           phi(ix,iy) = yl(idxphi(ix,iy))*temp0
     6    continue
     7 continue
 
       if (inegni .gt. 0 .and. itrap_negni.eq.1) then 
          call remark("***  ni is negative - calculation stopped")
-	 write(*,*) 'At  ix =', ixneg, ' iy =', iyneg, ' ifld =', ifldneg
+           write(*,*) 'At  ix =', ixneg, ' iy =', iyneg, ' ifld =', ifldneg
          call xerrab("")
       endif
       if (inegng .gt. 0 .and. itrap_negng.eq.1) then 
          call remark("***  ng is negative - calculation stopped")
-	 write(*,*) 'At  ix =', ixneg, ' iy =', iyneg, ' igsp =', igspneg
+          write(*,*) 'At  ix =', ixneg, ' iy =', iyneg, ' igsp =', igspneg
          call xerrab("")
       endif
 cc Since Te and Ti have temin eV floors, this not used
@@ -949,8 +933,7 @@ c Tom:  add comments here to explain the indices used on do 266 and 265
   266    continue
   267 continue
       
-C ... Calculate pgy0,1 only if ineudif=2, i.e. grad_pg option
-      if (ineudif == 2) then
+C ... Calculate pgy0,1 
         do igsp = 1, ngsp
           do iy = max(js-1,0), min(je,ny)
             inc = isign(max(1,iabs(ie-ixm1(ie,js))),ie-ixm1(ie,js))
@@ -963,7 +946,6 @@ C ... Calculate pgy0,1 only if ineudif=2, i.e. grad_pg option
             pgy1(ix,iy,igsp) = interppg(ix,iy,1,igsp)
           enddo
         enddo
-      endif        
 
       do iy = js, je    # inc index gives stride for jac perturb at cuts
          inc = isign(max(1,iabs(ie-ixm1(ie,iy))),ie-ixm1(ie,iy))

@@ -1607,7 +1607,6 @@ c.... If the grid does not change, but restart from saved variables
                       write (*,*) 'Error at ix=', ix,'  iy=',iy
                       call xerrab("")
                    endif
-                   lng(ix,iy,igsp) = log(ng(ix,iy,igsp))
                    tg(ix,iy,igsp) = tgs(ix,iy,igsp)
                 enddo
                 te(ix,iy)      = tes(ix,iy)
@@ -1772,9 +1771,6 @@ c...  Reset gas density to minimum if too small or negative
                if(isngonxy(ix,iy,igsp)==1) then
                   ng(ix,iy,igsp) = max(ng(ix,iy,igsp),
      .                                 1.0e-01*ngbackg(igsp))
-                  if (ineudif .eq. 2) then
-                    lng(ix,iy,igsp) = log(ng(ix,iy,igsp))
-                  endif
                endif
              enddo
            enddo

@@ -438,12 +438,7 @@ cccMER   NOTE: what about internal guard cells (for dnbot,dnull,limiter) ???
                 if(isnionxy(ix,iy,ifld) .eq. 1) then
                   iv = idxn(ix,iy,ifld)
                   yldot(iv) = (1.-fdtnixy(ix,iy,ifld))*yldot(iv)
-                  if(zi(ifld).eq.0. .and. ineudif.eq.3) then
-                    yldot(iv) = yldot(iv) - (1/n0(ifld))*
-     .                          (exp(yl(iv))-exp(ylodt(iv)))/dtuse(iv)
-                  else
-                    yldot(iv) =yldot(iv)-(yl(iv)-ylodt(iv))/dtuse(iv)
-                  endif
+                  yldot(iv) =yldot(iv)-(yl(iv)-ylodt(iv))/dtuse(iv)
                 endif
               enddo
                if(ix.ne.nx+2*isbcwdt) then  
@@ -470,12 +465,7 @@ cccMER   NOTE: what about internal guard cells (for dnbot,dnull,limiter) ???
                   if(isngonxy(ix,iy,igsp).eq.1) then
                      iv = idxg(ix,iy,igsp)
                      yldot(iv) = (1.-fdtngxy(ix,iy,igsp))*yldot(iv)
-                     if(ineudif.eq.3) then
-                       yldot(iv) = yldot(iv) - (1/n0g(igsp))*
-     .                            (exp(yl(iv))-exp(ylodt(iv)))/dtuse(iv)
-                     else
-                       yldot(iv) =yldot(iv)-(yl(iv)-ylodt(iv))/dtuse(iv)
-                     endif
+                     yldot(iv) =yldot(iv)-(yl(iv)-ylodt(iv))/dtuse(iv)
                   endif
                enddo
                do igsp = 1, ngsp
@@ -626,19 +616,11 @@ c...  Add checks on ishosor and ispsorave: parallel only works for == 0
 c In the case of neutral parallel mom, call neudif to get
 c flux fngy, vy and uu, now that we have evaluated nuix etc.
 *****************************************************************
-      if (ineudif .eq. 1) then
-         call neudif
-      elseif (ineudif .eq. 2) then
 c ..Timing
       if(istimingon==1) tsnpg=tick()
-         call neudifpg
+      call neudifpg
 c ..Timing
       if(istimingon==1) ttnpg = ttnpg + tock(tsnpg)
-      elseif (ineudif .eq. 3) then
-         call neudifl
-      else
-         call neudifo
-      endif
 
       call calc_srcmod
 
