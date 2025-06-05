@@ -172,7 +172,7 @@ SUBROUTINE LocalJacBuilder(ivmin,ivmax,neq, t, yl, yldot00,ml, mu,iJacCol,rJacEl
     USE Variable_perturbation, ONLY: delperturb,dylconst,isjacreset
     USE Jacobian_clipping, ONLY: jaccliplim,istopjac,irstop,icstop
     USE Ynorm, ONLY: suscal,sfscal
-    USE UEpar, ONLY: isphion,isnewpot,svrpkg,isbcwdt
+    USE UEpar, ONLY: isphion,isnewpot,isbcwdt
     USE Model_choice, ONLY: iondenseqn
     USE Bcond, ONLY: isextrnpf,isextrtpf,isextrngc,isextrnw,isextrtw
     USE Time_dep_nwt, ONLY: nufak,dtreal,ylodt,dtuse,dtphi

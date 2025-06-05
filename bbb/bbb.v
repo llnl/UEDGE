@@ -152,8 +152,6 @@ r0slab	  real [m]/1e-20/   +input #effect. major radius for isnewpot j_r calc in
 ishymol   integer  /0/      +input #=1 turns on hydr. mol; requires nhgsp=2
 te_s_dis  real     /5./     +input #Te shift of ioniz curve to approx dissociation curve
 isfqpave  integer  /0/      +input #=0 for lin interp for fqp terms; =1 for simple ave.
-svrpkg    character*8 /"nksol"/ +input #use solver pkg daspk,vodpk,nksol,newton
-                                #reset to newton if inewton=1
 petscoptfile  character*80 /""/     +input #specify options file for petsc code
 petscopts     character*2048 /""/   +input #specify options for petsc code
 isgpye    integer  /0/ +input #change -vy*dP/dy eng. terms; =1 for old B2; =2 for Knoll
@@ -204,7 +202,6 @@ isfeexpl0 integer  /0/ +input #if=1, feex cannot be out of inner/outer plates
 isfeixpl0 integer  /0/ +input #if=1, feix cannot be out of inner/outer plates
 isofric   integer /0/  +input #If =1, use old (B2) interspecies up drag expression
 del_te_ro real /1e10/  +input #te width in eV of tanh which turns off pwrze below 1 eV
-iskaboom  integer /0/  #=1 turns on ijmgetmr "k" or "kaboom" stopping option
 isnglf	  integer /0/  +input #=1 gives ng=nglfix at ix=0
 nglfix    real  /1e15/ +input #value of ng at ix=0 if isnglf=1
 isngrf	  integer /0/  +input #=1 gives ng=nglfix at ix=nx+1
@@ -2109,9 +2106,6 @@ alfe(1:nisp)       /1./   _real           +threadprivate #grad_Te thm force coef
 betai(1:nisp)      /1./   _real           +threadprivate #grad_Ti thm force coeff isbetaicalc=0
 
 ***** Grid:
-inewton   /30/     integer  #=1 for Newton iter., =0 for time-dependent
-                                  #reset=1 internally if svrpkg=nksol or newton
-imeth            /0/     integer  #imeth=inewton(igrid)
 nurlx           /1.e8/   real    [1/s] #rate coeff. to relax to boundary cond.
 ijac                 integer
 ijactot          /0/     integer  # tot Jac calcs, used as check when icntnunk=1

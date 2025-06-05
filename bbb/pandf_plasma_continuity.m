@@ -25,9 +25,6 @@ c     Set switches for neutrals-related source terms in plasma equations
 c     (MER 1996/10/28)
 c     (IJ  2015/04/06) add ismcnon>=3 for external call to run_neutrals 
       if (ismcnon .eq. 1) then        # use MC sources only:
-         if (svrpkg .eq. "cvode") then
-           call xerrab('*** ismcnon=1 not allowed for cvode ***')
-         endif
          cfneut=0.
          if (isupgon(1) .eq. 1) then
             cfvgpx(iigsp)=0.
@@ -706,10 +703,6 @@ c  *** where the last condition means this is only a full RHS eval, not
 c  *** a Jacobian calculation
 
          if (ishosor.eq.1) then  #full RHS eval
-
-           if (svrpkg.eq."cvode") then    # cannot access yl(neq+1)
-            call xerrab('*** svrpkg=cvode not allowed for ishosor=1 **')
-           endif 
 
           if (yl(neq+1).lt.0) then  #full RHS eval
 

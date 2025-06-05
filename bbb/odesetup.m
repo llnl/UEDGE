@@ -21,12 +21,11 @@ c-----------------------------------------------------------------------
       Use(Cdv)      # ifexmain, iallcall
       Use(Share)    # nycore,nysol,nxleg,nxcore,nxomit,isgrdsym,
                     # nyomitmx,geometry
-      Use(UEpar)    # svrpkg,,isnion,isupon,isupgon,isteon,
+      Use(UEpar)    # isnion,isupon,isupgon,isteon,
                     # istion,isngon,isphion
       Use(UEint)    # minu,ziin,newgeo,mhdgeo,isallloc
       Use(Lsode)    # neq,jacflg,jpre,ipar,ismmaxuc,mmaxu
       Use(Solver_work_arrays)   # liw,lrw,iwork
-      Use(Grid)     # inewton
       Use(Interp)   # nxold,nyold
       Use(Decomp)   # ubw,lbw
       Use(Jacobian)     # neqp1,nnzmx
@@ -66,15 +65,7 @@ cc      Use(Rccoef)
       id = 1
       call gallot("Stat",0)
 
-c...  reset inewton to unity if a Newton iteration is used
-      inewton = 0
-      if((svrpkg.eq.'nksol') .or. (svrpkg.eq.'petsc') .or. 
-     .                        (svrpkg.eq.'newton')) inewton = 1
 c...  Be sure nufak and dtreal are large if this is time-dependent run
-      if (inewton .eq. 0) then
-         nufak = 1.e-20
-         dtreal = 1.e20
-      endif
 
 c ... Set mesh dimensions and x-point parameters
       if (isallloc .eq. 0) then       # skip if allocating local proc
@@ -312,14 +303,8 @@ c...  treated independtly with flags bbb.ispfbcvsix and bbb.iswobcvsix where 0
 c...  yields uniform BCs versus ix and 1 utilizes array values set by user
       call setwallbcarrays
       
-      if (svrpkg .eq. "cvode" .or. svrpkg .eq. "kinsol") then
-        neqmx = neq      #cvode, kinsol allow no extra storage for yl
-      else
-        neqmx = neq + 2  #1st extra flag for Jac. calc; 2nd nufak=/1psuedo dt
-      endif
+      neqmx = neq + 2  #1st extra flag for Jac. calc; 2nd nufak=/1psuedo dt
 
-      if (svrpkg .eq. "cvode" .or. svrpkg .eq. "kinsol") neqmx = neq
-                                  #cvode, kinsol allow no extra storage
       neqp1 = neq + 1
       ipar(1) = neq
       ubw = (numvar+numvarbwpad)*(nx+ixpt2(nxpt)-max(0,ixpt1(1))+4)
@@ -333,25 +318,11 @@ c...  yields uniform BCs versus ix and 1 utilizes array values set by user
          lbw = neq       # use full matrix & search full range for Jacobian
       endif
       lda = 2*lbw + ubw + 1
-      if (jpre+jacflg+inewton .eq. 0) lda = 1
+      if (jpre+jacflg+1 .eq. 0) lda = 1
 c...  Increase of mmaxu with problem size is empirical
       if (ismmaxuc .eq. 1) mmaxu = neq**0.5
       if (ismmaxuc.eq.0 .and. icntnunk.eq.1) then
          call remark('WARNING: ismmaxuc=0 & icntnunk=1; Jac storage ok?')
-      endif
-c check to make sure premeth, inewton and svrpkg do not conflict.
-c when inewton=1 and svrpkg .ne. 'nksol', then premeth must equal
-c 'banded'.
-
-      if (inewton .eq. 1) then
-         if (svrpkg .ne. 'nksol' .and. svrpkg.ne.'petsc') then
-            if ((premeth .eq. 'ilut') .or. (premeth .eq. 'inel')) then
-              write(STDOUT,*) "*** Invalid option:  premeth=",premeth
-              write(STDOUT,*) "When using standard Newton, premeth ",
-     .                        "must equal banded."
-              call xerrab("")
-            endif
-         endif
       endif
 
 c ... Set maximum lengths for preconditioner arrays, and allocate
@@ -386,48 +357,11 @@ c save preconditioner reordering info for icntnunk=1 case.
       endif
 
 c ... Set lengths of work arrays for desired solver option.
-      if (svrpkg.eq.'newton') then
-         lrw = lwp
-         liw = liwp
-      elseif (svrpkg.eq.'vodpk') then
-         lrw = 17*neq + 61 + lwp
-         if (inopt.eq.1 .and. iworkin(8).gt.0) then
-            lrw = lrw + (neq + iworkin(8))*(iworkin(8) + 3) -
-     .                  (neq + 5)*(5 + 3)
-         endif
-         liw = 35 + liwp
-      elseif (svrpkg.eq.'cvode') then
-         # nothing to do for cvode, but this validates cvode as solver
-      elseif (svrpkg.eq.'daspk') then
-         if (iscolnorm .ne. 0) then
-            call xerrab('**** Set iscolnorm=0 for DASPK, then restart *')
-         endif
-         if (info(12).eq.0) then   # direct solution method with
-                                   # banded Jacobian supplied in jacd1
-            lrw = 50+(2*lbw+ubw+10)*neq
-            if (info(5).eq.0) lrw = lrw + 2*(neq/(lbw+ubw+1)+1)
-            liw = 40+neq
-         else                      # Krylov method
-            lrw = 18*neq+91+lwp
-            if (info(13) .eq. 1) then
-               lrw = lrw + (neq + iwork(24))*(iwork(24) + 3) -
-     .                     (neq + 5)*(5 + 3)
-            endif
-            liw = 40+liwp
-         endif
-         if (info(10).eq.1 .or. info(10).eq.3) liw = liw + neq
-         if (info(11).eq.1 .or. info(16).eq.1) liw = liw + neq
-         if (info(16).eq.1) lrw = lrw + neq
-      elseif (svrpkg.eq.'nksol' .or. svrpkg.eq.'petsc') then
 cc     sizes are set for mf=1 case; opt. input iwork(1)=mmaxu needed
 cc     do not reset if icntnunk=1 (saved Jac) as storage changes if mmaxu reset
          lenk = 6 + 4*neq + (neq+1)*mmaxu + 2*mmaxu*(mmaxu+1)
          lrw = 4 + 4*neq + lenk + lwp
          liw = 20 + mmaxu + liwp
-      else
-         write(STDOUT,*) "*** Invalid option:  svrpkg=",svrpkg
-         call xerrab("")
-      endif
 
 c ... Set maximum lengths of arrays to hold part of Jacobian matrix,
 c     and allocate space, if used.
@@ -505,18 +439,6 @@ c preserves preconditioner data for icntnunk=1
       call gallot("Jac_work_arrays",0)
       call gallot("Temporary_work_arrays",0)
 
-c ... Load optional inputs available only in this routine.
-cc      write(*,*) 'Just before nksol,iwork', '  iwork =', iwork
-cc      if (svrpkg .eq. 'nksol') then
-cc         iwork(3) = lwp
-cc         iwork(4) = liwp
-cc      elseif (svrpkg .eq. 'vodpk') then
-cc         iwork(1) = lwp
-cc         iwork(2) = liwp
-cc      elseif (svrpkg .eq. 'daspk' .and. info(12) .ne. 0) then
-cc         iwork(27) = lwp
-cc         iwork(28) = liwp
-cc      endif
 
 *  -- create memory space for interpolants for the grid sequencing. --
          if (ifexmain.eq.0 .or. iallcall.eq.0) then
@@ -781,7 +703,7 @@ c-----------------------------------------------------------------------
                     # nis,tes,tis,phis,ups,ngs,afracs,isimesh
       Use(UEpar)    # ngbackg,,isnion,isupon,isteon,istion,isngon,isphion
                     # isnionxy,isuponxy,isteonxy,istionxy,isngonxy,isphionxy
-                    # svrpkg,isphiofft,methg
+                    # isphiofft,methg
       Use(Coefeq)   # cngtgx,cngtgy,sxgpr,xstscal
       Use(Lsode)    # neq,ires,ipar,rpar,yl,yldot,srtolpk,rtolv,icntnunk
       Use(Ynorm)    # iscolnorm,norm_cons,floor_cons,var_scale_floor,
@@ -871,14 +793,12 @@ ccc      endif
 c ... Set flag carried in yl(neq+1) to -1. meaning no pseudo time-step
 c ... in the equations. Gets reset to 1.for Jac. calc. to use pseudo nufak
 c ... The inverse pseudo time-step, nufak, is stored in yl(neq+2)
-      if (svrpkg.ne.'cvode'.and.svrpkg.ne.'kinsol') then #not allowed for cvode
          yl(neq+1) = -1.
          if (inufaknk .eq. 1) then   # deter. if nufak is used in Krylov step
             yl(neq+2) = nufak
          else
             yl(neq+2) = 0.
          endif
-      endif
 
 c...  If geometry=dnbot and isudsym=0, reset isudsym = isupdown_sym flag
       if (geometry == 'dnbot' .and. isudsym == 0) then
@@ -968,12 +888,10 @@ c ... This call permanently commented out.  Not needed and conflicts
 c ... when performing continuation calls with NKSOL (icntnunk = 1).
 c      call sfill (neq, 1., sfscal(1), 1)
 
-c ... Set initial values of time-step arrays if svrpkg=nksol
-      if ((svrpkg .eq. "nksol") .or. (svrpkg.eq."petsc")) then
+c ... Set initial values of time-step arrays 
         call s2fill (nx+2, ny+2, 1.e20, dtoptx, 1, nx+2)
         call sfill (neq, 1.e20, dtoptv(:), 1)
         call sfill (neq, 1.e20, dtuse(:), 1)
-      endif
 
 c ... Set normalization constants for the yl variables seen by solvers.
 c     For implicit scaling (iscolnorm .ne. 0), these settings are
@@ -1480,60 +1398,6 @@ c ... Symmetrize the profiles in x-direction if isgrdsym=1
       call convert
 c...  Initializes the variables for the daspk package if this is the
 c...  method chosen.
-
-       if (svrpkg.eq.'daspk') then
-	 call pandf(-1,-1,ipar(1),tv,yl,yldot)
-         do 730 ifld = 1, nhsp
- 	 do 700 ix = 0, nx+1
-	   if(isnionxy(ix,0,   ifld)==1) yldot(idxn(ix,0,   ifld))=0.
-	   if(isnionxy(ix,ny+1,ifld)==1) yldot(idxn(ix,ny+1,ifld))=0.
-	   if(isuponxy(ix,0,   ifld)==1) yldot(idxu(ix,0,   ifld))=0.
-	   if(isuponxy(ix,ny+1,ifld)==1) yldot(idxu(ix,ny+1,ifld))=0.
-	   if(isteonxy(ix,0   )==1) yldot(idxte(ix,0   )) = 0.
-	   if(isteonxy(ix,ny+1)==1) yldot(idxte(ix,ny+1)) = 0.
-	   if(istionxy(ix,0   )==1) yldot(idxti(ix,0   )) = 0.
-	   if(istionxy(ix,ny+1)==1) yldot(idxti(ix,ny+1)) = 0.
-           do 698 igsp = 1, ngsp
-             if(isngonxy(ix,0,   igsp)==1) yldot(idxg(ix,0,   igsp))=0.
-	     if(isngonxy(ix,ny+1,igsp)==1) yldot(idxg(ix,ny+1,igsp))=0.
-  698      continue
-
-  700    continue
-         do 701 iy = 1, ny
-	   if(isnionxy(0,iy,   ifld)==1) yldot(idxn(0,iy,   ifld)) = 0.
-	   if(isnionxy(nx+1,iy,ifld)==1) yldot(idxn(nx+1,iy,ifld)) = 0.
-	   if(isuponxy(0,iy,   ifld)==1) yldot(idxu(0,   iy,ifld)) = 0.
-	   if(isuponxy(nx+1,iy,ifld)==1) yldot(idxu(nx+1,iy,ifld)) = 0.
-	   if(isteonxy(0,   iy)==1) yldot(idxte(0,   iy)) = 0.
-	   if(isteonxy(nx+1,iy)==1) yldot(idxte(nx+1,iy)) = 0.
-	   if(istionxy(0,   iy)==1) yldot(idxti(0,   iy)) = 0.
-	   if(istionxy(nx+1,iy)==1) yldot(idxti(nx+1,iy)) = 0.
-           do 699 igsp = 1, ngsp
-             if(isngonxy(0,   iy,igsp)==1) yldot(idxg(0,   iy,igsp)) = 0.
-	     if(isngonxy(nx+1,iy,igsp)==1) yldot(idxg(nx+1,iy,igsp)) = 0.
-  699      continue
-  701    continue
-  730    continue
-         do ifld = 1, nzspt
-           do ix = 0, nx+1
-	     if (isnionxy(ix,0,nhsp+ifld)==1)
-     .                             yldot(idxn(ix,0,nhsp+ifld)) = 0.
-	     if (isnionxy(ix,ny+1,nhsp+ifld)==1)
-     .                             yldot(idxn(ix,ny+1,nhsp+ifld)) = 0.
-           enddo
-           do iy = 1, ny
-	     if (isnionxy(0,iy,nhsp+ifld)==1)
-     .                             yldot(idxn(0,iy,nhsp+ifld)) = 0.
-	     if (isnionxy(nx+1,iy,nhsp+ifld)==1)
-     .                             yldot(idxn(nx+1,iy,nhsp+ifld)) = 0.
-           enddo
-         enddo
-         do 702 iy = 0, ny+1
-            do 703 ix = 0, nx+1
-	       if(isphionxy(ix,iy)==1) yldot(idxphi(ix,iy)) = 0.
-  703        continue
-  702    continue
-       endif   #ends if(svrpkg.eq.'daspk')
 *---  bbbbbbbb ifloop b else  bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
       else
 *---  bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
@@ -1873,52 +1737,6 @@ c...  Initialize dead pol guard cells if core-only simulation
       endif
          
       call convert
-      if (svrpkg.eq.'daspk') then
-	 call pandf(-1,-1,ipar(1),tv,yl,yldot)
- 	 do 800 ix = 0, nx+1
-           do ifld = 1, nisp
-             if(isnionxy(ix,0,ifld)==1) yldot(idxn(ix,0,ifld)) = 0.
-             if(isnionxy(ix,ny+1,ifld)==1) yldot(idxn(ix,ny+1,ifld))=0.
-           enddo
-           do ifld = 1, nusp
-             if(isuponxy(ix,0,ifld)==1) yldot(idxu(ix,0,ifld)) = 0.
-             if(isuponxy(ix,ny+1,ifld)==1) yldot(idxu(ix,ny+1,ifld))=0.
-           enddo
-           if(isteonxy(ix,0)==1) yldot(idxte(ix,0)) = 0.
-           if(isteonxy(ix,ny+1)==1) yldot(idxte(ix,ny+1)) = 0.
-           if(istionxy(ix,0)==1) yldot(idxti(ix,0)) = 0.
-           if(istionxy(ix,ny+1)==1) yldot(idxti(ix,ny+1)) = 0.
-           do 798 igsp = 1, ngsp
-             if(isngonxy(ix,0,igsp)==1) yldot(idxg(ix,0,igsp)) = 0.
-             if(isngonxy(ix,ny+1,igsp)==1) yldot(idxg(ix,ny+1,igsp))=0.
-  798      continue
-
-  800    continue
-         do 801 iy = 1, ny
-           do ifld = 1, nisp
-             if(isnionxy(0,iy,ifld)==1) yldot(idxn(0,iy,ifld)) = 0.
-             if(isnionxy(nx+1,iy,ifld)==1) yldot(idxn(nx+1,iy,ifld))=0.
-           enddo
-           do ifld = 1, nusp
-             if(isuponxy(0,iy,ifld)==1) yldot(idxu(0,iy,ifld)) = 0.
-             if(isuponxy(nx+1,iy,ifld)==1) yldot(idxu(nx+1,iy,ifld))=0.
-           enddo
-           if(isteonxy(0,iy)==1) yldot(idxte(0,iy)) = 0.
-           if(isteonxy(nx+1,iy)==1) yldot(idxte(nx+1,iy)) = 0.
-           if(istionxy(0,iy)==1) yldot(idxti(0,iy)) = 0.
-           if(istionxy(nx+1,iy)==1) yldot(idxti(nx+1,iy)) = 0.
-           do 799 igsp = 1, ngsp
-             if(isngonxy(0,iy,igsp)==1) yldot(idxg(0,iy,igsp)) = 0.
-             if(isngonxy(nx+1,iy,igsp)==1) yldot(idxg(nx+1,iy,igsp))=0.
-  799      continue
-  801    continue
-         do 802 iy = 0, ny+1
- 	    do 803 ix = 0, nx+1
- 	      if(isphionxy(ix,iy)==1) yldot(idxphi(ix,iy)) = 0.
-  803       continue
-  802    continue
-      endif
-
 *     ------------------------------------------------------------------
 
 
@@ -3746,21 +3564,8 @@ c ... send indices for domain decomposition to each processor
           iv = iv + 1
           visend(iv) = idcorng(id,ic)
         enddo
-    
-cpetsc*        MPI_SEND() to mype hangs. Copy visend to the temp array visendl_mype.
-cpetsc        if (id-1 .eq. mype) then
-cpetsc          do ic = 1,iv_toti(id)
-cpetsc            visendl_mype(ic) = visend(ic)
-cpetsc          enddo
-cdb_senddc          write(6,*) "[",mype,"]  send_dc_ind() copy to visendl, iv=",iv,"visendl_mype((2)=",visendl_mype(2)
-cdb_senddc          call flush(6)
-cpetsc        else
-cdb_senddc          write(6,*) " [",mype,"] MPI_SEND() iv=",iv," to [",id-1,"] typeind ",typeind
-cdb_senddc          call flush(6)
-c_mpi         call MPI_SEND(visend, iv_toti(id), MPI_UE_INT, id-1, typeind,
-c_mpi     .                   uedgeComm, ierr)
-cpetsc        endif
-      enddo
+
+       enddo
 
       return
       end
@@ -3792,16 +3597,6 @@ c     To be certain, do
 
 c ... local variables
       integer iv, ic
-
-c ... Receive and unpack indices for domain decomposition to each processor
-cpetsc      if (mype .ne. 0) then
-c_mpi         call MPI_RECV(visendl, iv_toti(id), MPI_UE_INT, 0, typeind,
-c_mpi     .                 uedgeComm, status, ierr)
-cpetsc      else
-cpetsc        do ic = 1,iv_toti(id)
-cpetsc          visendl(ic) = visendl_mype(ic)
-cpetsc        end do
-cpetsc      end if
 
       iv = 1
       nx_loc = visendl(iv)
@@ -3910,18 +3705,6 @@ c ... input variables
 
 c ... local variables
       integer iv
-
-c ... Receive and unpack indices for domain decomposition to each processor
-cpetsc      if (mype .ne. 0) then
-c_mpi          call MPI_RECV(visendl,2*neq_locl, MPI_UE_INT, 0, typeylind,
-c_mpi     .                 uedgeComm, status, ierr)
-cdb_ylmap          write(6,*) "[",mype,"] MPI_RECV yl_map from 0"
-cdb_ylmap          call flush(6)
-c_mpi         do iv = 1, neq_locl
-c_mpi	        ivloc2sdgl(iv) = visendl(iv)
-c_mpi	        ivloc2mdgl(iv) = visendl(iv+neq_locl)
-c_mpi         enddo
-cpetsc      endif
 
       return
       end
@@ -4248,12 +4031,6 @@ c ... Pack and send global plasma variables to different processor
 	if (iv > nvrsend) then
 	  call xerrab('**ERROR sendglobal: iv_totc>nvrsend; reset nvrsend')
         endif
-
-cpetsc        if (id-1 .eq. mype) then
-cpetsc          do ic = 1,iv
-cpetsc            vrsendlv_mype(ic) = vrsend(ic)
-cpetsc          enddo
-cpetsc        endif
       enddo
 
 c ... Pack and send geometry and magnetic values
@@ -4298,12 +4075,6 @@ c ... Pack and send geometry and magnetic values
 	if (iv > nvrsend) then
 	  call xerrab('**ERROR sendglobal: iv_totcz>nvrsend; reset nvrsend')
         endif
-
-cpetsc        if (id-1 .eq. mype) then
-cpetsc          do ic = 1,iv
-cpetsc            vrsendlz_mype(ic) = vrsend(ic)
-cpetsc          enddo
-cpetsc        endif
       enddo
 
       return
@@ -4386,17 +4157,6 @@ c ... Pack and send global plasma variables to different processor
 	if (iv > nvrsend) then
 	  call xerrab('**ERROR sendglobal: iv_totc>nvrsend; reset nvrsend')
         endif
-
-cpetsc        if (id-1 .eq. mype) then
-cpetsc          do ic = 1,iv
-cpetsc            vrsendlv_mype(ic) = vrsend(ic)
-cpetsc          enddo
-cpetsc        else
-cdb_sendglobal          write(6,*) " [",mype,"] sendglobal MPI_SEND() to [",id-1,"] iv ",iv," typev ",typev
-cdb_sendglobal          call flush(6)
-c_mpi           call MPI_SEND(vrsend, iv, MPI_DOUBLE_PRECISION, id-1, typev,
-c_mpi     .                   uedgeComm, ierr)
-cpetsc        endif
       enddo
 
 c ... Pack and send geometry and magnetic values
@@ -4441,17 +4201,6 @@ c ... Pack and send geometry and magnetic values
 	if (iv > nvrsend) then
 	  call xerrab('**ERROR sendglobal: iv_totcz>nvrsend; reset nvrsend')
         endif
-
-cpetsc        if (id-1 .eq. mype) then
-cpetsc          do ic = 1,iv
-cpetsc            vrsendlz_mype(ic) = vrsend(ic)
-cpetsc          enddo
-cpetsc        else
-cdb_sendglobal          write(6,*) " [",mype,"] sendglobal MPI_SEND() to [",id-1,"] iv ",iv," typerz ",typerz
-cdb_sendglobal          call flush(6)
-c_mpi           call MPI_SEND(vrsend, iv, MPI_DOUBLE_PRECISION, id-1, typerz,
-c_mpi     .                   uedgeComm, ierr)
-cpetsc        endif
       enddo
 
       return
@@ -4487,17 +4236,6 @@ c ... input variables
 
 c ... local variables
       integer ix, iy, iv, ifld, igsp, ic
-
-c ... Receive and unpack plasma variables
-cpetsc      if (mype .ne. 0) then
-c_mpi         call MPI_RECV(vrsendl, iv_totv(id), MPI_DOUBLE_PRECISION, 0,
-c_mpi     .                typev, uedgeComm, status, ierr)
-cpetsc      else
-cpetsc        do ic = 1,iv_totv(id)
-cpetsc          vrsendl(ic) = vrsendlv_mype(ic)
-cpetsc        end do
-cpetsc      end if
-
       iv = 0
       do iy = 0, ny_loc+1
         do ix = 0, nx_loc+1
@@ -4528,16 +4266,6 @@ cpetsc      end if
           afracs(ix,iy) = vrsendl(iv)
         enddo
       enddo
-
-c ... Receive and unpack geometry and magnetic values
-cpetsc      if (mype .ne. 0) then
-c_mpi         call MPI_RECV(vrsendl, iv_totrz(id), MPI_DOUBLE_PRECISION, 0,
-c_mpi     .                typerz, uedgeComm, status, ierr)
-cpetsc      else
-cpetsc        do ic = 1,iv_totrz(id)
-cpetsc          vrsendl(ic) = vrsendlz_mype(ic)
-cpetsc        end do
-cpetsc      end if
       iv = 0
       do iy = 0, ny_loc+1
         do ix = 0, nx_loc+1
@@ -4641,17 +4369,6 @@ c ... Pack and send global plasma variables to different processor
 	if (iv > nvrsend) then
 	  call xerrab('**ERROR sendglobal: iv_totc>nvrsend; reset nvrsend')
         endif
-
-cpetsc        if (id-1 .eq. mype) then
-cpetsc          do ic = 1,iv
-cpetsc            vrsendlv_mype(ic) = vrsend(ic)
-cpetsc          enddo
-cpetsc        else
-c_mpi           call MPI_SEND(vrsend, iv, MPI_DOUBLE_PRECISION, id-1, typev,
-c_mpi     .                   uedgeComm, ierr)
-cdb_sendglobal_xpt           write(6,*) " [",mype,"] sendglobal_xpt MPI_SEND() to [",id-1,"] typev ",typev
-cdb_sendglobal_xpt           call flush(6)
-cpetsc      endif
       enddo
 
 c ... Pack and send geometry and magnetic values
@@ -4691,20 +4408,8 @@ c ... Pack and send geometry and magnetic values
 c        iv_totrz(id) = iv
 
         if (iv > nvrsend) then
-          call xerrab('**ERROR sendglobal:iv_totcz>nvrsend;reset nvrsend')
+        call xerrab('**ERROR sendglobal:iv_totcz>nvrsend;reset nvrsend')
         endif
-
-cpetsc        if (id-1 .eq. mype) then
-cpetsc          do ic = 1,iv
-cpetsc            vrsendlz_mype(ic) = vrsend(ic)
-cpetsc          enddo
-cpetsc        else
-c_mpi           call MPI_SEND(vrsend, iv, MPI_DOUBLE_PRECISION, id-1, typerz,
-c_mpi     .                   uedgeComm, ierr)
-cdb_sendglobal_xpt           write(6,*) " [",mype,"] sendglobal_xpt MPI_SEND() to [",id-1,"] typerz ",typerz
-cdb_sendglobal_xpt           call flush(6)
-cpetsc       endif
-
       enddo
 
       return
@@ -6601,10 +6306,10 @@ c ---------------------------------------------------------------------c
       Use(Math_problem_size)   # neqmx(for arrays not used here)
       Use(UEpar)    # cnurn,cnuru,cnure,cnuri,cnurg,cnurp,
                     # nurlxn,nurlxu,nurlxe,nurlxi,nurlxg,nurlxp,
-                    # label,svrpkg, istgon
+                    # label, istgon
       Use(Ident_vars)          # uedge_ver
       Use(Lsode)    # iterm,icntnunk
-      Use(Grid)     # ngrid,inewton,imeth,nurlx,ijac,ijactot
+      Use(Grid)     # ngrid,nurlx,ijac,ijactot
       Use(Decomp)   # ubw,lbw
       Use(Share)    # 
       Use(Interp)   # isnintp,nxold,nyold
@@ -6773,7 +6478,6 @@ c... Roadblockers for  call to pandf through openmp structures (added by J.Guter
 
 c_mpi         call MPI_BARRIER(uedgeComm, myfoo)
 
-         imeth = inewton
          ijac = 0
          nurlxn = cnurn*nurlx
          nurlxu = cnuru*nurlx
@@ -6785,8 +6489,8 @@ c_mpi         call MPI_BARRIER(uedgeComm, myfoo)
 
 *     -- For the continuation mode (icntnunk=1), be sure a Jacobian was
 *     -- calculated on the previous step, i.e., ijac > 0
-         if (icntnunk==1 .and. ijactot<=1 .and. svrpkg=='nksol') then
-            call xerrab('**Error: need initial Jacobian-pair for icntnunk=1')
+         if (icntnunk==1 .and. ijactot<=1) then
+        call xerrab('**Error: need initial Jacobian-pair for icntnunk=1')
          endif
 
 c     -- Reinitialize ijactot if icntnunk = 0; prevents ijactot=2 by 2 exmain
@@ -6815,12 +6519,12 @@ c ...    If a parallel run, send and gather data to PE0 first
             nxold = nx
             nyold = ny
             call gchange("Interp",0)
-            if (((svrpkg .ne. 'nksol') .and. (svrpkg.ne."petsc")).or. iterm .eq. 1) then
+            if ( iterm .eq. 1) then
                call gridseq
                call comp_vertex_vals  # gen plasma/neut values at rm,zm(,,4)
             endif
          elseif (isnintp .eq. 1 .and. mype <= 0) then
-            if (((svrpkg .ne. 'nksol') .and. (svrpkg.ne."petsc")) .or. iterm .eq. 1) then
+            if ( iterm .eq. 1) then
                nxold = nx
                nyold = ny
                if(ismpion == 0) then
@@ -6837,28 +6541,6 @@ c ...    If a parallel run, send and gather data to PE0 first
       return
       end
 c --** End of subroutine exmain *********************************
-
-c-----------------------------------------------------------------------
-      subroutine uedge_petscInsertOpts
-c     subroutine simply calls PetscInsertOptions in uedge/svr/petsc-uedge.F90
-c     This is just a device to allow calling from the Python or CXX wrapper
-cpetsc    
-cpetsc      call PetscInsertOpts()
-      return
-      end
-c --** End of subroutine uedge_petscFinal
-c
-c-----------------------------------------------------------------------
-      subroutine uedge_petscFinal
-
-c     Subroutine simply calls PetscFinalizeWrap in uedge/svr/petsc-uedge.F90
-c     This is just a device to allow calling from the Python or CXX wrapper
-
-cpetsc      call PetscFinalizeWrap()
-      return
-      end
-c --** End of subroutine uedge_petscFinal
-
 c-----------------------------------------------------------------------
       subroutine uedge_mpiFinal
 
@@ -7460,7 +7142,6 @@ c_mpi      uedgeComm = COMM
 !         write (*, *) "set_uedgeComm: UEDGE has communicator, ", uedgeComm,
 !     . ", and ", npes, " processors on that."
       endif
-cpetsc      call PetscInitWrap()
       return
       end
 
@@ -7485,15 +7166,6 @@ c_mpi         lcomm = mpi_comm_world
        endif
       return
       end
-
-c ...........................................................
-      subroutine uedge_petscInit
-c...  Sets the communicator
-c****
-cpetsc      call PetscInitWrap()
-      return
-      end
-
 c ...........................................................
       INTEGER FUNCTION MY_PE()
 c...  Returns processor number for calling PE.  0 if serial.

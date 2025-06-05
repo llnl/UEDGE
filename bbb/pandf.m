@@ -367,30 +367,10 @@ c  the perturbed variables are reset below to get Jacobian correct
 
       END SUBROUTINE calc_rhs
 
-      SUBROUTINE check_kaboom
-      IMPLICIT NONE      
-      Use(UEpar)
-      character*80 msgjm
-      integer nrcv, ierrjm, ijmgetmr
-c
-c     Check if "k" or "kaboom" has been typed to jump back to the parser
-c
-      if (((svrpkg.eq.'nksol') .or. (svrpkg.eq.'petsc')) .and. iskaboom.eq.1) then
-                              #can only call once - preserves 's' in vodpk
-        ierrjm = ijmgetmr(msgjm,80,1,nrcv)
-        if (ierrjm .eq. 0) then
-          if (msgjm(1:nrcv).eq.'kaboom' .or. msgjm(1:nrcv).eq.'k')then
-            call xerrab("")
-          endif
-        endif
-      endif
-      END SUBROUTINE check_kaboom
-
-
       SUBROUTINE add_timestep(neq, yl, yldot)
       IMPLICIT NONE
       Use(Dim)     # nusp,nisp,ngsp
-      Use(UEpar)   # svrpkg,isbcwdt,isnionxy,isuponxy,isteonxy,istionxy,
+      Use(UEpar)   # isbcwdt,isnionxy,isuponxy,isteonxy,istionxy,
                    # isngonxy,isphionxy
       Use(Time_dep_nwt)   # nufak,dtreal,ylodt,dtuse
       Use(Indexes) # idxn,idxg,idxu,dxti,idxte,idxphi
@@ -534,9 +514,6 @@ c    yldot is the RHS of ODE solver or RHS=0 for Newton solver (NKSOL)
       real tick, tock, tsfe, tsjf, tsnpg
       external tick, tock
 
-c
-c     Check if "k" or "kaboom" has been typed to jump back to the parser
-      call check_kaboom
 
 c     check if a "ctrl-c" has been type to interrupt - from basis
       call ruthere
@@ -716,14 +693,8 @@ c ... Now add psuedo or real timestep for nksol method, but not both
 
 c...  Add a real timestep, dtreal, to the nksol equations 
 c...  NOTE!! condition yl(neq+1).lt.0 means a call from nksol, not jac_calc
-
-      if(dtreal < 1.e15) then
-       if((svrpkg=='nksol' .and. yl(neq+1)<0) .or. svrpkg == 'petsc') then
-        call add_timestep(neq, yl, yldot)
-       endif   #if-test on svrpkg and yl(neq+1)
-      endif    #if-test on dtreal
-
-
+      if((dtreal < 1.e15).and.(yl(neq+1)<0)) 
+     .  call add_timestep(neq, yl, yldot)
 
       return
       END SUBROUTINE pandf

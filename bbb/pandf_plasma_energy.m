@@ -619,22 +619,6 @@ c...  Electron radiation loss -- ionization and recombination
         enddo
       enddo
 
-ccc         if (ishosor.eq.1) then  #full RHS eval
-ccc
-ccc           if (svrpkg.eq."cvode") then    # cannot access yl(neq+1)
-ccc            call xerrab('*** svrpkg=cvode not allowed for ishosor=1 **')
-ccc           endif 
-ccc
-ccc           if (yl(neq+1).lt.0) then  #full RHS eval
-ccc
-cccc ...    integ. source over cells (but not for Jac) for higher-order accuracy
-ccc
-ccc             call volave(nx, ny, j2, j5, i2, i5, ixp1(0,0), ixm1(0,0),
-ccc     .                         fsprd, vol(0,0), psor_tmpov(0,0), vsoree)
-ccc       
-ccc           endif   # end of if (yl(neq+1).lt.0) test
-ccc         endif    # end of integrating over sources and ishosor test
-
 c*************************************************************
 c   Perform 5pt average of source terms as volume integral
 c*************************************************************

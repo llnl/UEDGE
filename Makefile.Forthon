@@ -40,8 +40,8 @@ $(BUILDDIR)/grdpydep: $(BUILDDIR)/compydep grd/grdcomp.F grd/grddriv.F grd/grdin
 	$(FORTHON) -a $(INSTALLARGS)  -a $(FCOMP) $(DEBUG) --interfacefile grd/grd.v -d com -f grd/grdcomp.F grd grd/grddriv.F grd/grdinit.F grd/grdread.F grd/grdwrit.F
 	touch $@
 
-$(BUILDDIR)/svrpydep: $(BUILDDIR)/bbbpydep svr/daspk.F svr/nksol.F svr/svrut1.F svr/svrut2.F svr/svrut3.F svr/svrut4.F svr/vodpk.F svr/uoa.F svr/daux1.f svr/$(PETSC-UEDGE) svr/svr.v
-	$(FORTHON) -a $(INSTALLARGS)  -a $(FCOMP) $(DEBUG) --interfacefile svr/svr.v --macros bbb/bbb.v -d bbb -f svr/daspk.F svr svr/nksol.F svr/svrut1.F svr/svrut2.F svr/svrut3.F svr/svrut4.F svr/vodpk.F svr/uoa.F svr/daux1.f $(PETSC-UEDGE)
+$(BUILDDIR)/svrpydep: $(BUILDDIR)/bbbpydep svr/nksol.F svr/svrut1.F svr/svrut2.F svr/svrut3.F svr/svrut4.F svr/uoa.F svr/daux1.f svr/$(PETSC-UEDGE) svr/svr.v
+	$(FORTHON) -a $(INSTALLARGS)  -a $(FCOMP) $(DEBUG) --interfacefile svr/svr.v --macros bbb/bbb.v -d bbb -f svr/nksol.F svr svr/svrut1.F svr/svrut2.F svr/svrut3.F svr/svrut4.F svr/uoa.F svr/daux1.f $(PETSC-UEDGE)
 	touch $@
 
 $(BUILDDIR)/wdfpydep: wdf/wdf.F wdf/wdf.v

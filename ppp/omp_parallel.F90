@@ -407,7 +407,6 @@ END SUBROUTINE InitOMPPandf1
     USE ParallelDebug, ONLY: WriteJacobian,OMPJacDebug
     USE Flags, ONLY: iprint
     USE OMPJac, ONLY:iJacCol,rJacElem,iJacRow,OMPivmin,OMPivmax,nnz,nnzcum,OMPLoadWeight,OMPTimeLocalJac
-    USE UEpar, ONLY: svrpkg
     USE Math_problem_size, ONLY:neqmx
     IMPLICIT NONE
     ! ... Input arguments:
@@ -476,7 +475,7 @@ END SUBROUTINE InitOMPPandf1
     !   Count Jacobian evaluations, both for total and for this case
     ijactot = ijactot + 1
     ijac = ijac + 1
-    if ((svrpkg.eq.'nksol') .and. (iprint .ne. 0)) then
+    if (iprint .ne. 0) then
         write(*,'(a,i4,a,i6,a,i9)') ' Updating OMP Jacobian [', &
                     Nthreads,'|',NchunksJac, ']: npe = ', ijac
     endif
@@ -892,7 +891,7 @@ END SUBROUTINE OMPSplitIndex
 
 
     SUBROUTINE OMPPandf(neq, yl, yldot, range)
-      USE UEpar, ONLY: isphion, svrpkg, isphiofft
+      USE UEpar, ONLY: isphion, isphiofft
       USE PandfTiming, ONLY: TimePandf, TotTimePandf, TimingPandfOn, &
       &     TimeNeudif, TotTimeNeudif
       USE Ynorm, ONLY: isflxvar, isrscalf
@@ -1013,19 +1012,14 @@ END SUBROUTINE OMPSplitIndex
         ! equations are not reordered.
         if(isflxvar.ne.1 .and. isrscalf.eq.1) call rscalf(yl,yldot)
 
-        if(dtreal < 1.e15) then
-            if ( &
-            &   (svrpkg=='nksol' .and. yl(neq+1)<0) &
-            &   .or. svrpkg == 'petsc' &
-            & ) then
-                call add_timestep(neq, yl, yldot)
-            endif   !if-test on svrpkg and ylcopy(neq+1)
-        endif    !if-test on dtreal
+        if ( (yl(neq+1)<0).and. (dtreal < 1.e15)) &
+        &           call add_timestep(neq, yl, yldot)
+
     END SUBROUTINE OMPPandf
 
 
     SUBROUTINE OMPPandf_XPT(neq, yl, yldot, ranges)
-      USE UEpar, ONLY: isphion, svrpkg, isphiofft
+      USE UEpar, ONLY: isphion, isphiofft
       USE PandfTiming, ONLY: TimePandf, TotTimePandf, TimingPandfOn, &
       &     TimeNeudif, TotTimeNeudif
       USE Ynorm, ONLY: isflxvar, isrscalf
@@ -1194,17 +1188,12 @@ END SUBROUTINE OMPSplitIndex
             call OMPinitialize_ranges2d(ranges(ii,:))
             if(isflxvar.ne.1 .and. isrscalf.eq.1) call rscalf(yl,yldot)
         end do
-        if(dtreal < 1.e15) then
-            if ( &
-            &   (svrpkg=='nksol' .and. yl(neq+1)<0) &
-            &   .or. svrpkg == 'petsc' &
-            & ) then
+        if((dtreal < 1.e15).and.(yl(neq+1)<0)) then
                 do ii = 1, 2
                     call OMPinitialize_ranges2d(ranges(ii,:))
                     call add_timestep(neq, yl, yldot)
                 end do
-            endif   !if-test on svrpkg and ylcopy(neq+1)
-        endif    !if-test on dtreal
+        endif   
 
 
 

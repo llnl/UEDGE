@@ -5,7 +5,7 @@ VDF = svr.v
 
 NVDF = ../bbb/bbb.v
 
-SU = daspk.m nksol.m svrut1.m svrut2.m svrut3.m svrut4.m vodpk.m
+SU = nksol.m svrut1.m svrut2.m svrut3.m svrut4.m
 SM = uoa.m
 
 SYSTEM SUN4 HP700 SOL SGI RS6000 AXP CS2 IRIX64 LINUX MACOSX

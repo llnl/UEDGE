@@ -1048,7 +1048,7 @@ c ... Common blocks:
       Use(Jacobian_clipping)       # jaccliplim,istopjac,irstop,icstop
       Use(Jacobian_csc)            # rcsc,jcsc,icsc,yldot_pert
       Use(Ynorm)                   # suscal,sfscal
-      Use(UEpar)                   # isphion,isnewpot,svrpkg,isbcwdt
+      Use(UEpar)                   # isphion,isnewpot,isbcwdt
       Use(Model_choice)            # iondenseqn
       Use(Imprad)                  # isimpon
       Use(Bcond)                   # isextrnpf,isextrtpf,isextrngc,
@@ -1079,7 +1079,7 @@ c ... Pause from BASIS if a ctrl_c is typed
 
       ijac = ijac + 1
 
-      if ((svrpkg.eq.'nksol') .and. (iprint .ne. 0)) 
+      if (iprint .ne. 0)
      .      write(*,*) ' Updating Jacobian, npe =  ', ijac
 
 c ... Set up diagnostic arrays for debugging
@@ -1168,7 +1168,7 @@ c ... Note that iv is the row (eqn) index and ii is column (var) index
             jacelem = (wk(ii) - yldot00(ii)) / dyl
 ccc            jacelem = (wk(ii) - yldot0(ii)) / (2*dyl)  # for 2nd order Jac
 c ...  Add diagonal 1/dt for nksol
-            if (((svrpkg.eq."nksol") .or. (svrpkg.eq."petsc")) .and. iv.eq.ii) then
+            if (iv.eq.ii) then
               if (iseqalg(iv)*(1-isbcwdt).eq.0) then
                 jacelem = jacelem - 1/dtuse(iv)
               endif
@@ -1180,10 +1180,6 @@ c ...  Add diagonal 1/dt for nksol
             endif
 
 c ...  Add a pseudo timestep to the diagonal ## if eqn is not algebraic
-            if (svrpkg .ne. "cvode" .and. nufak .gt. 0) then
-               if (iv.eq.ii .and. yl(neq+1).eq.1) 
-     .             jacelem = jacelem - nufak  #omit .and. iseqalg(iv).eq.0)
-            endif
             if (abs(jacelem*sfscal(ii)) .gt. jaccliplim) then
                if (nnz .gt. nnzmx) then
                   write(STDOUT,*)
@@ -1215,12 +1211,6 @@ c ... Restore dependent variable yl & assoicated plasma vars near perturbation
          yl(iv) = yold
          call pandf (xc, yc, neq, t, yl, wk)
 
-c...  If this is the last variable before jumping to new cell, reset pandf 
-ccc  Call not needed because goto 18 svrpkg=daspk option disabled above
-ccc         if (mod(iv,numvar).eq.0 .and. isjacreset.ge.1) then
-ccc            call pandf1 (xc, yc, iv, neq, t, yl, wk)
-ccc         endif
-   
 c ... End loop over dependent variables and finish Jacobian storage.
 c##############################################################      
       enddo             # end of main iv-loop over yl variables
@@ -2197,7 +2187,7 @@ c       fpsol      fpreco
 
 c ... Input arguments:
       integer neq      # total number of equations (all grid points)
-      logical usingsu  # .true. if su is used (svrpkg = "nksol" only)
+      logical usingsu  # .true. if su is used 
       real su(neq)     # scale factors for yl
       real wp(*)       # matrix elements of LU
       integer iwp(*)   # dimensions and array indices for elements of LU
@@ -2218,7 +2208,7 @@ c ... Common blocks:
       Use(Preconditioning)   # premeth
       Use(Jacreorder)        # perm,qperm,ireorder
       Use(Dim)               # nisp,ngsp
-      Use(UEpar)             # svrpkg (used to reset usingsu for daspk)
+      Use(UEpar)             # 
 
 c ... Function:
 
@@ -2233,7 +2223,7 @@ c ... Get initial value of system cpu timer.
       tsmatsol = tick()
 
 c ... Scale c by multiplying by row-normalization factors, if used,
-c     and by column scaling vector su (for svrpkg='nksol' only).
+c     and by column scaling vector su 
       if (isrnorm .eq. 1) then
          do i = 1, neq
             bl(i) = bl(i) * fnormnw(i)
@@ -2270,12 +2260,8 @@ c     diagonal storage format.
          call minvmul (neq, ndiag, ndiagm, wp, iwp(3), wk, bl)
       endif
 
-c ... Divide solution x by column-scaling factors (for svrpkg='nksol').
+c ... Divide solution x by column-scaling factors 
       if (usingsu) then
-         do i = 1, neq
-            bl(i) = wk(i) / su(i)
-         enddo
-      elseif (svrpkg.eq."daspk" .and. jscalcol.eq.1) then
          do i = 1, neq
             bl(i) = wk(i) / su(i)
          enddo
@@ -2362,7 +2348,7 @@ c ... Also find initial maximum of yldot*sf = ydt_max0 for scaling nufak
 c-----------------------------------------------------------------------
       subroutine set_dt(neq, yl, f0)
 
-c ... Calculates the time step to be used with svrpkg="nksol" based
+c ... Calculates the time step to be used with "nksol" based
 c ... on dtreal and various cases of (yl/yldot)
 
       implicit none
@@ -2702,7 +2688,6 @@ c ... Common blocks:
       Use(Lsode)      # neq,yldot
       Use(Ynorm)      # sfscal
       Use(Jacobian)   # jac,jacj,jaci
-      Use(UEpar)      # svrpkg
 
 c ... Local variables:
       integer i, us, ifmt
@@ -2710,11 +2695,9 @@ c ... Local variables:
       character*72 title
 
 c ... For the nksol solver, scale the right-hand side.
-      if ((svrpkg .eq. 'nksol') .or. (svrpkg.eq.'petsc')) then
          do i = 1, neq
             yldot(i) = yldot(i) * sfscal(i)
          enddo
-      endif
 
 c ... Open a file, and output data.
       call freeus (us)

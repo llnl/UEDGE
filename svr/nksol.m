@@ -710,8 +710,6 @@ c the blas collection (basic linear algebra modules).
 c intrinsic fortran routines.. abs, sqrt, min, max, float, sign.
 c-----------------------------------------------------------------------
 
-cpetsc      Use PETSc_Snes_Param
-
 c local variables
       implicit none
       integer n, lrw, iwork, liw, iopt, iterm, mf, mdif, ipflag
@@ -1080,13 +1078,6 @@ c-----------------------------------------------------------------------
 c     call nkstop to check if tolerances are met.
 c-----------------------------------------------------------------------
       fnrm = sqrt(two*f1nrmp)
-cpetscc  Send output stuff for comparison to SNES
-cpetsc      if (iter <= psp_snesits) then
-cpetsc        nksolfnrm(iter+1)=fnrm
-cpetsc        nksoltime(iter+1)=gettime(sec4)
-cpetsc        nksollinits(iter+1)=nli
-cpetsc        nksolfeval(iter+1)=nfe
-cpetsc      endif
       # we add here a trap for aborted exmain when 'stop' is called. Added by J.Guterl
       if (exmain_aborted) call xerrab('exmain aborted...')
       call nkstop(n,u,rwork(lup),savf,fnrm,su,sf,stptol,rwork(lx),
