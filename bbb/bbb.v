@@ -2977,7 +2977,6 @@ premeth character*8 /"ilut"/  # type of preconditioning used in the
                               # ="banded" means use full banded jacobian as
                               #  preconditioner. Also used with mfnksol=4
                               # ="ilut" means use ilut preconditioning.
-                              # ="inel" means use INEL ILU preconditioning
 lenpfac        integer   /60/ # fudge factor to multiply neq by to get an
                               # estimate for the number of nonzeros in the
                               # preconditioner matrix.
@@ -3038,16 +3037,7 @@ ndiagmx        integer  /100/ # maximum number of nonzero diagonals in the
                               # Jacobian matrix
 ndiag          integer        # actual number of nonzero diagonals in the
                               # Jacobian matrix
-lfilinel       integer   /0/  # fill-in parameter used in INEL preconditioner
-                              # lfilinel= number of additional diagonals
-                              # used in the INEL ILU preconditioner
-                              # lfilinel+ndiag .le. ndiagmx.
-ndiagm         integer        # number of nonzero diagonals stored in the
-                              # INEL ILU preconditioner
-                              # = min(lfilinel+ndiag,ndiagmx)
 adiag(neq,ndiagmx) _real      # diagonals of the Jacobian matrix
-siginel(neq)   _real          # work array used by INEL precond5
-fmuinel(neq)   _real          # work array used by INEL precond5
 rwkd(ndiagmx)  _real          # work array used by cdiagsrt
 iwkd1(2*neq-1) _integer       # number of nonzeros in each diagonal
 iwkd2(ndiagmx) _integer       # work array used by cdiagsrt
