@@ -430,23 +430,23 @@ c...  First do the Te equation
                ix4 = ixp1(ix,iy1)
                ix5 = ixm1(ix,iy+1)
                ix6 = ixp1(ix,iy+1)
-                 grdnv=(    ( fym (ix,iy,1)*log(te(ix2,iy1 )) +  
-     .                        fy0 (ix,iy,1)*log(te(ix2,iy  )) +
-     .                        fyp (ix,iy,1)*log(te(ix2,iy+1)) +  
-     .                        fymx(ix,iy,1)*log(te(ix ,iy1 )) +
-     .                        fypx(ix,iy,1)*log(te(ix ,iy+1)) ) 
-     .                     -( fym (ix,iy,0)*log(te(ix ,iy1 )) +
-     .                        fy0 (ix,iy,0)*log(te(ix ,iy  )) +
-     .                        fyp (ix,iy,0)*log(te(ix ,iy+1)) +
-     .                        fymx(ix,iy,0)*log(te(ix4,iy1 )) +  
-     .                        fypx(ix,iy,0)*log(te(ix6,iy+1)) ) ) / 
+                 grdnv=(    ( fym (ix,iy,1)*logte(ix2,iy1 ) +  
+     .                        fy0 (ix,iy,1)*logte(ix2,iy  ) +
+     .                        fyp (ix,iy,1)*logte(ix2,iy+1) +  
+     .                        fymx(ix,iy,1)*logte(ix ,iy1 ) +
+     .                        fypx(ix,iy,1)*logte(ix ,iy+1) ) 
+     .                     -( fym (ix,iy,0)*logte(ix ,iy1 ) +
+     .                        fy0 (ix,iy,0)*logte(ix ,iy  ) +
+     .                        fyp (ix,iy,0)*logte(ix ,iy+1) +
+     .                        fymx(ix,iy,0)*logte(ix4,iy1 ) +  
+     .                        fypx(ix,iy,0)*logte(ix6,iy+1) ) ) / 
      .                                                   dxnog(ix,iy)  
                feexy(ix,iy) = exp( 0.5*
-     .                         (log(te(ix2,iy)) + log(te(ix,iy))) )* 
+     .                         (logte(ix2,iy) + logte(ix,iy)) )* 
      .                               (fcdif*kye+kye_use(ix,iy))*0.5*
      .                                       (ne(ix2,iy)+ne(ix,iy))*
      .                                     (grdnv/cos(angfx(ix,iy)) - 
-     .                         (log(te(ix2,iy)) - log(te(ix,iy)))* 
+     .                         (logte(ix2,iy) - logte(ix,iy))* 
      .                                         gxf(ix,iy))*sx(ix,iy)
 
 c...  Now do the Ti equation.

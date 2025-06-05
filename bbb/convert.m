@@ -43,6 +43,8 @@ c...  local variables
                   if (zi(ifld).eq.0. .and. ineudif.eq.3) then
                      yl(iv) = log(ni(ix,iy,ifld))
                   endif
+                  if (isnonog.eq.1) 
+     .                  logni(ix,iy,ifld) = log(ni(ix,iy,ifld))
                   rtol(iv) = rtolv(igrid)*bfac
                   atol(iv) = cniatol*rtol(iv)*bfac*abs(yl(iv))
                   idxn(ix,iy,ifld) = iv
@@ -211,6 +213,7 @@ c_mpi      Use(MpiVars)  #module defined in com/mpivarsmod.F.in
       Use(Indices_domain_dcg)   #isddcon
       Use(Npes_mpi)             #mype
       Use(ParallelEval)
+      Use(Share)                #isnonog
  
       integer ifake  #forces Forthon scripts to put implicit none above here
 
@@ -299,6 +302,7 @@ c... Added the following for OMPPandf1rhs call (added by .J.Guterl)
 	    if(isteonxy(ix,iy) .eq. 1) then
                te(ix,iy)=yl(idxte(ix,iy))*ennorm/(1.5*ntemp)
                te(ix,iy) = max(te(ix,iy), temin*ev)  #NEW Feb4,2018
+               if (isnonog.eq.1) logte(ix,iy) = log(te(ix,iy))
             endif
             do 65 igsp =1, ngsp
 	       if(isngonxy(ix,iy,igsp) .eq. 1) then
@@ -328,6 +332,7 @@ c... Added the following for OMPPandf1rhs call (added by .J.Guterl)
 	    if(istionxy(ix,iy) .eq. 1) then
                ti(ix,iy)=yl(idxti(ix,iy))*ennorm/(1.5*ntemp)
                ti(ix,iy) = max(ti(ix,iy), temin*ev)
+               if (isnonog.eq.1) logti(ix,iy) = log(ti(ix,iy))
             endif
 	    if(isphionxy(ix,iy) .eq. 1)
      .                           phi(ix,iy) = yl(idxphi(ix,iy))*temp0
