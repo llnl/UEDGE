@@ -181,7 +181,6 @@ c ... The other variables are added in the routine convr_auxo
       integer ix,iy,igsp,ix1,ix2
       real t1,t2
 
-c_mpi      Use(MpiVars)  #module defined in com/mpivarsmod.F.in
       Use(Dim)                 # nx,ny,nhsp,nzsp,nisp,nusp,ngsp
       Use(Xpoint_indices)      # ixpt1,ixpt2
       Use(Math_problem_size)   # neqmx
@@ -358,7 +357,6 @@ c ... The other variables are added in the routine convr_auxo
       integer ix,iy,igsp,ix1,ix2
       real t1,t2
 
-c_mpi      Use(MpiVars)  #module defined in com/mpivarsmod.F.in
       Use(Dim)                 # nx,ny,nhsp,nzsp,nisp,nusp,ngsp
       Use(Xpoint_indices)      # ixpt1,ixpt2
       Use(Math_problem_size)   # neqmx
@@ -381,9 +379,6 @@ c_mpi      Use(MpiVars)  #module defined in com/mpivarsmod.F.in
       integer ifake  #forces Forthon scripts to put implicit none above here
 
 c ... Set mpi indices, etc
-CC c_mpi      include 'mpif.h'
-c_mpi      integer status(MPI_STATUS_SIZE)
-c_mpi      integer ierr
 
       id = 1
       if(ixl .lt. 0 .or. yinc .ge. 6) then

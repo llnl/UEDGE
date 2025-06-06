@@ -1015,16 +1015,12 @@ c     the core flux surface
 
       implicit none
 
-c_mpi      Use(MpiVars)  #module defined in com/mpivarsmod.F.in
       Use(Dim)                  # nx,ny
       Use(Xpoint_indices)       # ixpt1, ixpt2
       Use(Comgeo)               # vol, volv
 
       integer ifake  #forces Forthon scripts to put implicit none above here
-CC c_mpi      include 'mpif.h'
 
-c_mpi      integer typeind, ierr, status(MPI_STATUS_SIZE)
-c_mpi      data typeind/1/
 c    Assuming nx, ny are resized to be the same as nx_loc,ny_loc, per TDR.
       real inarray(0:nx,0:ny)
       real sumarr(2),gsumarr(2)
@@ -1048,12 +1044,7 @@ c    copy so we have a result if we are not parallel
       gsumarr(1) = sumarr(1)
       gsumarr(2) = sumarr(2)
 c    Sum results from all processors if in parallel
-c_mpi      if(npes > 1) then
-c_mpi        call mpi_allreduce(sumarr,gsumarr,2,MPI_DOUBLE_PRECISION,MPI_SUM,
-c_mpi     .     uedgeComm,ierr)
 c  JRC: 11nov09: Do NOT USE MPI_COMM_WORLD
-cc_mpi     .     MPI_COMM_WORLD,ierr)
-c_mpi      endif
       if (gsumarr(2) == 0) return
       fluxsurfav2 = gsumarr(1)/gsumarr(2)
       return
@@ -1070,15 +1061,11 @@ c    Coding below uses current convention that ixpt1 = 0 if x point is to left o
 
       implicit none
 
-c_mpi      Use(MpiVars)  #module defined in com/mpivarsmod.F.in
       Use(Dim)                  # nx,ny
       Use(Xpoint_indices)       # ixpt1, ixpt2
       Use(Comgeo)               # vol, volv
 
       integer ifake  #forces Forthon scripts to put implicit none above here
-CC c_mpi      include 'mpif.h'
-c_mpi      integer typeind, ierr, status(MPI_STATUS_SIZE)
-c_mpi      data typeind/1/
 c    Assuming nx, ny are resized to be the same as nx_loc,ny_loc, per TDR
 cc      real inarray(ixpt1(1)+1:ixpt2(1))
       real inarray(*)
@@ -1102,12 +1089,7 @@ c    copy so we have a result if we are not parallel
       gsumarr(1) = sumarr(1)
       gsumarr(2) = sumarr(2)
 c    Sum results from all processors if in parallel
-c_mpi      if(npes > 1) then
-c_mpi        call mpi_allreduce(sumarr,gsumarr,2,MPI_DOUBLE_PRECISION,MPI_SUM,
-c_mpi     .     uedgeComm,ierr)
 c  JRC: 11nov09: Do NOT USE MPI_COMM_WORLD
-cc_mpi     .     MPI_COMM_WORLD,ierr)
-c_mpi      endif
       if (gsumarr(2) == 0) return
       fluxsurfav1 = gsumarr(1)/gsumarr(2)
       return

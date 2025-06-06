@@ -46,15 +46,10 @@ c Diagnostic data
       Use(Conduc)        # hcxe
       Use(Xpoint_indices)
       Use(Cdv)
-c_mpi      Use(MpiVars)  #module defined in com/mpivarsmod.F.in
 
 
       integer ifake  #forces Forthon scripts to put implicit none above here
 
-c_mpi      integer lenrpw,lenipw,nge,ier
-c_mpi      integer ii,typeneq,neqt,ionecall
-c_mpi      data typeneq/51/,ionecall/0/
-c_mpi      integer*4 ii4
 
       external ffun, jacnw, psolnw, resid, jacd2, psold, jacd1
       external rhsvd, jacvd, psolvd, rhsnk, psetnk, psolnk, jacvnk

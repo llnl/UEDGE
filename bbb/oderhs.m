@@ -2108,7 +2108,6 @@ c-----------------------------------------------------------------------
       subroutine jacmap
 
       implicit none
-c_mpi      include 'mpif.h'
 
 c ... Output a map of the Jacobian matrix.
 
@@ -2125,7 +2124,6 @@ c ... Common blocks:
 c ... Local variables:
       integer ierr
       integer us
-c_mpi      integer my_pe
       character*24 filename
 
 c ... Allocate full Jacobian for jacmap; warning of size
@@ -2150,13 +2148,6 @@ c ... Convert Jacobian matrix to full storage format.
 c ... Open a file, and output the map.
       call freeus (us)
       filename = 'Jacobian_map.dat'
-c_mpi      if(MY_PE().eq.0) then
-c_mpi        us = 59
-c_mpi        filename = 'Jacobian_map.dat0'
-c_mpi      else
-c_mpi        us = 69
-c_mpi        filename = 'Jacobian_map.dat1'
-c_mpi      endif
       open(unit=us, file=filename, status='unknown')
       call jmap (neq, jacfull, us)
 
