@@ -710,7 +710,6 @@ c   -------------------------------------------------------------------------
                     # thetarot,rcutmin,zcutmin,effvng,
       Use(Phyvar)   # ev
       Use(Bcond)    # islimsor,rlimiter
-      Use(Parallv)  # nxg,nyg
       Use(Xpoint_indices)  # ixpt1,ixpt2,iysptrx
       Use(Share)    # nxomit
 
@@ -1053,7 +1052,6 @@ c ... Common blocks:
       Use(Imprad)                  # isimpon
       Use(Bcond)                   # isextrnpf,isextrtpf,isextrngc,
                                    # isextrnw,isextrtw
-      Use(Parallv)                 # nxg,nyg
       Use(Time_dep_nwt)            # nufak,dtreal,ylodt,dtuse
       Use(Selec)                   # yinc
       Use(Jacaux)                  # ExtendedJacPhi
@@ -1866,7 +1864,6 @@ c ... Common blocks:
                           # isngonxy,isphionxy
       Use(Share)          # geometry,nxc,isnonog,cutlo
       Use(Selec)          # ixm1,ixp1
-      Use(Indices_domain_dcl)    # ixmnbcl,ixmxbcl,iymnbcl,iymxbcl
 
 c ... Local variables:
       integer iv,iv1,iv2,iv3,iv4,ifld,igsp,ix,iy,iym1,iyp1,ixm1u,ixp1u
@@ -1876,10 +1873,10 @@ c ... Local variables:
       call rhsnk (neq, yl, f0)    # Reset f0 with nufak off
 
 c ... special new section for adjustable timesteps
-      do iy = 1-iymnbcl, ny+iymxbcl
-         iym1 = max(1-iymnbcl,iy-1)
-	 iyp1 = min(ny+iymxbcl,iy+1)
-         do ix = 1-ixmnbcl, nx+ixmxbcl
+      do iy = 0, ny+1
+         iym1 = max(0,iy-1)
+	 iyp1 = min(ny+1,iy+1)
+         do ix = 0, nx+1
             do ifld = 1, nisp
                if(isnionxy(ix,iy,ifld) .eq. 1) then
                   iv = idxn(ix,iy,ifld)
@@ -1901,8 +1898,8 @@ c ... special new section for adjustable timesteps
                            # nx test - for algebr. eq. unless isbcwdt=1
                do ifld = 1, nusp
                   if(isuponxy(ix,iy,ifld).eq.1) then
-                    ixm1u = max(1-ixmnbcl, ixm1(ix,iy))
-                    ixp1u = min(nx+ixmxbcl, ixp1(ix,iy))
+                    ixm1u = max(0, ixm1(ix,iy))
+                    ixp1u = min(nx+1, ixp1(ix,iy))
                     iv = idxu(ix,iy,ifld)
                     iv1 = idxu(ixm1u,iy,ifld)
                     iv2 = idxu(ixp1u,iy,ifld)
@@ -2010,8 +2007,8 @@ c ... If model_dt < 4, then jump over this to 23; otherwise use this
 c ... section to define time-step based on cell minimum-step, dtoptx
 ccc
       if (model_dt .lt. 4) goto 23
-      do iy = 1-iymnbcl, ny+iymxbcl 
-         do ix = 1-ixmnbcl, nx+ixmxbcl
+      do iy = 0, ny+1
+         do ix = 0, nx+1
             do ifld = 1, nisp
                if(isnionxy(ix,iy,ifld) .eq. 1) then
                   iv = idxn(ix,iy,ifld)
@@ -2239,11 +2236,9 @@ c ... Common blocks:
       Use(Rhsides)          #psor,psorg,psorxr,erliz,erlrc,psor_tmpov
       Use(Coefeq)           #cfvisx,cfvisy,cnsor,cngmom
       Use(Bcond)            #ckinfl
-      Use(Parallv)          # nxg,nyg
       Use(Conduc)           #visx,visy,eeli,nuiz,nucx
       Use(Imprad)           #prad,pradz
       Use(Postproc)         #complete group
-      Use(Indices_domain_dcl)  # ixmnbcl,ixmxbcl
       Use(Noggeo)           # angfx
 
 c ... Local variables:
@@ -2655,7 +2650,6 @@ c ... Use as diagnostic called from BASIS/Python parser (alt. to balancee)
       Use(Conduc)         # visx,hcxn
       Use(UEpar)          # ebind
       Use(Bcond)          # ckinfl
-      Use(Parallv)        # nxg,nyg
       Use(Poten)          # phi0l,phi0r
 
 c  Local variables
@@ -2923,7 +2917,6 @@ Use(Share)		# nycore,nysol,nxcore,nxleg,geometry
 Use(RZ_grid_info)	# br,bz,bpol,bphi,b
 Use(Bfield)             # rbfbt
 Use(Bcond)		# fngysi,fngyso
-Use(Parallv)            # nxg,nyg
 Use(Selec)		# ixm1
 Use(Comflo)		# fnix
 Use(Compla)		# ni,uu,up,v2,vy,te,ti,ne

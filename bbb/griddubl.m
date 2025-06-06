@@ -15,7 +15,6 @@ c-----------------------------------------------------------------------
       Use(Compla)   # ni,up,ng,te,ti,phi
       Use(Comgeo)   # xnrm,xvnrm,ynrm,yvnrm
       Use(Share)    # nyomitmx
-      Use(Npes_mpi) # ismpion
       Use(Cut_indices)	# ixcut1,iycut1,ixcut2,iycut2,ixcut3,iycut3
                         # ixcut4,iycut4
 
@@ -23,7 +22,6 @@ c-----------------------------------------------------------------------
       #Former Aux module variables
       integer igsp,iy
 
-      if (ismpion == 0) isimesh = 0  #turn-off switch; at least one mesh calc
 
       iysptrxo = iysptrx
       do jx=1,nxpt

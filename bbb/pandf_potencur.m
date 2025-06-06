@@ -72,10 +72,8 @@ c-----------------------------------------------------------------------
       Use(Imprad)            # isimpon
       Use(Conduc)            # nucx
       Use(Bcond)             # isexunif,fqpsatlb,fqpsatrb,isextrnp
-      Use(Parallv)           # nxg,nyg
       Use(Time_dep_nwt)      # dtreal
       Use(Interp)            # nxold,nyold
-      Use(Indices_domain_dcl)# ixmnbcl,ixmxbcl
       Use(Volsrc)            # pondpot
 
       ifld = 1
@@ -354,10 +352,8 @@ c ***  End of subroutine calc_currents  **********
       Use(Imprad)            # isimpon
       Use(Conduc)            # nucx
       Use(Bcond)             # isexunif,fqpsatlb,fqpsatrb,isextrnp
-      Use(Parallv)           # nxg,nyg
       Use(Time_dep_nwt)      # dtreal
       Use(Interp)            # nxold,nyold
-      Use(Indices_domain_dcl)# ixmnbcl,ixmxbcl
       Use(Volsrc)            # pondpot
 
 
@@ -450,10 +446,8 @@ c ***  End of subroutine calc_currents  **********
       Use(Imprad)            # isimpon
       Use(Conduc)            # nucx
       Use(Bcond)             # isexunif,fqpsatlb,fqpsatrb,isextrnp
-      Use(Parallv)           # nxg,nyg
       Use(Time_dep_nwt)      # dtreal
       Use(Interp)            # nxold,nyold
-      Use(Indices_domain_dcl)# ixmnbcl,ixmxbcl
       Use(Volsrc)            # pondpot
 
 
@@ -497,7 +491,7 @@ c           old case with frfqpn=0 ...
                ixr   = ixrb(jx)+1   # analog of ix=nx+1
                ixrm1 = ixrb(jx)     # analog of ix=nx
                ixrm2 = ixrb(jx)-1   # analog of ix=nx-1
-               if (ix==ixl .and. ixmnbcl==1) then  # at left boundary
+               if (ix==ixl ) then  # at left boundary
                   fqp_old = fqp(ix,iy)
                   nbarx = ne(ixlp1,iy)
                   sigbarx = zfac*cfsigm*sigma1*rrv(ixlp1,iy)*
@@ -521,7 +515,7 @@ c           old case with frfqpn=0 ...
      .                             (abs(fp1)**exjbdry +
      .                              abs(fp2)**exjbdry) )**(1/exjbdry)
                   endif
-               elseif (ix==ixrm1 .and. ixmxbcl==1) then  # at right boundary
+               elseif (ix==ixrm1 ) then  # at right boundary
                   fqp_old = fqp(ix,iy)
                   nbarx = ne(ixrm1,iy)
                   sigbarx = zfac*cfsigm*sigma1*rrv(ixrm2,iy)*
@@ -579,9 +573,9 @@ ccc         if (iy.eq.1 .and. isnewpot.eq.1) fqp(ix,1) = fqp(ix,2)
 	    fqx(ix,iy) =  fqp(ix,iy) + fq2(ix,iy) + cfq2bf*fqxb(ix,iy)
 c ...     Force boundary fqx to be uniform; these fqx only for phi B.C.
             do jx = 1, nxpt
-               if (ix==ixlb(jx)+1 .and. isexunif*ixmnbcl==1)
+               if (ix==ixlb(jx)+1 .and. isexunif==1)
      .                     fqx(ixlb(jx),iy) = fqx(ixlb(jx)+1,iy)
-               if (ix==ixrb(jx) .and. isexunif*ixmxbcl==1)
+               if (ix==ixrb(jx) .and. isexunif==1)
      .                     fqx(ixrb(jx),iy) = fqx(ixrb(jx)-1,iy)
             enddo
    46    continue
@@ -676,7 +670,6 @@ c...  of the calculation in the grid.
       Use(Indexes)  # idxphi
       Use(Ynorm)    # temp0,dx0,sigbar0
       Use(Bcond)    # isexunif
-      Use(Parallv)  # nxg,nyg
       Use(Compla)   # phi
       Use(Volsrc)   # voljcsor
       Use(Aux)      # ixmp
@@ -849,7 +842,6 @@ c ... Calculate collis. factors eta1 and rtaue for the simple Braginski model
       Use(Comflo)
       Use(Noggeo)
       Use(Gradients)
-      Use(Indices_domain_dcl)
       Use(Xpoint_indices)
       integer iy, ix, ix1, ifld, iy1, ix6, ix4, ix3, ix2, jx, iyp1, iym1,
      .iy2
@@ -1051,7 +1043,6 @@ c ... Compute radial vel v_grad_P eng eqn terms;cfydd+cfybf=1 or 0
       Use(Comflo)
       Use(Noggeo)
       Use(Gradients)
-      Use(Indices_domain_dcl)
       Use(Xpoint_indices)
       integer iy, ix, ix1, ifld, iy1, ix6, ix4, ix3, ix2, jx, iyp1, iym1,
      .iy2
@@ -1087,12 +1078,12 @@ c --- If this is the neutral species (zi(ifld).eq.0)) we dont want velocities
 	      ix4 = ixp1(ix,iy1)
               ix6 = ixp1(ix,iy2)
               do jx = 1, nxpt
-                 if (ix==ixlb(jx) .and. ixmnbcl==1) then
+                 if (ix==ixlb(jx) ) then
                     temp1 =  (-4.)* (phiv(ix,iy) - phiv(ix,iy1))*gyc(ix,iy)
                     temp2 = 4.*(priv(ix,iy,ifld) - priv(ix,iy1,ifld))*gyc(ix,iy)
                     temp3 = 4.*(prev(ix,iy) - prev(ix,iy1))*gyc(ix,iy)
                     temp4 = 2.5*(tiv(ix,iy) - tiv(ix,iy1))*gyc(ix,iy)
-                 elseif (ix==ixrb(jx) .and. ixmxbcl==1) then
+                 elseif (ix==ixrb(jx)) then
                     temp1 =  (-4.)* (phiv(ix,iy) - phiv(ix,iy1))*gyc(ix,iy)
                     temp2 = 4.*(priv(ix,iy,ifld) - priv(ix,iy1,ifld))*gyc(ix,iy)
                     temp3 = 4.*(prev(ix,iy) - prev(ix,iy1))*gyc(ix,iy)
@@ -1135,14 +1126,14 @@ c...  in subroutine nphygeo)
 
 c...  Calculate plate electr diamag flux used to find sheath potential
               do jx = 1, nxpt
-                 if (ix==ixlb(jx) .and. ixmnbcl==1) then
+                 if (ix==ixlb(jx) ) then
                  # use ix=ixlb+1 values to avoid BC variations
                     v2dia = -0.5*( gpey(ixlb(jx)+1,iy)+gpey(ixlb(jx)+1,iy1) ) /
      .                          ( btot(ixlb(jx)+1,iy)*qe*ne(ixlb(jx)+1,iy) )
                     fdiaxlb(iy,jx) = ne(ixlb(jx)+1,iy) * sx(ixlb(jx),iy) *
      .                              v2dia * rbfbt(ixlb(jx)+1,iy)
                  endif
-                 if (ix==ixrb(jx) .and. ixmxbcl==1) then
+                 if (ix==ixrb(jx)) then
                     v2dia = -0.5*( gpey(ixrb(jx),iy)+gpey(ixrb(jx),iy1) ) /
      .                          ( btot(ixrb(jx),iy)*qe*ne(ixrb(jx),iy) )
                     fdiaxrb(iy,jx) = ne(ixrb(jx),iy) * sx(ixrb(jx),iy) *
@@ -1214,7 +1205,7 @@ cc     .                                                    dxnog(ix,iy)
             if (islimon.eq.1.and. ix.eq.ix_lim.and. iy.ge.iy_lims) then
               vytan(ix,iy,ifld) = 0.
             endif
-            if (nxpt==2 .and. ix==ixrb(1)+1 .and. ixmxbcl==1) then
+            if (nxpt==2 .and. ix==ixrb(1)+1 ) then
 c             non-physical interface between upper target plates for dnull
               vytan(ix,iy,ifld) = 0.
             endif

@@ -31,9 +31,6 @@
       Use(Time_dep_nwt)  # ylodt,dtreal,yloext,isyloext
       Use(Indexes)       # iseqalg
       Use(UEint)         # restart
-      Use(Npes_mpi)      # npes,mype,ismpion
-      Use(Parallv)       # nlocal, neqg,meth,itmeth,iatol,igs,iopt,ropt,
-                         # rtol_pv,atol_pv,delt_pv
       Use(Interp)        # nis,ups,tes,tis,ngs,phis,nxold,nyold
       Use(Stat)
       Use(Jacreorder)    # ireorder
@@ -47,9 +44,7 @@ c Diagnostic data
       Use(Comflo)        # feex, feey
       Use(Locflux)       # conxe, floxe
       Use(Conduc)        # hcxe
-      Use(Indices_domain_dcl) # ivloc2sdgl
       Use(Xpoint_indices)
-      Use(Indices_domain_dcg)
       Use(Cdv)
 c_mpi      Use(MpiVars)  #module defined in com/mpivarsmod.F.in
 
@@ -74,8 +69,6 @@ c     local variables
       integer ix,iy,igsp,iv
 
 
-c **- For parallel mpi case, set up preliminary mpi stuff
-      if (ismpion .eq. 1) call uedriv_pll
 
 c ... Save initial time and set accumulated times to zero.
       tstart = tick()
@@ -99,13 +92,7 @@ c ... Set switch to time other packages if this one is being timed.
       iter = 0
 
 *  -- initialize the system --
-      if (ismpion.eq.0) then  # Serial version
         call ueinit
-      elseif (ismpion.eq.1) then  # MPI parallel version
-c_mpicvode        call fpvmalloc (neqg, ts, yl, meth, itmeth, iatol,
-c_mpicvode     .                  rtol_pv,atol_pv,inopt,iopt,ropt,ier)
-c_mpicvode        call fcvspgmr2 (jpre, igs, maxkd, delt_pv)
-      endif
 
 *  ---------------------------------------------------------------------
 *  -- continue looping until istep=nsteps, then go to resetting parameters --
@@ -142,9 +129,7 @@ c...  Set present yl variables to ylodt and ylprevc
 c ... Call the solver.
          if (issfon .eq. 1) then
            if (icntnunk .eq. 0 .and. isdtsfscal.eq.0) then
-             if (npes <= 1) then
                call sfsetnk (neq,yl,suscal,sfscal)
-             endif
            endif
          else
             call sfill (neq, 1., sfscal(1), 1)
@@ -323,70 +308,6 @@ c **- Diagnostic output for parallel mpi version
       return
       end
 c****** end of subroutine uedriv *********************
-c ------------------------------------------------------------------------
-      subroutine uedriv_pll
-
-c **- Initializes integration/solver routines for mpi parallel version
-
-      implicit none
-
-      Use(Dim)
-      Use(Math_problem_size)
-      Use(Constraints)
-      Use(UEint)
-      Use(UEpar)
-      Use(Lsode)
-      Use(Npes_mpi)
-      Use(Parallv)
-      Use(Flags)
-C diagnostic data
-      Use(Indices_domain_dcl)
-c_mpi      Use(MpiVars)  #module defined in com/mpivarsmod.F.in
-
-
-      integer ifake  #forces Forthon scripts to put implicit none above here
-
-CC c_mpi      include 'mpif.h'
-c_mpi      integer status(MPI_STATUS_SIZE)
-
-c     local variables
-      real tbout, dtreal_sav
-      integer i,ifld,lid,ier,ierr,mu,ml
-      integer ii,typeneq,neqt,ionecall
-      data typeneq/51/,ionecall/0/,ier/0/
-
-c =======================================================================
-c  -- initialize the system --
-      restart = 1
-      call ueinit
-
-      NLOCAL = neq
-
-      IGS = 0
-      IF (IER .NE. 0) THEN
-        WRITE(6,20) IER
-  20    FORMAT(///' FPVINITMPI returned IER =',I5)
-        STOP
-      ENDIF
-
-      MU = numvar*(nx+4)
-      ML = numvar*(nx+4)
-
-          do i=1,40
-           iopt(i) = 0
-           ropt(i) = 0.0
-          enddo
-c ==================================================================
-
-      if (ionecall .eq. 1) then
-         call pandf (-1, -1, neq, 0., yl, yldot)
- 3331    continue
-      return
-      endif
-
-      return
-      end
-c****** End of subroutine uedriv_pll ************************************
 c-----------------------------------------------------------------------
       subroutine wtottim
 

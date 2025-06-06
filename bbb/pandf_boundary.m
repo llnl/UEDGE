@@ -8,23 +8,15 @@ c-----------------------------------------------------------------------
       implicit none
       integer neq
       real yldot(neq)
-      Use(Indices_domain_dcl)
       Use(Share)
       Use(Bcond)
       Use(Selec)
       Use(UEpar)
 
-      if (iymnbcl .ne. 0) 
-     .  call iwall_boundary(neq, yldot)
-
-      if (iymxbcl .ne. 0) 
-     .  call owall_boundary(neq, yldot)
-
-      if (ixmnbcl .ne. 0) 
-     .  call left_boundary(neq, yldot)
-
-      if (ixmxbcl .ne. 0) 
-     .  call right_boundary(neq, yldot)
+       call iwall_boundary(neq, yldot)
+       call owall_boundary(neq, yldot)
+       call left_boundary(neq, yldot)
+       call right_boundary(neq, yldot)
 
       if(
      .  (isudsym==1.or.(geometry .eq. "dnXtarget"))
@@ -65,9 +57,7 @@ c************************************************************************
       Use(Ynorm)
       Use(Selec) 
       Use(Bcond)    # isfixlb, isfixrb
-      Use(Parallv)  # nxg,nyg
       Use(Xpoint_indices)  # ixpt1,ixpt2, iysptrx1,iysptrx2
-      Use(Indices_domain_dcl)   #ixmxbcl,ixmnbcl,iymxbcl,iymnbcl
       Use(Share)   # islimon, ix_lim, iy_lims, geometry, nxc
 
       integer ifld, ii
@@ -80,8 +70,7 @@ c ... Initialize the iseqalg array to zero (==>differential equation)
 
 c ... Now set iseqalg=1 for boundary equations and potential equation
 
-        if (iymnbcl .eq. 1) then    # true iy=0 boundary for domain dc
-         do 11 ix = 1-ixmnbcl, nx+ixmxbcl
+         do 11 ix = 0, nx+1
            do ifld = 1, nisp
 	    if (isnionxy(ix,0,ifld).eq.1) then
                iseqalg(idxn(ix,0,ifld)) = 1
@@ -113,9 +102,7 @@ c ... Now set iseqalg=1 for boundary equations and potential equation
                iseqalg(idxphi(ix,0)) = 1
 	    endif 
    11    continue
-        endif    # for iymnbcl test
 
-        if (ixmnbcl .eq. 1) then    # true ix=0 boundary for domain dc
          do 18 iy = 1, ny
            do ifld = 1, nisp
 	    if (isnionxy(0,iy,ifld).eq.1) then
@@ -143,13 +130,11 @@ c ... Now set iseqalg=1 for boundary equations and potential equation
                iseqalg(idxtg(0,iy,igsp)) = 1
 	    endif
    13      continue
-	    do 15 ix = 1-ixmnbcl, nx
+	    do 15 ix = 0, nx
                if(isphionxy(ix,iy)==1) iseqalg(idxphi(ix,iy)) = 1
    15       continue
    18    continue
-        endif    # for ixmnbcl test
 
-        if (ixmxbcl .eq. 1) then    # true ix=nx+1 boundary for domain dc
          do 19 iy = 1, ny
            do ifld = 1, nisp
 	    if (isnionxy(nx+1,iy,ifld).eq.1) then
@@ -180,10 +165,8 @@ c ... Now set iseqalg=1 for boundary equations and potential equation
                iseqalg(idxphi(nx+1,iy)) = 1
 	    endif
    19    continue
-        endif    # for ixmxbcl test
 
-        if (iymxbcl .eq. 1) then    # true iy=ny+1 boundary for domain dc
-	 do 24 ix = 1-ixmnbcl, nx+ixmxbcl
+	 do 24 ix = 0, nx+1
            do ifld = 1, nisp
 	    if (isnionxy(ix,ny+1,ifld).eq.1) then
                iseqalg(idxn(ix,ny+1,ifld)) = 1
@@ -212,7 +195,6 @@ c ... Now set iseqalg=1 for boundary equations and potential equation
                iseqalg(idxphi(ix,ny+1)) = 1
 	    endif
    24    continue
-        endif    # for iymxbcl test
 
 c ... Check for interior boundaries with set velocities; used in rscalf
       if (isfixlb(1).eq.2 .or. isfixrb(1).eq.2) then
@@ -223,7 +205,7 @@ c ... Check for interior boundaries with set velocities; used in rscalf
          endif
          if (ix.ge.0) then
             do ifld = 1, nusp
-               do iy = 0+1-iymnbcl, iysptrx1(1)
+               do iy = 0, iysptrx1(1)
                   if(isuponxy(ix,iy,ifld)==1) then
                      iseqalg(idxu(ix,iy,ifld)) = 1
                   endif
@@ -383,10 +365,7 @@ c-----------------------------------------------------------------------
                     # albedoo,albedoi,matwallo,matwalli,
                     # ywnii,ywnio,ywupi,ywupo,ywtei,ywteo,ywtii,ywtio,
                     # nibprof,upbprof,tebprof,tibprof
-      Use(Parallv)  # nxg,nyg
-      Use(Npes_mpi) # npes,mype
       Use(Rccoef)   # albedo_by_user
-      Use(Indices_domain_dcg) #ndomain
 
 
 *  -- local scalars --
@@ -425,8 +404,6 @@ c     Calculate distances along left and right poloidal boundaries --
          enddo
       enddo
 
-c ... Return if this is a parallel local domain; arrays filled from mype=0
-      if (ndomain > 1 .and. nxg .ne. nx) return
 
 c...  calculate profiles for fixed left-hand boundary conditions
       do 27 iy = iysptrx1(1)+1, ny+1
@@ -592,7 +569,6 @@ c-----------------------------------------------------------------------
       Use(UEpar)    # nurlxg
       Use(Comflo)   # fngy
       Use(Bcond)    # ncpli,iwalli,issori,iesori,cplsori,fngysi
-      Use(Parallv)  # nxg,nyg
 
 *  -- local scalars --
       integer isor, jsor, ixt
@@ -664,7 +640,6 @@ c-----------------------------------------------------------------------
       Use(UEpar)    # nurlxg
       Use(Comflo)   # fngy
       Use(Bcond)    # ncplio,iwallio,issoro,iesoro,cplsoro,fwsoro
-      Use(Parallv)  # nxg,nyg
 
 
 *  -- local scalars --
@@ -732,7 +707,6 @@ c-----------------------------------------------------------------------
       Use(Noggeo)   # vtag
       Use(Bcond)    # nwsor,igaslb,igasrb,xgaslb,xgasrb,wgaslb,wgasrb,
                     # fwsori,fsorrb,fngxslb,fngxsrb
-      Use(Parallv)  # nxg,nyg
 
 *  -- local scalars --
       integer isor,jx,igw
@@ -1010,7 +984,6 @@ c     input arguments
 c     common blocks
       Use(Dim)
       Use(Bcond)    # kappa0, kappamx
-      Use(Parallv)  # nxg,nyg
 
 c     local variables
       real d, d0, fac, facmin
@@ -1045,8 +1018,6 @@ c     the core flux surface
 c_mpi      Use(MpiVars)  #module defined in com/mpivarsmod.F.in
       Use(Dim)                  # nx,ny
       Use(Xpoint_indices)       # ixpt1, ixpt2
-      Use(Indices_domain_dcl)   # iymnbcl, nx_loc,ny_loc
-      Use(Npes_mpi)             # npes
       Use(Comgeo)               # vol, volv
 
       integer ifake  #forces Forthon scripts to put implicit none above here
@@ -1064,7 +1035,6 @@ c    sumarr(1) will be numerator, sumarr(2) will be denominator
       fluxsurfav2 = 0.
 c    only calculate something if this domain touches the inner boundary.
 c    Following coding makes use of min(ixpt1) = 0.
-      if (iymnbcl == 1) then
            ibeg = ixpt1(1)+1
            iend = min(ixpt2(1),nx)
 c         only calculate something if this domain is in the core, in which case ibeg <= iend
@@ -1074,7 +1044,6 @@ c         only calculate something if this domain is in the core, in which case 
                   sumarr(2) = sumarr(2) + vol(i,0)
               enddo
            endif
-       endif
 c    copy so we have a result if we are not parallel
       gsumarr(1) = sumarr(1)
       gsumarr(2) = sumarr(2)
@@ -1103,9 +1072,7 @@ c    Coding below uses current convention that ixpt1 = 0 if x point is to left o
 
 c_mpi      Use(MpiVars)  #module defined in com/mpivarsmod.F.in
       Use(Dim)                  # nx,ny
-      Use(Indices_domain_dcl)   # iymnbcl, nx_loc,ny_loc
       Use(Xpoint_indices)       # ixpt1, ixpt2
-      Use(Npes_mpi)             # npes
       Use(Comgeo)               # vol, volv
 
       integer ifake  #forces Forthon scripts to put implicit none above here
@@ -1122,7 +1089,6 @@ c    sumarr(1) will be numerator, sumarr(2) will be denominator
       sumarr(2) = 0.
       fluxsurfav1 = 0.
 c    only calculate something if this domain touches the inner boundary.
-      if (iymnbcl == 1) then
            ibeg = ixpt1(1)+1
            iend = min(ixpt2(1),nx)
 c         only calculate something if this domain is in the core, in which case ibeg <= iend
@@ -1132,7 +1098,6 @@ c         only calculate something if this domain is in the core, in which case 
                   sumarr(2) = sumarr(2) + vol(i,0)
               enddo
            endif
-       endif
 c    copy so we have a result if we are not parallel
       gsumarr(1) = sumarr(1)
       gsumarr(2) = sumarr(2)
@@ -1303,7 +1268,6 @@ c----------------------------------------------------------------------c
         IMPLICIT NONE
       integer neq
       real yldot(neq)
-      Use(Indices_domain_dcl)
       Use(Xpoint_indices)
       Use(Share)
       Use(Compla)
@@ -1323,9 +1287,6 @@ c----------------------------------------------------------------------c
       Use(RZ_grid_info)
       Use(Imprad)
       Use(Impurity_source_flux)
-      Use(Indices_domain_dcg)
-      Use(Indices_domain_dcl)
-      Use(Npes_mpi)
       Use(Poten)
       Use(Bfield)
       Use(Gradients)
@@ -1361,7 +1322,7 @@ c  Note: j3 is local range index for iy passed from pandf in oderhs.m
               # this is a very large if-loop; check for 'j3 index' to find end
 
       do ifld = 1, nisp
-         do ix = i4+1-ixmnbcl, i8-1+ixmxbcl # ix-loop over ion dens
+         do ix = i4, i8 # ix-loop over ion dens
            if (isnionxy(ix,0,ifld)==1) then
              iv1 = idxn(ix,0,ifld)
 
@@ -1540,13 +1501,13 @@ c...  the last term going as 0.001 is to prevent very small densities
 
 c...  Reset density at corners
          do jx = 1, nxpt
-           if(isfixlb(jx).ne.2 .and. ixmnbcl*iymnbcl.eq.1 .and.
+           if(isfixlb(jx).ne.2 .and.
      .                       isnionxy(ixlb(jx),0,ifld)==1) then
 	     yldot(idxn(ixlb(jx),0,ifld)) = nurlxn * 
      .            ( ave(ni(ixlb(jx),1,ifld),ni(ixlb(jx)+1,0,ifld))
      .                        - ni(ixlb(jx),0,ifld) ) / n0(ifld)
            endif
-           if (isfixrb(jx).ne.2 .and. ixmxbcl*iymnbcl.eq.1 .and.
+           if (isfixrb(jx).ne.2 .and. 
      .                      isnionxy(ixrb(jx)+1,0,ifld)==1) then
 	      yldot(idxn(ixrb(jx)+1,0,ifld)) = nurlxn * 
      .           ( ave(ni(ixrb(jx)+1,1,ifld),ni(ixrb(jx),0,ifld))
@@ -1558,7 +1519,7 @@ c...  Reset density at corners
 
 c...  Now do the parallel velocity BC at iy = 0 for full mom eqn species
       do ifld = 1, nusp
-         do ix = i4+1-ixmnbcl, i8-1+ixmxbcl  #large ix-loop for up
+         do ix = i4, i8  #large ix-loop for up
             if (isuponxy(ix,0,ifld) .eq. 1) then
                ix2 = ixp1(ix,0)
                iv2 = idxu(ix,0,ifld)
@@ -1707,7 +1668,6 @@ c     the adjacent cells.
              endif     # end if-test for isnionxy
 	   enddo       # end for do ix = i2, i5 loop for ion dens
 c...   set the corner values here
-            if (ixmnbcl*iymnbcl.eq.1) then
                do jx = 1, nxpt
 		  if (isnionxy(ixlb(jx),0,iimp)==1) then
                     iv = idxn(ixlb(jx),0,iimp)
@@ -1716,8 +1676,6 @@ c...   set the corner values here
      .                           - ni(ixlb(jx),0,iimp) ) / n0(iimp)
                   endif
                enddo
-            endif
-            if (ixmxbcl*iymnbcl.eq.1) then
                do jx = 1, nxpt
 	         if (isnionxy(ixrb(jx)+1,0,iimp)==1) then
                    iv = idxn(ixrb(jx)+1,0,iimp)
@@ -1726,7 +1684,6 @@ c...   set the corner values here
      .                           - ni(ixrb(jx)+1,0,iimp) ) / n0(iimp)
                  endif
                enddo
-            endif
 
          endif
       enddo          # end of impurities along iy = 0
@@ -1738,8 +1695,8 @@ c    if flux energy condition, precompute feeytotc & feiytotc for use
       if (iflcore==1) then  #sum e-i core pwr fee,iytotc; unnecess if te,i frozen
         feeytotc = 0.
         feiytotc = 0.
-        do ix = i4+1-ixmnbcl, i8-1+ixmxbcl
-          if (iymnbcl==1 .and. isixcore(ix)==1) then  # domain part of core bdry
+        do ix = i4, i8
+          if (isixcore(ix)==1) then  # domain part of core bdry
             ii = max(0, ixpt1(1)+1)
             feeytotc = feey(ii,0)-feeycbo(ii)
             feiytotc = feiy(ii,0)-feiycbo(ii)
@@ -1757,23 +1714,11 @@ c    if flux energy condition, precompute feeytotc & feiytotc for use
         enddo
       endif
 c ... Sum for serial case
-      ispwrbcl = 0
-      if (ndomain == 1) then
         sfeeytotc = feeytotc
         sfeiytotc = feiytotc
-        ispwrbcl = 1
-      else
-        if (ispwrbc(mype+1) == 1) ispwrbcl = 1
-      endif
-
-c     Sum for parallel case, sum/distribute to all processors
-c_mpi      call mpi_allreduce(feeytotc, sfeeytotc, 1,
-c_mpi     .      MPI_DOUBLE_PRECISION, MPI_SUM, uedgeComm, ierr)
-c_mpi      call mpi_allreduce(feiytotc, sfeiytotc, 1,
-c_mpi     .      MPI_DOUBLE_PRECISION, MPI_SUM, uedgeComm, ierr)
 
 c ... Set Te and Ti BCs
-      do ix = i4+1-ixmnbcl, i8-1+ixmxbcl #long ix-loop for Te, Ti
+      do ix = i4, i8 #long ix-loop for Te, Ti
          if (isteonxy(ix,0) .eq. 1) then
            iv1 = idxte(ix,0)
             if (isixcore(ix)==1) then   # ix is part of the core boundary:
@@ -1881,7 +1826,7 @@ ccc     .             (vpnorm*ennorm*sy(ix,0))
 
 ccc  Diffusive neutrals on iy=0 boundary
 ccc  - - - - - - - - - - - - -
-      do ix = i4+1-ixmnbcl, i8-1+ixmxbcl #long ix-loop for diff neut dens
+      do ix = i4, i8 #long ix-loop for diff neut dens
          nzsp_rt = nhsp
          do igsp = 1, ngsp
 	   jz = max(igsp - nhgsp, 1)  # identify impurity index
@@ -2023,7 +1968,7 @@ c ... Include gas BC from sputtering by ions
       enddo  # end of long ix-loop for diff neuts
 
 c... BC for neutral gas temperature/energy at iy=0
-      do ix = i4+1-ixmnbcl, i8-1+ixmxbcl # ix-loop for diff neut temp 
+      do ix = i4, i8 # ix-loop for diff neut temp 
         do igsp = 1, ngsp
           if (istgonxy(ix,0,igsp) == 1) then
             iv = idxtg(ix,0,igsp)
@@ -2109,7 +2054,7 @@ c... BC for neutral gas temperature/energy at iy=0
 
 ccc  Now do potential along iy=0 boundary if isnewpot=-1 or -2; others next page
 ccc  - - - - - - - - - - - - - - 
-      do ix = i4+1-ixmnbcl, i8-1+ixmxbcl #long ix-loop for potential
+      do ix = i4, i8 #long ix-loop for potential
          if (isphionxy(ix,0) .eq. 1) then
             iv3 = idxphi(ix,0)
             yldot(iv3) = nurlxp*( (phi(ix,1) - phi(ix,0)) -
@@ -2150,7 +2095,7 @@ ccc  - - - - - - - - - - - - - -
 ccc  -------------------------------------------------------------------
 
 c...  Now do the corners: the ion density corners are done elsewhere
-       if ((xcnearlb.or.openbox) .and. ixmnbcl*iymnbcl.eq.1) then  
+       if ((xcnearlb.or.openbox) ) then  
          do ifld = 1, nusp
             do jx = 1, nxpt
 	     if(isuponxy(ixlb(jx),0,ifld)==1) then
@@ -2192,7 +2137,7 @@ c...  Now do the corners: the ion density corners are done elsewhere
            enddo
          enddo
        endif
-       if ((xcnearrb.or.openbox) .and. ixmxbcl*iymnbcl.eq.1) then
+       if ((xcnearrb.or.openbox)) then
          do ifld = 1, nusp
            do jx = 1, nxpt
 	     if(isuponxy(ixrb(jx),0,ifld)==1) then
@@ -2246,7 +2191,7 @@ c  ####################################################################
 c...  If isnewpot=1, phi boundary involves two eqns at iy=0 and 1
 c...  Note: j3 is local range index for iy passed from pandf in oderhs.m
       if (isnewpot*isphion.eq.1 .and. j3.le.3) then
-        do ix = min(i4+1-ixmnbcl,ixpt1(1)+1), max(i8-1+ixmxbcl,ixpt2(nxpt))
+        do ix = min(i4,ixpt1(1)+1), max(i8,ixpt2(nxpt))
           if(isphionxy(ix,0)*isphionxy(ix,1)==1) then
             iv  = idxphi(ix,0)
             iv1 = idxphi(ix,1)
@@ -2386,7 +2331,6 @@ c  ###################################################################
         IMPLICIT NONE
         integer neq
         real yldot(neq)
-      Use(Indices_domain_dcl)
       Use(Xpoint_indices)
       Use(Share)
       Use(Compla)
@@ -2406,9 +2350,6 @@ c  ###################################################################
       Use(RZ_grid_info)
       Use(Imprad)
       Use(Impurity_source_flux)
-      Use(Indices_domain_dcg)
-      Use(Indices_domain_dcl)
-      Use(Npes_mpi)
       Use(Poten)
       Use(Bfield)
       Use(Gradients)
@@ -2430,7 +2371,7 @@ c...  now do the iy = ny+1 boundary
 c...  if extrapolation b.c.on outer wall, isextrw=1, otherwise isextrw=0
       if (j7 .ge. (ny+1)-isextrnw .or. j7 .ge. (ny+1)-isextrtw) then
       do ifld = 1 , nisp
-        do ix = i4+1-ixmnbcl, i8-1+ixmxbcl
+        do ix = i4, i8
           if (isnionxy(ix,ny+1,ifld)==1) then
             iv1 = idxn(ix,ny+1,ifld)
 
@@ -2515,7 +2456,6 @@ ccc                 nbound = max(nbound, 0.3*ni(ix,ny,ifld))
           endif                # endif for isnionxy
         end do
 c...  Reset density at corners
-          if (ixmnbcl*iymxbcl.eq.1) then
             do jx = 1, nxpt
               if(isnionxy(ixlb(jx),ny+1,ifld)==1) then
 	         yldot(idxn(ixlb(jx),ny+1,ifld)) = nurlxn * 
@@ -2523,8 +2463,6 @@ c...  Reset density at corners
      .                        - ni(ixlb(jx),ny+1,ifld) ) / n0(ifld)
               endif
             enddo
-          endif
-          if (ixmxbcl*iymxbcl.eq.1) then
             do jx = 1, nxpt
               if(isnionxy(ixrb(jx)+1,ny+1,ifld)==1) then
 	         yldot(idxn(ixrb(jx)+1,ny+1,ifld)) = nurlxn * 
@@ -2532,13 +2470,12 @@ c...  Reset density at corners
      .                         - ni(ixrb(jx)+1,ny+1,ifld) ) / n0(ifld)
               endif
             enddo
-          endif
         end do
 
 c...  Do the parallel velocity BC along iy = ny+1
 
       do ifld = 1, nusp
-         do ix = i4+1-ixmnbcl, i8-1+ixmxbcl
+         do ix = i4, i8
             if (isuponxy(ix,ny+1,ifld)==1) then
                iv2 = idxu(ix,ny+1,ifld)
                if (isupwoix(ix,ifld)==1) then  #zero parallel momentum flux
@@ -2592,7 +2529,6 @@ c     of the adjacent cells.
             endif       # end if for isnionxy
           enddo
 c...   set the corner values here
-          if (ixmnbcl*iymxbcl.eq.1) then
              do jx = 1, nxpt
                if (isnionxy(ixlb(jx),ny+1,iimp)==1) then
                   iv = idxn(ixlb(jx),ny+1,iimp)
@@ -2601,8 +2537,6 @@ c...   set the corner values here
      .                           - ni(ixlb(jx),ny+1,iimp) ) / n0(iimp)
                endif
              enddo
-          endif
-          if (ixmxbcl*iymxbcl.eq.1) then
              do jx = 1, nxpt
                if (isnionxy(ixrb(jx)+1,ny+1,iimp)==1) then
                   iv = idxn(ixrb(jx)+1,ny+1,iimp)
@@ -2611,13 +2545,12 @@ c...   set the corner values here
      .                           - ni(ixrb(jx)+1,ny+1,iimp) ) / n0(iimp)
                endif
              enddo
-          endif
         endif     # end for if (isimpon .ge. 3 ...
       enddo        # end of impurities along iy = ny+1
 
 ccc  Now do Te, Ti
 ccc  - - - - - - - - - - - - - -
-      do ix = i4+1-ixmnbcl, i8-1+ixmxbcl  # loops over te,ti,ng,phi
+      do ix = i4, i8  # loops over te,ti,ng,phi
          ix1 = ixm1(ix,ny+1)
          if(isteonxy(ix,ny+1) .eq. 1) then
            iv1 = idxte(ix,ny+1)
@@ -2672,7 +2605,7 @@ ccc  - - - - - - - - - - - - - -
 
 ccc  Now do the diffusive neutral density (ng) and Tg equations
 ccc  - - - - - - - - - - - - - -          
-      do ix = i4+1-ixmnbcl, i8-1+ixmxbcl  # ix-loop for ng & Tg
+      do ix = i4, i8  # ix-loop for ng & Tg
         nzsp_rt = nhsp
         do igsp = 1, ngsp
           jz = max(igsp - nhgsp, 1)     #identify impurity index
@@ -2832,7 +2765,7 @@ c... BC for neutral gas temperature/energy at iy=ny+1
 
 ccc  Now do the potential
 ccc  - - - - - - - - - - - -
-      do ix = i4+1-ixmnbcl, i8-1+ixmxbcl  # ix-loop for phi
+      do ix = i4, i8  # ix-loop for phi
          if(isphionxy(ix,ny+1) .eq. 1) then
             iv3 = idxphi(ix,ny+1)
 	    iv2 = idxphi(ix,ny)
@@ -2853,7 +2786,7 @@ ccc              yldot(iv2) = nurlxp*(phiwo(ix) - phi(ix,ny))/temp0
       enddo  # ix-loop for phi
 
 c...  Now do the corners: the ion density corners are done elsewhere
-       if ((xcnearlb.or.openbox) .and. ixmnbcl*iymxbcl.eq.1) then
+       if ((xcnearlb.or.openbox) ) then
          do ifld = 1, nusp
            do jx = 1, nxpt
              if(isuponxy(ixlb(jx),ny+1,ifld)==1) then
@@ -2895,7 +2828,7 @@ c...  Now do the corners: the ion density corners are done elsewhere
          enddo
        endif
 
-       if ((xcnearrb.or.openbox) .and. ixmxbcl*iymxbcl.eq.1) then
+       if ((xcnearrb.or.openbox) ) then
          do ifld = 1, nusp
            do jx = 1, nxpt
              if(isuponxy(ixrb(jx),ny+1,ifld)==1) then
@@ -2947,7 +2880,7 @@ c...  If isnewpot=1, phi boundary involves two eqns at iy=ny and ny+1
 CCC   NOTE: special coding for testing alternate phi B.C. (requires 
 CCC   isnewpot*isphion=1000, so one can generally ignore this if section) 
       if (isnewpot*isphion.eq.1000 .and. j7.ge.ny-2) then 
-        do ix = i4+1-ixmnbcl, i8-1+ixmxbcl
+        do ix = i4, i8
           if(isphionxy(ix,ny+1)*isphionxy(ix,ny)==1) then
             iv  = idxphi(ix,ny+1)
             iv1 = idxphi(ix,ny)
@@ -2988,7 +2921,6 @@ CCC   isnewpot*isphion=1000, so one can generally ignore this if section)
       Use(Poten)
       Use(Share)
       Use(MCN_sources)
-      Use(Indices_domain_dcl)
       Use(Imprad)
       integer iy, ifld, iv1, iv2, igsp, iv, jx, ixt, ixt1, ixt2, ixt3,
      .  nzsp_rt, jz, iimp, ihyd, igsp2
@@ -3123,7 +3055,7 @@ c...  Then overwrite pandf value is up(ixpt2(1)) --> 0 eqn.
       if (isfixlb(1) .eq. 2) then
          if (i2.le.ixpt2(1) .and. i5.ge.ixpt2(1) .and. j2.le.iysptrx2(1)) then  
             do ifld = 1, nusp
-               do iy = 0+1-iymnbcl, iysptrx2(1)
+               do iy = 0, iysptrx2(1)
                  if(isuponxy(ixpt2(1),iy,ifld)==1) then
                      iv = idxu(ixpt2(1),iy,ifld)
                      yldot(iv) = nurlxu*(0.-up(ixpt2(1),iy,ifld))/vpnorm
@@ -3702,7 +3634,6 @@ c ... End special coding for no divertor leg at ix = 0
       Use(Poten)
       Use(Share)
       Use(MCN_sources)
-      Use(Indices_domain_dcl)
       Use(Imprad)
       integer neq
       real yldot(neq)
@@ -3840,7 +3771,7 @@ c...  the overwrite ix=ixpt1(1) up eqn with up(ixpt1(1)) --> 0 eqn.
          if (i2.le.ixpt1(1) .and. i5.ge.ixpt1(1) .and. j2.le.iysptrx1(1)) then  
            do ifld = 1, nusp
              if (isupcore(ifld).eq.0) then
-               do iy = 0+1-iymnbcl, iysptrx1(1)
+               do iy = 0, iysptrx1(1)
                  if(isuponxy(ixpt1(1),iy,ifld)==1) then
                    iv = idxu(ixpt1(1),iy,ifld)
                    yldot(iv) = nurlxu*(0.-up(ixpt1(1),iy,ifld))/vpnorm
@@ -5137,14 +5068,13 @@ cc ######################### End of limiter BCs #######################
         real yldot(neq)
       Use(UEpar)
       Use(Selec)
-      Use(Indices_domain_dcl)
       Use(Indexes)
       Use(Compla)
       Use(Ynorm)
       integer iy, ix, iv
          
-         do iy = j1+1-iymnbcl, j6-1+iymxbcl
-           do ix = i1+1-ixmnbcl, i6-1+ixmxbcl
+         do iy = j1, j6
+           do ix = i1, i6
              if(isngonxy(ix,iy,1)==1) then
                iv = idxg(ix,iy,1)
                yldot(iv) = nurlxg * (nginit(ix,iy) - ng(ix,iy,1))/n0g(1)

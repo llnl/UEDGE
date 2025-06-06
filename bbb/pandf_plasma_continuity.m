@@ -1228,7 +1228,6 @@ c                   if (ix .eq. 1 .and. iy .eq. 1) write(*,*) 'sng_ue', ifld, jf
       Use(Share)
       Use(Coefeq)
       Use(Bfield)
-      Use(Indices_domain_dcl)
       Use(Xpoint_indices)
       Use(Comtra)
       Use(Bcond)
@@ -1310,7 +1309,7 @@ c                   if (ix .eq. 1 .and. iy .eq. 1) write(*,*) 'sng_ue', ifld, jf
  
            endif
            if (islimon.ne.0 .and. iy.ge.iy_lims) fnix(ix_lim,iy,ifld)=0.
-           if (nxpt==2 .and. ixmxbcl==1) fnix(ixrb(1)+1,iy,ifld)=0.
+           if (nxpt==2) fnix(ixrb(1)+1,iy,ifld)=0.
         end do
 
 *  -- compute fniy  --
@@ -1409,7 +1408,6 @@ c ... Add rad flux of 4th order diff operator; damp grid-scale oscillations
       Use(Share)
       Use(Coefeq)
       Use(Bfield)
-      Use(Indices_domain_dcl)
       Use(Xpoint_indices)
       Use(Comtra)
       Use(Bcond)

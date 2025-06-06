@@ -17,8 +17,6 @@ c!include "../sptodp.h"
       Use(Coefeq)
       Use(Conduc)
       Use(Xpoint_indices)
-      Use(Indices_domain_dcg)
-      Use(Npes_mpi)
       Use(Comflo)
       Use(Share)
       Use(Noggeo)
@@ -82,7 +80,6 @@ ccc Distance between veloc. cell centers:
          do  iy = j1omp1, j5omp
             if (nxpt == 1 .or. iy <= iysptrx1(1)) then
               iysepu = iysptrx1(1)
-              if (ndomain > 1) iysepu = iysptrxg(mype+1)  # and ixpt1,2u??
               ixpt1u = ixpt1(1)
               ixpt2u = ixpt2(1)
             else  # nxpt=2 and iy > iysptrx1(1), use second separatrix
@@ -163,8 +160,6 @@ ccc Distance between veloc. cell centers:
       Use(Coefeq)
       Use(Conduc)
       Use(Xpoint_indices)
-      Use(Indices_domain_dcg)
-      Use(Npes_mpi)
       Use(Comflo)
       Use(Share)
       Use(Noggeo)
@@ -578,7 +573,6 @@ c  -- it is included in frici from mombal or mombalni
       Use(Dim)
       Use(UEpar)
       Use(Xpoint_indices)
-      Use(Indices_domain_dcl)
       Use(Timing)
       Use(Bfield)
       Use(Bcond)
@@ -630,9 +624,9 @@ c     cfyef is included. Both isphiofft=0 or 1 cases included in one loop
             do ix = i1omp, i6omp
                ix1 = ix
                do jx = 1, nxpt
-                 if (ix==ixlb(jx) .and. ixmnbcl==1) then
+                 if (ix==ixlb(jx) ) then
                    ix1 = ixlb(jx) + 1
-                 elseif (ix==ixrb(jx) .and. ixmxbcl==1) then
+                 elseif (ix==ixrb(jx) ) then
                    ix1 = ixrb(jx) - 1 
                  endif
                enddo
@@ -680,8 +674,8 @@ c...  TODO: remove xc dependency from here
                  upi(ix1,iy,ifld) = up(ix1,iy,ifld)
                else
                  do jx = 1, nxpt
-                    if ( (ix1==ixlb(jx).and.ixmnbcl==1) .or.
-     .                   (ix1==ixrb(jx).and.ixmxbcl==1) ) then
+                    if ( (ix1==ixlb(jx)) .or.
+     .                   (ix1==ixrb(jx)) ) then
                        # constrain boundary velocity
                        if (zi(ifld) .gt. 1.e-10) then
                           argx = abs((2-2*upi(ix1,iy,ifld)/
@@ -696,7 +690,7 @@ c...  TODO: remove xc dependency from here
                uup(ix1,iy,ifld) = rrv(ix1,iy)*upi(ix1,iy,ifld)
             enddo
          endif
-         do ix = ixs1, min(ixf6, nx+1-ixmxbcl)
+         do ix = ixs1, min(ixf6, nx)
             ix2 = ixp1(ix,iy)
             if (isimpon .eq. 5) then
                if (istimingon .eq. 1) tsimp = tick()
@@ -712,8 +706,8 @@ c...  TODO: remove xc dependency from here
                  upi(ix,iy,ifld) = up(ix,iy,ifld)
                else
                  do jx = 1, nxpt
-                    if ( (ix==ixlb(jx).and.ixmnbcl==1) .or.
-     .                   (ix==ixrb(jx).and.ixmxbcl==1) ) then
+                    if ( (ix==ixlb(jx)) .or.
+     .                   (ix==ixrb(jx)) ) then
                        # constrain boundary velocity
                        if (zi(ifld) .gt. 1.e-10) then
                           argx = abs((2-2*upi(ix,iy,ifld)/
@@ -1074,7 +1068,6 @@ c ... Common blocks:
       Use(Share)        # cutlo
       Use(Coefeq)       # cfnetap
       Use(Volsrc)       # volmsor
-      Use(Npes_mpi)
       Use(Conduc)       # pondomfpari_use
 
 

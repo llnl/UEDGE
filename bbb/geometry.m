@@ -458,7 +458,6 @@ c  ---------------------------------------------------------------------
       Use(Phyvar)         # pi
       Use(Bfield)         # b0old
       Use(Flags)          # iprint
-      Use(Npes_mpi)       # mype
       Use(Comgeo)         # area_core
 *  -- local scalars --
       integer nj, ij, ix, iy, jx
@@ -632,11 +631,7 @@ c-----------------------------------------------------------------------
       Use(UEpar)          # is1D_gbx,ixgb,xgbx,r0slab,thetar,issvyxpt0
                           # isxmpog
       Use(Bcond)          # isfixlb,isfixrb
-      Use(Parallv)        # nxg,nyg
-      Use(Indices_domain_dcg) # ndomain
-      Use(Indices_domain_dcl) # ixmnbcl,ixmxbcl
       Use(Math_problem_size)  # neqmx
-      Use(Npes_mpi)       # mype
       Use(Flags)          # iprint
 
 *  -- local scalars --
@@ -656,7 +651,6 @@ c-----------------------------------------------------------------------
 
 c ... Generate grid information or read it from file 'gridue'.
 
-      if (ndomain .gt. 1) goto 13  # domain decomp.; rm,zm already passed
 
         if (manualgrid == 0) then
 
@@ -795,8 +789,6 @@ c...  locations near ix=ixpt2 on iy=1 surface if nxpt2msh or nxpt2psh > 1
 *     Define guard cells around the edge of the mesh --
       call guardc
 
-c ... Jump to here for domain decomposition
-  13  continue
 *----------------------------------------------------------------------
 *  -- Define the density and velocity cell data in (R,Z) coordinates --
 *----------------------------------------------------------------------
@@ -968,15 +960,13 @@ ccc            endif
  301     continue
  302  continue
 
-c...  If serial case (ndomain=1), compute area_core (if ||, see globalmesh)
-      if (ndomain == 1) then
+c...  Compute area_core
         area_core = 0.
         do jx = 1, nxpt
           do ix = ixpt1(jx)+1, ixpt2(jx)
             area_core = area_core + sy(ix,0)
           enddo				  
         enddo
-      endif
 
 c...  Readjust rr in corner cells near x-point for the guard cells if
 c...  this case is for core only (nyomitmx.ne.0)
@@ -1122,7 +1112,7 @@ c...  of the core boundary region
         ix_last_core_cell = ixpt2(nxpt)
       endif
       ix = max(1, ixpt1(1)+1)
-      ix = min(ix, nx+ixmxbcl)
+      ix = min(ix, nx+1)
       sygytotc = sy(ix,0)*gyf(ix,0)
       do ix = ixpt1(1)+1, ix_last_core_cell
          if ( .not. (isudsym==1 .and. ((ix==nxc) .or. (ix==nxc+1))) ) then
@@ -1321,7 +1311,7 @@ c ... Fix the core boundary; just a convention
       xcv(nx+1) = xfv(nx+1)
 
 *  -- define y on density faces -- at outboard midplane (?)
-      if (ixpt2(1) > 0 .and. (isudsym.ne.1) .and.isddcon==0) then
+      if (ixpt2(1) > 0 .and. (isudsym.ne.1)) then
          rmmax = rm(nxleg(1)+nxcore(1)+1,ny,0)
          do ix = nxleg(1)+nxcore(1)+1, ixpt2(1)
            if (rm(ix,ny,0) >= rmmax) then
@@ -1376,13 +1366,11 @@ c...  Calculate normalized poloidal flux for mhdgeo=1 cases (tor. equil)
 
 c --- compute normalized mesh for interpolation of solution
 c --- Here the initial xnrm, ynrm, etc. are calculated
-      if (ndomain .le. 1) then
          do jx=1,nxpt
             call grdnrm (nx,ny,ixlb(jx),ixpt1(jx),ixpt2(jx),ixrb(jx),
      .                             iysptrx,isgindx,gx,gxf,gy,gyf,gyc,
      .                                         xnrm,xvnrm,ynrm,yvnrm)
          enddo
-      endif
 
       if (isnonog .ge. 1) then
 c...  Reset fxm, fx0, fxp around the x-point - only orthogonal coupling
@@ -1611,12 +1599,11 @@ c ... may be required:
           do iy = 0, ny+1
            isxptx(ix,iy)=1
            isxpty(ix,iy)=1
-           if (isddcon == 0) then   #no domain decomp (serial comp)
 c ... isxptx=0 for cells whose x-face touches an x-point; else isxptx=1
             isxptx(ix,iy)=1
-            if ( (ix==ixpt1(jx)) .and. ixmnbcl==1 .and.
+            if ( (ix==ixpt1(jx)) .and.
      .           (iy==iysptrx1(jx) .or. iy==iysptrx1(jx)+1) ) isxptx(ix,iy)=0
-            if ( (ix==ixpt2(jx)) .and. ixmxbcl==1 .and.
+            if ( (ix==ixpt2(jx)) .and.
      .           (iy==iysptrx2(jx) .or. iy==iysptrx2(jx)+1) ) isxptx(ix,iy)=0
 c ... isxpty=0 if y-face touches Xpt from below; =-1 if touches from above
 c ... one-side y-deriv from below if isxpty=0 & from above if isxpty=-1
@@ -1630,20 +1617,6 @@ c ... May be needed for parallel domain decomp cases
      .             ix==ixpt1(jx)+1 ) isxpty(ix,iy)=-1
              if ( (iy==iysptrx2(jx)+1) .and. nyomitmx < nysol .and.
      .             ix==ixpt2(jx)+1 ) isxpty(ix,iy)=-1
-           else  #parallel decomposed domains
-              if ( (ix==ixpt1g(mype+1)) .and. (iy==iysptrxg(mype+1) .or.
-     .              iy==iysptrxg(mype+1)+1) ) isxptx(ix,iy) = 0
-              if ( (ix==ixpt2g(mype+1)) .and. (iy==iysptrxg(mype+1) .or.
-     .              iy==iysptrxg(mype+1)+1) ) isxptx(ix,iy) = 0
-              if ( (iy==iysptrxg(mype+1)) .and. (ix==ixpt1g(mype+1) .or.
-     .              ix==ixpt1g(mype+1)+1) ) isxpty(ix,iy) = 0
-              if ( (iy==iysptrxg(mype+1)) .and. (ix==ixpt2g(mype+1) .or.
-     .              ix==ixpt2g(mype+1)+1) ) isxpty(ix,iy) = 0
-              if ( (iy==iysptrxg(mype+1)+1) .and.
-     .              ix==ixpt1g(mype+1)+1 ) isxpty(ix,iy) = -1
-              if ( (iy==iysptrxg(mype+1)+1) .and.
-     .              ix==ixpt2g(mype+1)+1 ) isxpty(ix,iy) = -1
-            endif
           enddo
         enddo
       enddo  # end do-loop over nxpt x-points
@@ -1669,7 +1642,6 @@ c-----------------------------------------------------------------------
       Use(Compla)         # mi
       Use(Comtra)         # tibsep,tebsep,cfelecbwd
       Use(UEint)          # mhdgeo
-      Use(Parallv)  #nxg
 
 *  -- local scalars --
       integer iyso,iybwmni,iybwmne,iybwmxi,iybwmxe,ixref
@@ -1895,7 +1867,6 @@ c-----------------------------------------------------------------------
       Use(Share)          # geometry,nxc,nxomit,isoldgrid
                           # islimon,ix_lim,iy_lims,reset_core_og
       Use(Bcond)          # isfixlb,isfixrb
-      Use(Parallv)        # nxg,nyg
       Use(Phyvar)         # pi
 
 

@@ -16,7 +16,6 @@ c!include "../sptodp.h"
       Use(Phyvar)
       Use(Dim)
       Use(Xpoint_indices)
-      Use(Indices_domain_dcl)
       Use(Comtra)
       Use(Comgeo)
       Use(Conduc)
@@ -81,8 +80,8 @@ c!include "../sptodp.h"
             vt1 = sqrt(t1/me)
             wallfac = 1.
             do jx = 1, nxpt
-               if ( ( (ix==ixlb(jx).and.ixmnbcl==1) .or.
-     .                (ix==ixrb(jx).and.ixmxbcl==1) )
+               if ( ( (ix==ixlb(jx)) .or.
+     .                (ix==ixrb(jx)) )
      .              .and. (isplflxl==0) ) wallfac = flalfepl/flalfe
             enddo
             qfl = wallfac*flalfe * sx(ix,iy) * rrv(ix,iy) *
@@ -105,8 +104,8 @@ c.... Now do the ions (hcxi is flux-limited previously when it is built)
             vt1 = sqrt(t1/mi(1))
             wallfac = 1.
             do jx = 1, nxpt
-               if ( ( (ix==ixlb(jx).and.ixmnbcl==1) .or.
-     .                (ix==ixrb(jx).and.ixmxbcl==1) )
+               if ( ( (ix==ixlb(jx)) .or.
+     .                (ix==ixrb(jx)) )
      .              .and. (isplflxl==0) ) wallfac = flalfipl/flalfi
             enddo
             qfl = wallfac*flalfia(ix) * sx(ix,iy) * rrv(ix,iy) *
@@ -178,19 +177,15 @@ c IJ 2016/10/10	add cfneutsor_ei multiplier to control fraction of neutral energ
      .                 cftiexclg*cfcvti*2.5*cfneut*cfneutsor_ei*fnix(ix,iy,ifld) 
                end do # next correct for incoming neut pwr = 0
                do jx = 1, nxpt  #if at plate, sub (1-cfloxiplt)*neut-contrib
-                 if(ixmnbcl==1) then  #real plate-need for parallel UEDGE
                    iixt = ixlb(jx) #left plate
                    if(fnix(iixt,iy,ifld) > 0.) then
                      floxi(iixt,iy) = floxi(iixt,iy) - (1.-cfloxiplt)*
      .                 cftiexclg*cfcvti*2.5*cfneut*cfneutsor_ei*fnix(iixt,iy,ifld)
                    endif
-                 endif
-                 if(ixmxbcl==1) then #real plate-need for parallel UEDGE
                    iixt = ixrb(jx) # right plate
                    if(fnix(iixt,iy,ifld) < 0.) then
                      floxi(iixt,iy) = floxi(iixt,iy) - (1.-cfloxiplt)*
      .                 cftiexclg*cfcvti*2.5*cfneut*cfneutsor_ei*fnix(iixt,iy,ifld)
-                   endif
                    floxi(ixrb(jx)+1,iy) = 0.0e0  #cosmetic
                  endif
                enddo
@@ -286,8 +281,8 @@ cccMER For full double-null configuration, iysptrx is last closed flux surface.
              ix3 = ixm1(ix,iy)
              ix4 = ixm1(ix,iy+1)
              do jx = 1, nxpt
-                if ( (ix.ne.ixlb(jx).and.ixmnbcl.ne.1) .or.
-     .               (ix.ne.ixrb(jx)+1.and.ixmxbcl.ne.1) ) then
+                if ( (ix.ne.ixlb(jx).and..False.) .or.
+     .               (ix.ne.ixrb(jx)+1.and..False.) ) then
 c... sknam: grad T from tiv
              temp1 = 4.0*(tiv(ix,iy) - tiv(ix3,iy))*gxc(ix,iy)
 cccMER For full double-null configuration, iysptrx is last closed flux surface.
@@ -335,8 +330,8 @@ cccMER For full double-null configuration, iysptrx is last closed flux surface.
 	    ix3 = ixm1(ix,iy)
 	    ix4 = ixm1(ix,iy+1)
             do jx = 1, nxpt
-               if ( (ix.ne.ixlb(jx).and.ixmnbcl.ne.1) .or.
-     .              (ix.ne.ixrb(jx)+1.and.ixmxbcl.ne.1) ) then
+               if ( (ix.ne.ixlb(jx).and..False.) .or.
+     .              (ix.ne.ixrb(jx)+1.and..False.) ) then
 c... sknam: grad T from tev
             temp1 = 4.0*(tev(ix,iy) - tev(ix3,iy))*gxc(ix,iy)
 cccMER For full double-null configuration, iysptrx is last closed flux surface.
@@ -507,12 +502,12 @@ c ... Demand that net feex cannot be out of the plates
       if (isfeexpl0 == 1) then
         do iy = j4omp, j8omp
           do jx = 1, nxpt
-            if(feex(ixlb(jx),iy) > 0. .and. ixmnbcl==1) then
+            if(feex(ixlb(jx),iy) > 0. ) then
               feexflr = ni(ixlb(jx),iy,1)*1.e4*ev*sx(ixlb(jx),iy)
               feex(ixlb(jx),iy) = feex(ixlb(jx),iy)/
      .                (1.+ (feex(ixlb(jx),iy)/feexflr)**4)
             endif
-            if(feex(ixrb(jx),iy) < 0. .and. ixmxbcl==1) then
+            if(feex(ixrb(jx),iy) < 0. ) then
               feexflr = ni(ixrb(jx),iy,1)*1.e4*ev*sx(ixrb(jx),iy)
               feex(ixrb(jx),iy) = feex(ixrb(jx),iy)/
      .                (1.+ (feex(ixrb(jx),iy)/feexflr)**4)
@@ -551,7 +546,7 @@ c ... Demand that net feex cannot be out of the plates
             feex(ix_lim,iy) = 0.
             feix(ix_lim,iy) = 0.
          endif
-         if (nxpt==2 .and. ixmxbcl==1) then
+         if (nxpt==2 ) then
             feex(ixrb(1)+1,iy) = 0.
             feix(ixrb(1)+1,iy) = 0.
          endif
@@ -965,7 +960,6 @@ c******************************************************************
       Use(Phyvar)
       Use(Xpoint_indices)
       Use(Jacobian_restore)
-      Use(Indices_domain_dcl)
       Use(Ext_neutrals)
       Use(Wkspace)
       Use(Imprad)
@@ -1232,7 +1226,6 @@ c******************************************************************
       Use(Comtra)
       Use(Phyvar)
       Use(Xpoint_indices)
-      Use(Indices_domain_dcl)
       Use(Share)
       Use(Comflo)
       Use(Coefeq)
@@ -1364,8 +1357,8 @@ c ... Add ion temp. dep. for pol. terms, flux limit, & build total ion hcx,yi
                   tiave = (ti(ix,iy)*gx(ix,iy) + ti(ix1,iy)*gx(ix1,iy)) /
      .                                         (gx(ix,iy) + gx(ix1,iy))
                   do jx = 1, nxpt
-                    if (ix==ixlb(jx).and.ixmnbcl==1) tiave=ti(ixlb(jx)+1,iy)
-                    if (ix==ixrb(jx).and.ixmxbcl==1) tiave=ti(ixrb(jx),iy)
+                    if (ix==ixlb(jx)) tiave=ti(ixlb(jx)+1,iy)
+                    if (ix==ixrb(jx)) tiave=ti(ixrb(jx),iy)
                   enddo
                   a = max (tiave, temin*ev)
                else
@@ -1393,8 +1386,8 @@ c ... Flux limit individ. hcxij in poloidal direction if isflxldi=2
      .                                        (gx(ix,iy) + gx(ix1,iy))
                   wallfac = 1.
                   do jx = 1, nxpt
-                     if ( ( (ix==ixlb(jx).and.ixmnbcl==1) .or.
-     .                      (ix==ixrb(jx).and.ixmxbcl==1) )
+                     if ( ( (ix==ixlb(jx)) .or.
+     .                      (ix==ixrb(jx)) )
      .                    .and. (isplflxl==0) ) wallfac = flalfipl/flalfi
                   enddo
                   qflx = wallfac*flalfi * rrv(ix,iy) *
@@ -1426,8 +1419,8 @@ c...  Now include elec. temp and other dep. in poloidal terms + diff. neut.
                teave = (te(ix,iy)*gx(ix,iy) + te(ix1,iy)*gx(ix1,iy)) /
      .                                       (gx(ix,iy) + gx(ix1,iy))
                do jx = 1, nxpt
-                 if(ix==ixlb(jx).and.ixmnbcl==1) teave=te(ixlb(jx)+1,iy)
-                 if(ix==ixrb(jx).and.ixmxbcl==1) teave=te(ixrb(jx),iy)
+                 if(ix==ixlb(jx)) teave=te(ixlb(jx)+1,iy)
+                 if(ix==ixrb(jx)) teave=te(ixrb(jx),iy)
                enddo
                a = max (teave, temin*ev)
             else

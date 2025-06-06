@@ -31,7 +31,6 @@ c --------------------------------------------------------------------------
 
       Use(Coefeq)   # cngfx,cngfy,cngmom,cmwall,cdifg,rld2dxg,rld2dyg
       Use(Bcond)    # albedoo,albedoi
-      Use(Parallv)  # nxg,nyg
       Use(Rccoef)   # recylb,recyrb,recycw,recycz,sputtr
       Use(Selec)    # i1,i2,i3,i4,i5,i6,i7,i8,j1,j2,j3,j4,j5,j6,j7,j8
                     # xlinc,xrinc,yinc,ixm1,ixp1,stretcx
@@ -43,7 +42,6 @@ c --------------------------------------------------------------------------
       Use(Rhsides)  # resng,psor,psorg,psorrg,sniv,eiamoldiss
       Use(Comtra)   # flalfgx,flalfgy
       Use(Locflux)  # floxg,floyg,conxg,conyg
-      Use(Indices_domain_dcl)    # iymnbcl,iymxbcl
       Use(Volsrc)   # volpsorg
       Use(Wkspace)  # w0,w1,etc
       Use(MCN_dim)  #
@@ -141,19 +139,15 @@ c... flux-limit occurs in building hcxg - do not flux-limit 2nd time
       do igsp = 1, ngsp
         do iy = j4omp, j8omp
           do jx = 1, nxpt  #if at plate, sub (1-cfloxiplt)*neut-contrib
-            if(ixmnbcl==1) then  #real div plt -need for parallel UEDGE
               iixt = ixlb(jx) #left plate
               if(fngx(iixt,iy,igsp) > 0.) then
                 floxge(iixt,iy,igsp) = floxge(iixt,iy,igsp) -
      .                    (1.-cfloxiplt)*cfcvti*2.5*fngx(iixt,iy,igsp)
               endif
-            endif
-            if(ixmxbcl==1) then #real div plt -need for parallel UEDGE
               iixt = ixrb(jx) # right plate
               if(fngx(iixt,iy,igsp) < 0.) then
                 floxge(iixt,iy,igsp) = floxge(iixt,iy,igsp) -
      .                   (1.-cfloxiplt)*cfcvti*2.5*fngx(iixt,iy,igsp)
-              endif
               floxge(ixrb(jx)+1,iy,igsp) = 0.0e0 #cosmetic
             endif
           enddo
@@ -174,21 +168,17 @@ c... flux-limit occurs in building hcxg - do not flux-limit 2nd time
       do igsp = 1, ngsp
         do ix = i4omp, i8omp
           do jx = 1, nxpt  #if on PF wall, sub (1-cfloygw)*neut-contrib
-            if(iymnbcl==1) then  #real PFw-need for parallel UEDGE?
               if(ix <= ixpt1(jx) .or. ix > ixpt2(jx)) then
                 if(fngy(ix,0,igsp) > 0.) then
                   floyge(ix,0,igsp) = floyge(ix,0,igsp) -
      .                       (1.-cfloygwall)*cfcvtg*2.5*fngy(ix,0,igsp)
                 endif
               endif
-            endif
           enddo
-          if(iymxbcl==1) then #real outer-w-need for parallel UEDGE?
             if(fngy(ix,ny,igsp) < 0.) then
               floyge(ix,ny,igsp) = floyge(ix,ny,igsp) -
      .                    (1.-cfloygwall)*cfcvtg*2.5*fngy(ix,ny,igsp)
             endif
-          endif
           floyge(ix,ny+1,igsp) = 0.0e0 #cosmetic
         enddo   #ix loop
       enddo

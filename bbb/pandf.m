@@ -40,7 +40,6 @@ c!omp     endif
       Use(Grid)
       Use(Share)
       Use(Bcond)
-      Use(Indices_domain_dcl)
       Use(Xpoint_indices)
       Use(Turbulence)
       Use(Imprad)
@@ -54,16 +53,16 @@ c     involve ion-density sources, fluxes, and/or velocities.
      .     ((0<=yc).and.(yc-yinc_loc<=0)).and.isjaccorall==1 ) then  
                                               # use full ix range near yc=0
                                               # with integrated core flux BC
-         i1 = 0  # 1-ixmnbcl
+         i1 = 0  
          i2 = 1
          i2p = 1
-         i3 = 0  # 1-ixmnbcl
-         i4 = 0  # 1-ixmnbcl
+         i3 = 0  
+         i4 = 0  
          i5 = nx
          i5m = nx-1
-         i6 = nx+1  # nx+ixmxbcl
-         i7 = nx+1  # nx+ixmxbcl
-         i8 = nx+1  # nx+ixmxbcl
+         i6 = nx+1  
+         i7 = nx+1  
+         i8 = nx+1 
       else
          i1 = max(0, xc-xlinc_loc-1)
          i2 = max(1, xc-xlinc_loc)
@@ -123,8 +122,8 @@ c...  We must expand the range of ix in the vicinity of cells on
 c...  which turbulent transport depends.
       xcturb = .false.
       do jx = 1, nxpt
-         xcturb = xcturb .or. (xc.eq.ixlb(jx).and.ixmnbcl==1) .or.
-     .                        (xc.eq.(ixrb(jx)+1).and.ixmxbcl==1)
+         xcturb = xcturb .or. (xc.eq.ixlb(jx)) .or.
+     .                        (xc.eq.(ixrb(jx)+1))
       enddo
 c     Set ix index for outer midplane turbulence
       if (isudsym==1) then
@@ -261,7 +260,6 @@ c...  boundary cells of a mesh region.  Used in subroutine bouncon.
       Use(Comgeo)
       Use(Ynorm)
       Use(Xpoint_indices)
-      Use(Indices_domain_dcl)
       real yldot(*)
       integer iy, ix, ifld, iv, jx, iv1, igsp, iv2, iv3
       logical isgc, isgc1
@@ -284,7 +282,7 @@ c...  boundary cells of a mesh region.  Used in subroutine bouncon.
                   yldot(iv) = (1-iseqalg(iv)) *
      .                        resmo(ix,iy,ifld)/(volv(ix,iy)*fnorm(ifld))
                   do jx = 1, nxpt
-                     if (ix.eq.ixrb(jx) .and. ixmxbcl.eq.1) yldot(iv) =
+                     if (ix.eq.ixrb(jx) ) yldot(iv) =
      .                        resmo(ix,iy,ifld)/(volv(ix,iy)*fnorm(ifld))
                   enddo
                endif
@@ -375,7 +373,6 @@ c  the perturbed variables are reset below to get Jacobian correct
       Use(Time_dep_nwt)   # nufak,dtreal,ylodt,dtuse
       Use(Indexes) # idxn,idxg,idxu,dxti,idxte,idxphi
       Use(Ynorm)   # isflxvar,isrscalf
-      Use(Indices_domain_dcl) # ixmnbcl,ixmxbcl,iymnbcl,iymxbcl
       Use(Compla)  # zi
       Use(Math_problem_size)   # neqmx(for arrays not used here)
       Use(ParallelEval)
@@ -394,10 +391,10 @@ cccMER   NOTE: what about internal guard cells (for dnbot,dnull,limiter) ???
                 i2l = 1
                 i5l = nx
              else                      # include b.c. eqns
-                j2l = (1-iymnbcl)
-                j5l = ny+1-(1-iymxbcl)
-                i2l = (1-ixmnbcl)
-                i5l = nx+1-(1-ixmxbcl)
+                j2l = 0
+                j5l = ny+1
+                i2l = 0
+                i5l = nx+1
              endif           
          else
              if (isbcwdt .eq. 0) then  # omit b.c. eqns

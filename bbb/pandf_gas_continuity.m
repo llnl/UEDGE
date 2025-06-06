@@ -55,7 +55,6 @@ c
                     # isupgon,iigsp,nlimgx,nlimgy,nlimiy,rld2dx,rld2dy
       Use(Coefeq)   # cngfx,cngfy,cngmom,cmwall,cdifg,rld2dxg,rld2dyg
       Use(Bcond)    # albedoo,albedoi
-      Use(Parallv)  # nxg,nyg
       Use(Rccoef)   # recylb,recyrb,recycw,recycz,sputtr
       Use(Selec)    # i1,i2,i3,i4,i5,i6,i7,i8,j1,j2,j3,j4,j5,j6,j7,j8
                     # xlinc,xrinc,yinc,ixm1,ixp1
@@ -67,7 +66,6 @@ c
       Use(Rhsides)  # resng,psor,psorg,psorrg,sniv
       Use(Comtra)   # flalfgx,flalfgy
       Use(Locflux)  # floxg,floyg,conxg,conyg
-      Use(Indices_domain_dcl)    # iymnbcl,iymxbcl
       Use(Volsrc)   # volpsorg
       Use(Timing)   # ttngxlog,ttngylog,ttngfd2,ttngfxy
 
@@ -149,7 +147,7 @@ c ..Timing;initialize
              if (islimon.eq.1.and. ix.eq.ix_lim.and. iy.ge.iy_lims) then
                vygtan(ix,iy,igsp) = 0.
              endif
-             if (nxpt==2 .and. ix==ixrb(1)+1 .and. ixmxbcl==1) then
+             if (nxpt==2 .and. ix==ixrb(1)+1 ) then
                vygtan(ix,iy,igsp) = 0.
              endif
             endif
@@ -171,8 +169,8 @@ c...   Use upwind for "convective" grad T term if methgx .ne. 2
 c...  Because guard-cell values may be distorted from B.C., possibly omit terms on
 c...  boundary face - shouldnot matter(just set BC) except for guard-cell values
             do jx = 1, nxpt
-               if ( (ix==ixlb(jx).and.ixmnbcl==1) .or.
-     .              (ix==ixrb(jx).and.ixmxbcl==1) ) then
+               if ( (ix==ixlb(jx)) .or.
+     .              (ix==ixrb(jx)) ) then
                   qr = gcfacgx*qr
                   qtgf = gcfacgx*qtgf
                endif
@@ -272,11 +270,11 @@ c...   Use upwind for "convective" grad T term if methgy .ne. 2
      .                         ngy1(ix,iy,igsp)*0.5*(1-sign(1.,qtgf))
             qsh = csh * (pgy0(ix,iy,igsp)-pgy1(ix,iy,igsp)) + qtgf*nconv
             qr = abs(qsh/qfl)
-            if(iy.eq.0 .and. iymnbcl.eq.1) then
+            if(iy.eq.0) then
                qr = gcfacgy*qr
                qtgf = gcfacgy*qtgf
             endif
-            if(iy.eq.ny .and. iymxbcl.eq.1) then
+            if(iy.eq.ny ) then
                qr = gcfacgy*qr
                qtgf = gcfacgy*qtgf
             endif
@@ -336,8 +334,8 @@ c ..Timing
 ccc            MER: Set flag to apply xy flux limit except at target plates
                isxyfl = .true.
                do jx = 1, nxpt
-                 if( (ix==ixlb(jx).and.ixmnbcl==1) .or.
-     .               (ix==ixrb(jx).and.ixmxbcl==1) ) isxyfl = .false.
+                 if( (ix==ixlb(jx)) .or.
+     .               (ix==ixrb(jx)) ) isxyfl = .false.
                enddo
                if (methgx .eq. 6) then  # log interpolation
                grdnv =(   ( fym (ix,iy,1)*logpg(ix2,iy1 ,igsp) + 
@@ -554,7 +552,6 @@ c --------------------------------------------------------------------------
       Use(Comflo)
       Use(Compla)
       Use(Dim)
-      Use(Indices_domain_dcl)
       Use(Xpoint_indices)
       Use(Rhsides)
       Use(Coefeq)
@@ -579,7 +576,7 @@ c.... Calculate the residual for the gas equation for diffusive neutral case
 	     fngx(nxc+1,iy,igsp) = 0.
 	  endif
           if (islimon.ne.0.and.iy.ge.iy_lims) fngx(ix_lim,iy,igsp)=0.
-          if (nxpt==2.and.ixmxbcl==1) fngx(ixrb(1)+1,iy,igsp)=0.
+          if (nxpt==2) fngx(ixrb(1)+1,iy,igsp)=0.
           do ix = i2omp, i5omp
             ix1 = ixm1(ix,iy)
 

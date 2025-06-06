@@ -813,7 +813,6 @@ END SUBROUTINE OMPSplitIndex
 
     USE UEpar, ONLY: igas
     USE Xpoint_indices, ONLY: ixrb, ixlb
-    USE Indices_domain_dcl, ONLY: iymnbcl,iymxbcl, ixmnbcl, ixmxbcl
     USE Share, ONLY: isudsym, geometry, islimon, ix_lim, nxc
     USE Bcond, ONLY: isfixlb
     USE OMPPandf1, ONLY: Nxptchunks, rangechunk, &
@@ -1025,8 +1024,6 @@ END SUBROUTINE OMPSplitIndex
       USE Ynorm, ONLY: isflxvar, isrscalf
       USE Time_dep_nwt, ONLY: dtreal
       USE Selec, ONLY: yinc, xrinc, xlinc, j3, i4, i8
-      USE Indices_domain_dcl, ONLY: iymnbcl
-      USE Dim, ONLY: nx
       IMPLICIT NONE
       INTEGER, INTENT(IN) :: neq
       INTEGER, INTENT(IN), DIMENSION(2,4) :: ranges

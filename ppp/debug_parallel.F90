@@ -33,7 +33,6 @@ subroutine DebugHelper(FileName)
       Use Gradients
       Use Imprad
 !TR      Use Imslwrk
-      Use Indices_domain_dcl
       Use Jacobian_csc
       Use Locflux
       Use MCN_sources
@@ -379,8 +378,6 @@ subroutine DebugHelper(FileName)
       write(iunit,*) i8
       write(iunit,*) "impradloc"
       call WriteArrayReal(impradloc,size(impradloc),iunit)
-      write(iunit,*) "ispwrbcl"
-      write(iunit,*) ispwrbcl
       write(iunit,*) "iwalli"
       call WriteArrayReal(iwalli,size(iwalli),iunit)
       write(iunit,*) "iwallo"

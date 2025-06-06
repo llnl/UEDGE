@@ -671,23 +671,17 @@ fwsoro(0:nx+1,10)    _real   +maybeinput #profile of outer wall source isor (mis
 fngysi(0:nx+1,ngsp)  _real   +maybeinput 
                              #gas input flux from igasi on inner wall (calc)
 fngyi_use(0:nx+1,ngsp) _real [1/m**3s] +input #user supplied gas input flux*area
-fngysig(0:nxg+1,ngsp) _real  +maybeinput #global value of fngysi if domain decomp (parll)
 fngyso(0:nx+1,ngsp)  _real   +maybeinput 
                              #gas input flux from igaso on outer wall (calc)
 fngyo_use(0:nx+1,ngsp) _real [1/m**3s] +input #user supplied gas input flux*area
-fngysog(0:nxg+1,ngsp) _real  +maybeinput #global value of fngyso if domain-decomp (parll)
 albedoo(0:nx+1,ngsp) _real   +input
                              #albedo outer iy=ny+1 surface for neutrals (calc)
-albedoog(0:nxg+1,ngsp) _real +maybeinput #global val albedoo if domain-decomp (parll)
 albedoi(0:nx+1,ngsp) _real   +input  
                              #albedo of inner iy=0 surface for neutrals (calc)
-albedoig(0:nxg+1,ngsp) _real +maybeinput #global val albedoi if domain-decomp (parll)
 matwallo(0:nx+1)     _integer +maybeinput 
                              #flag (=1) denoting outer material side wall
-matwallog(0:nxg+1)  _integer +maybeinput #global val matwallo if domain-decomp (parll)
 matwalli(0:nx+1)    _integer +maybeinput 
                              #flag (=1) denoting inner material side wall (pf)
-matwallig(0:nxg+1)  _integer +maybeinput #global val matwalli if domain-decomp (parll)
 sinphi    real         /.1/     +input #sine of angle between side wall and flux surf.
 isfixlb(nxptmx) integer /nxptmx*0/+input #=1 fixes values left bndry;=2 for symm. pt.
 isfixrb(nxptmx) integer /nxptmx*0/+input #=2 for symmetry pt. at ix=nx+1
@@ -1236,26 +1230,6 @@ icntnunk     integer /0/ #nksol continuation call flag.
                          #=0 tells nksol that this is not a continuation call.
                          #   The preconditioner routine pset is called to
                          #   evaluate and factor the Jacobian matrix.
-
-***** Parallv:
-#Variables used for the parallel version utilizing pvode or kinsol
-nlocal       integer       #number of equations on given processor
-neqg         integer       #total number of equations over all processors
-nxg	     integer       #number of global poloidal mesh points = nxg+2
-nyg	     integer       #number of global radial mesh points = nyg+2g
-meth         integer /2/   #input for fpvmalloc; spec. method (lmm)
-itmeth       integer /2/   #input for fpvmalloc; spec. interation method (iter)
-iatol        integer /1/   #input for fpvmalloc; spec. error array type
-igs          integer /1/   #input for fcvspgrm2; Gram-Schmidt process
-maxkd        integer /50/  #maximum Krylov dimension for kinsol
-maxlrst      integer /2/   # for kinsol
-msbpre       integer /0/   #preconditioner flag for kinsol
-globalstrat  integer /0/   #global strategy flag for kinsol
-iopt(40)     integer /40*0/#opt. input/output array
-ropt(40)     real  /40*0./ #opt. input/output array
-rtol_pv      real /1e-4/   #relative tol. for parallel pvode
-atol_pv      real /1e-6/   #relative tol. for parallel pvode
-delt_pv      real /5e-4/   #linear converg. error-test param. for pvode
 
 ***** Constraints:
 #Variables for checking constraints, i.e., negativity
@@ -3147,119 +3121,6 @@ phis(0:nxold+1,0:nyold+1)       _real [V]    #potential at last success. calc
 ups(0:nxold+1,0:nyold+1,1:nisp) _real [m/s]  #parall. vel at last success. calc
 ngs(0:nxold+1,0:nyold+1,1:ngsp) _real [m^-3] #gas dens at last success. calc.
 afracs(0:nxold+1,0:nyold+1)     _real [ ]    +input #rel. imp. frac at last succ. calc
-
-***** Global_vars:
-# Arrays for primary variables over full mesh for domain decomposition
-nisg(0:nxoldg+1,0:nyoldg+1,1:nisp) _real [m^-3] #global array for nis
-tesg(0:nxoldg+1,0:nyoldg+1)        _real [J]    #global array for tes
-tisg(0:nxoldg+1,0:nyoldg+1)        _real [J]    #global array for tis
-tgsg(0:nxoldg+1,0:nyoldg+1)        _real [J]    #global array for tgs
-phisg(0:nxoldg+1,0:nyoldg+1)       _real [V]    #global array for phis
-upsg(0:nxoldg+1,0:nyoldg+1,1:nisp) _real [m/s]  #global array for ups
-ngsg(0:nxoldg+1,0:nyoldg+1,1:ngsp) _real [m^-3] #global array for ngs
-afracsg(0:nxoldg+1,0:nyoldg+1)     _real [ ]    #global array for afracs
-
-***** Global_input:
-# Arrays for real and integer input variables to be passed for domain decomp.
-ipassin(1:100)		integer 	#integer input variables to be passed
-rpassin(1:100)		real 		#real input variables to be passed
-cpassin(1:30)		character*8 	#character input variables to be passed
-
-***** Npes_mpi:
-# Processor numbers for parallel version with mpi
-npes		integer	/0/	#total number of processors
-mype		integer	/-1/	#processor number of local processor (domain)
-ismpion	        integer /0/     #flag to indicate using MPI (if=1)
-hascomm         integer /0/     #flag indicates communicator has been set (if=1)
-isparmultdt     integer /0/     #=1 for multistep parallel beyond 1st step
-
-***** Indices_domain_dcg:
-# Indices used for domain decomposition on the global mesh
-isddcon		  integer   /0/	   #switch to turn on domain decomposition
-ndleg(1:10,1:2)   integer   /20*1/ #number of x-domains in nxleg regions
-ndxcore(1:10)     integer   /10*1/ #number of x-domains in nxcore(,1:2) regions
-ndycore(1:10)     integer   /10*1/ #number of y-domains in core
-ndysol(1:10)      integer   /10*1/ #number of y-domains in sol
-idxpt(1:2)        integer   /2*0/  #PF/core domains with up touching X-point
-ndxt              integer          #total number of x-domains
-ndyt              integer          #total number of y-domains
-ndomain           integer   /1/    #total number of domains
-ndomain_orig      integer   /1/    #tot num orig domains before par_data gather
-nvrsend           integer /10000/  #size of global real send/recv array for MPI
-nvisend 	  integer /10000/  #size of global integer send/recv array for MPI
-ixmin(ndomainmx)	integer    #min global ix for given domain
-ixmax(ndomainmx)	integer    #max global ix for given domain
-iymin(ndomainmx)	integer    #min global iy for given domain
-iymax(ndomainmx)	integer    #max global iy for given domain
-ixmnbcg(ndomainmx)	integer /ndomainmx*1/
-                               	#B.C. type at ix=ixmin bdry;=0 inter.,=1 ex.
-ixmxbcg(ndomainmx)	integer /ndomainmx*1/
-			       	#B.C. type at ix=ixmax bdry;=0 inter.,=1 ex.
-iymnbcg(ndomainmx)	integer /ndomainmx*1/
-				#B.C. type at iy=iymin bdry;=0 inter.,=1 ex.
-iymxbcg(ndomainmx)	integer /ndomainmx*1/
-				#B.C. type at iy=iymax bdry;=0 inter.,=1 ex.
-ncell(ndomainmx)	integer    #number of cells for given domain
-idxp1g(ndomainmx)	integer    #domain to the right of given domain (ix+1)
-idxm1g(ndomainmx)	integer    #domain to the left of given domain (ix-1)
-idyp1g(ndomainmx)	integer    #domain above given domain (iy+1)
-idym1g(ndomainmx)	integer    #domain below given domain (iy-1)
-idcorng(ndomainmx,1:4)	integer    #domains touching corners; from lower left,
-				   #numbering as in rm,zm: (l,r bot=1,2; top=3,4)
-ixpt1g(ndomainmx)	integer    #ixpt1 for a given domain
-ixpt2g(ndomainmx)	integer    #ixpt2 for a given domain
-iysptrxg(ndomainmx)	integer    #iysptrx for a given domain
-vrsend(nvrsend)        _real	   #real array used for passing global data via MPI
-visend(nvisend)        _integer	   #int array used for passing global data via MPI
-neq_locg(ndomainmx)    _integer    #number of vars per domain
-neq_locgmx              integer    #maximum of neq_locg
-ispwrbc(ndomainmx)      integer    #=1 for core pwr flux BC if corresp to ixpt2g
-
-***** Indices_loc_glob_map:
-# Indices that provide maps from loc-vars to glob-var and Jac entries
-ivcum(ndomainmx)       _integer     #counter to build yl-local to yl-global map
-ivloc2sdg(neqmx,ndomainmx) _integer #map loc-var to glob-var, single domain
-ivloc2mdg(neqmx,ndomainmx) _integer #map loc-var to glob-var, mult domain
-ivl2gstnl(neq_locgmx,9*numvar,ndomainmx) _integer /0/ # 1st arg loc-eqn number;
-
-                            # 2nd arg poss Jac vars - global-mp; 3rd arg domain
-iellast(neqmx,ndomainmx)   _integer #last meaningful entry into ivl2gstnl
-
-***** Indices_domain_dcl:
-# Indices used to connect domain with "neighbors"; known on local processor
-nx_loc		integer		#number of ix cells for given processor
-ny_loc		integer		#number of iy cells for given processor
-nvrsendl	integer	/10000/	#size of local real send/recv array for MPI
-nvisendl	integer	/10000/	#size of local integer send/recv array for MPI
-ixmnbcl		integer   /1/   #B.C. type at ix=ixmin bdry;=0 intern,=1 extern
-ixmxbcl		integer   /1/   #B.C. type at ix=ixmax bdry;=0 intern,=1 extern
-iymnbcl		integer   /1/   #B.C. type at ix=iymin bdry;=0 intern,=1 extern
-iymxbcl		integer   /1/   #B.C. type at iy=iymax bdry;=0 intern,=1 extern
-idxp1		integer   	#domain to the right of given domain (ix+1)
-idxm1		integer 	#domain to the left of given domain (ix-1)
-idyp1		integer 	#domain to the above given domain (iy+1)
-idym1		integer 	#domain to the below given domain (iy-1)
-idcorn(1:4)	integer		#domains touching corners; from lower left,
-				#numbering as in rm,zm: (l,r bot=1,2; top=3,4)
-iv_totbdy(1:8)  integer  /8*0/  #number of elems. in bdry messages vrsendl
-typebdyi(1:4)   integer /21,22,23,24/ #mpi tags for bdry iv_totbdy along edges
-typecni(1:4)    integer /25,26,27,28/ #mpi tags for bdry iv_totbdy at corners
-typebdy(1:4)    integer /11,12,13,14/ #mpi tags for bdry vrsendl along edges
-typecn(1:4)     integer /15,16,17,18/ #mpi tags for bdry vrsendl at corners
-vrsendl(nvrsendl) _real	        #real array used for passing local data via MPI
-visendl(nvisendl) _integer      #int array used for passing local data via MPI
-neq_locl        integer    /1/  #number of variables on local processor
-numvarl         integer    /1/  #=numvar global via MPI_BCAST for parallel
-ivloc2sdgl(nvisendl) _integer   #maps loc-var to glob-var, single domain
-ivloc2mdgl(nvisendl) _integer   #maps loc-var to glob-var, mult domain
-ivl2gstnll(neq_locl,9*numvarl) _integer /0/ # 1st arg loc-eqn number;
-                                            # 2nd arg poss Jac vars-global-mp
-ispwrbcl        integer   /1/   +threadprivate #=1 if domain has cell for core power BC
-ixpt1l          integer   /0/   #local ixpt1 before par_data gather
-ixpt2l          integer   /1/   #local ixpt2 before par_data gather
-iysptrx1l       integer   /1/   #local iysptrx1 before par_data gather
-ixlbl           integer   /0/   #local ixlb before par_data gather
-ixrbl           integer   /1/   #local ixrb before par_data gather
 
 ***** Jacaux:
 #Internal variables of jacnw

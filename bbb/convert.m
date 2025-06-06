@@ -19,7 +19,6 @@ c-----------------------------------------------------------------------
       Use(Share)       # 
       Use(Coefeq)      # cngtgx,cngtgy
       Use(Constraints) # icnstr
-      Use(Indices_domain_dcl)   #ixmxbcl,ixmnbcl,iymxbcl,iymnbcl
       Use(Phyvar)      # ev
 
 c...  local variables
@@ -30,8 +29,8 @@ c...  local variables
 
       isfirstvar = 0   #flag signals first var at ix,iy found
       iv = 0
-      do 8 iy = 1-iymnbcl, ny+iymxbcl
-         do 6 ix = 1-ixmnbcl, nx+ixmxbcl
+      do 8 iy = 0, ny+1
+         do 6 ix = 0, nx+1
             bfac = 1.
             if(ix.eq.0 .or. iy.eq.0 .or. iy.eq.ny+1) bfac = tolbf
             ix1 = ixp1(ix,iy)
@@ -199,32 +198,24 @@ c_mpi      Use(MpiVars)  #module defined in com/mpivarsmod.F.in
       Use(Phyvar)      # pi,ev
       Use(Coefeq)      # cngtgx
       Use(Imprad)      # isimpon
-      Use(Indices_domain_dcl)   #ixmxbcl,ixmnbcl,iymxbcl,iymnbcl
                                 #typebdy,typecn,iv_totbdy
-      Use(Indices_domain_dcg)   #isddcon
-      Use(Npes_mpi)             #mype
-      Use(ParallelEval)
       Use(Share)                #isnonog
+      Use(ParallelEval)
  
       integer ifake  #forces Forthon scripts to put implicit none above here
 
-c ... Set mpi indices, etc
-CC c_mpi      include 'mpif.h'
-c_mpi      integer status(MPI_STATUS_SIZE)
-c_mpi      integer ierr
-
       id = 1
       if(ixl .lt. 0 .or. yinc .ge. 6) then
-         is = 1-ixmnbcl
-         ie = nx+ixmxbcl
+         is = 0
+         ie = nx+1
       else
          is = ixl
          ie = ixl
       endif
 
       if(iyl .lt. 0 .or. yinc .ge. 6) then
-         js = 1-iymnbcl
-         je = ny+iymxbcl
+         js = 0
+         je = ny+1
       else
          js = iyl
          je = iyl
@@ -232,8 +223,8 @@ c_mpi      integer ierr
 
 c... Added the following for OMPPandf1rhs call (added by .J.Guterl)
       if(ixl .lt. 0 .and. iyl.ge.0) then
-         js = max(1-iymnbcl,iyl-yinc)
-         je = min(ny+iymxbcl,iyl+yinc)
+         js = max(0,iyl-yinc)
+         je = min(ny+1,iyl+yinc)
       endif
 
       if (ParallelPandfCall.gt.0) then
@@ -340,15 +331,6 @@ cc      if (inegt .gt. 0 .and. itrap_negt.eq.1) then
 cc         call xerrab("***  Te or Ti is negative - calculation stopped")
 cc      endif
 
-C the message passing is done twice here to get nm for up - very inefficient
-c *** Mpi message passing if this is a parallel calculation - only need for 
-c *** isflxvar.ne.0
-c++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-      if (isddcon .ge. 1 .and. ixl .lt. 0) then
-        call sendbdry(mype+1)
-        call recvbdry(mype+1)
-      endif
-c++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
       return
       end
 
@@ -393,10 +375,7 @@ c_mpi      Use(MpiVars)  #module defined in com/mpivarsmod.F.in
       Use(Phyvar)      # pi,ev
       Use(Coefeq)      # cngtgx
       Use(Imprad)      # isimpon
-      Use(Indices_domain_dcl)   #ixmxbcl,ixmnbcl,iymxbcl,iymnbcl
                                 #typebdy,typecn,iv_totbdy
-      Use(Indices_domain_dcg)   #isddcon
-      Use(Npes_mpi)             #mype
       Use(ParallelEval)
  
       integer ifake  #forces Forthon scripts to put implicit none above here
@@ -408,16 +387,16 @@ c_mpi      integer ierr
 
       id = 1
       if(ixl .lt. 0 .or. yinc .ge. 6) then
-         is = 1-ixmnbcl
-         ie = nx+ixmxbcl
+         is = 0
+         ie = nx+1
       else
          is = ixl
          ie = ixl
       endif
 
       if(iyl .lt. 0 .or. yinc .ge. 6) then
-         js = 1-iymnbcl
-         je = ny+iymxbcl
+         js = 0
+         je = ny+1
       else
          js = iyl
          je = iyl
@@ -425,8 +404,8 @@ c_mpi      integer ierr
 
 c... Added the following for OMPPandf1rhs call (added by .J.Guterl)
       if(ixl .lt. 0 .and. iyl.ge.0) then
-         js = max(1-iymnbcl,iyl-yinc)
-         je = min(ny+iymxbcl,iyl+yinc)
+         js = max(0,iyl-yinc)
+         je = min(ny+1,iyl+yinc)
       endif
 
       if (ParallelPandfCall.gt.0) then
@@ -441,7 +420,7 @@ c... Added the following for OMPPandf1rhs call (added by .J.Guterl)
             do 8 ix = is, ie
               if(isuponxy(ix,iy,ifld) .eq. 1) then
                 ix1 = ixp1(ix,iy)
-                ix2 = max(1-ixmnbcl, ixm1(ix,iy))
+                ix2 = max(0, ixm1(ix,iy))
                 t1 = 0.5*( nm(ix2,iy,ifld)+nm(ix, iy,ifld) )
                 t2 = 0.5*( nm(ix, iy,ifld)+nm(ix1,iy,ifld) )
                 if(isflxvar .eq. 0 .or. isflxvar .eq. 2) then
@@ -458,14 +437,6 @@ c... Added the following for OMPPandf1rhs call (added by .J.Guterl)
  8          continue
  9       continue
  10   continue
-
-c *** Mpi message passing if this is a parallel calculation; should only do up here
-c++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-      if (isddcon .ge. 1 .and. ixl .lt. 0) then
-        call sendbdry(mype+1)
-        call recvbdry(mype+1)
-      endif
-c++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
       return
       end
