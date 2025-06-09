@@ -44,9 +44,6 @@ CONTAINS
     ! Chunk in X-direction
     do ixpt = 1, nxpt
         call MakeXChunks(Nxchunks_loc(ixpt), xlims_loc(ixpt,:,:), ixrb(ixpt)-ixlb(ixpt)) 
-        do ix = 1, Nxchunks_loc(ixpt)
-            write(*,*) ixpt,":", xlims_loc(ixpt,ix,:)
-        enddo
     end do
     Nxchunks = SUM(Nxchunks_loc)
     ALLOCATE( xlims(Nxchunks, 2))
@@ -135,7 +132,7 @@ CONTAINS
 
   SUBROUTINE MakeXptChunks(Nxptchunks, Nxptmax, rangexptchunk)
     Use Dim, ONLY: nxpt
-    Use Xpoint_indices, ONLY: iysptrx1, ixpt1, ixpt2
+    Use Xpoint_indices, ONLY: iysptrx1, iysptrx2, ixpt1, ixpt2
     IMPLICIT NONE
     INTEGER, INTENT(INOUT):: Nxptchunks(nxpt)
     INTEGER, INTENT(OUT):: Nxptmax
@@ -143,6 +140,7 @@ CONTAINS
     REAL:: dyxpt(2)
     INTEGER:: iix, ixpt 
     INTEGER, ALLOCATABLE:: xlimsxpt(:,:,:,:), ylimsxpt(:,:,:,:)
+    INTEGER, DIMENSION(nxpt,2):: xxpt, yxpt
 
     do ixpt = 1, nxpt
         Nxptchunks(ixpt) = MIN(Nxptchunks(ixpt),iysptrx1(ixpt)-1) ! Number of X-point chunks
@@ -152,6 +150,25 @@ CONTAINS
     ALLOCATE( xlimsxpt(nxpt, 2, MAXVAL(Nxptchunks),2), &
     &       ylimsxpt(nxpt, 2, MAXVAL(Nxptchunks),2), &
     &       rangexptchunk(nxpt,2,MAXVAL(Nxptchunks),4))
+    ! Coding to connect the X-point cuts
+    if (nxpt.eq.1) then
+        yxpt(1,1) = iysptrx1(1)
+        yxpt(1,2) = iysptrx1(1)
+        xxpt(1,1) = ixpt1(1)
+        xxpt(1,2) = ixpt2(1)
+    else
+        yxpt(1,1) = iysptrx1(1)
+        yxpt(1,2) = iysptrx2(2)
+        xxpt(1,1) = ixpt1(1)
+        xxpt(1,2) = ixpt2(2)
+        yxpt(2,1) = iysptrx2(1)
+        yxpt(2,2) = iysptrx1(2)
+        xxpt(2,1) = ixpt2(1)
+        xxpt(2,2) = ixpt1(2)
+    endif
+    
+
+
 
     do ixpt = 1, nxpt ! Separate chunks for each X-point
         ! Calculate Y-chunks
@@ -169,16 +186,16 @@ CONTAINS
             ylimsxpt(ixpt, 1, Nxptchunks(ixpt),1) = ylimsxpt(ixpt,1,Nxptchunks(ixpt)-1,2)+1
             ylimsxpt(ixpt, 2, Nxptchunks(ixpt),1) = ylimsxpt(ixpt,2,Nxptchunks(ixpt)-1,2)+1
         endif
-        ylimsxpt(ixpt, 1, Nxptchunks(ixpt),2) = iysptrx1(ixpt)+1
-        ylimsxpt(ixpt, 2, Nxptchunks(ixpt),2) = iysptrx1(ixpt)+1
+        ylimsxpt(ixpt, 1, Nxptchunks(ixpt),2) = yxpt(ixpt,1)+1
+        ylimsxpt(ixpt, 2, Nxptchunks(ixpt),2) = yxpt(ixpt,2)+1
         ! Set X-chunks
         do iix = 1, Nxptchunks(ixpt)
             ! Left cut
-            xlimsxpt(ixpt, 1, iix, 1) = ixpt1(ixpt)-1
-            xlimsxpt(ixpt, 1, iix, 2) = ixpt1(ixpt)+2
+            xlimsxpt(ixpt, 1, iix, 1) = xxpt(ixpt,1)-1
+            xlimsxpt(ixpt, 1, iix, 2) = xxpt(ixpt,1)+2
             ! Right cut
-            xlimsxpt(ixpt, 2, iix, 1) = ixpt2(ixpt)-1
-            xlimsxpt(ixpt, 2, iix, 2) = ixpt2(ixpt)+2
+            xlimsxpt(ixpt, 2, iix, 1) = xxpt(ixpt,2)-1
+            xlimsxpt(ixpt, 2, iix, 2) = xxpt(ixpt,2)+2
         end do
         ! Create ranges 
         do iix = 1, Nxptchunks(ixpt)
