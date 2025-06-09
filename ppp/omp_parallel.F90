@@ -30,14 +30,31 @@ CONTAINS
     IMPLICIT NONE
     INTEGER, INTENT(INOUT):: Nxchunks, Nychunks
     INTEGER, INTENT(OUT):: N
-    INTEGER, ALLOCATABLE, DIMENSION(:,:):: xlims(:,:), ylims(:,:)
     INTEGER, ALLOCATABLE, DIMENSION(:,:), INTENT(OUT)::  rangechunk
-    INTEGER:: ix, iy, ixpt
+    INTEGER, ALLOCATABLE, DIMENSION(:,:):: xlims(:,:), ylims(:,:)
+    INTEGER, DIMENSION(nxpt,nx+2,2):: xlims_loc
+    INTEGER:: ix, iy, ixpt, Nxchunks_loc(nxpt)
 
+    if (nxpt.eq.2) then
+        Nxchunks_loc(1) = int(Nxchunks * (ixrb(1)+1) / (nx + 1))
+        Nxchunks_loc(2) = Nxchunks - Nxchunks_loc(1)
+    else
+        Nxchunks_loc(1) = Nxchunks
+    endif
     ! Chunk in X-direction
     do ixpt = 1, nxpt
-        call MakeXChunks(Nxchunks, xlims, 0, nx) 
+        call MakeXChunks(Nxchunks_loc(ixpt), xlims_loc(ixpt,:,:), ixrb(ixpt)-ixlb(ixpt)) 
+        do ix = 1, Nxchunks_loc(ixpt)
+            write(*,*) ixpt,":", xlims_loc(ixpt,ix,:)
+        enddo
     end do
+    Nxchunks = SUM(Nxchunks_loc)
+    ALLOCATE( xlims(Nxchunks, 2))
+    do ixpt = 1, nxpt
+        xlims((ixpt-1)*Nxchunks_loc(1)+1:Nxchunks_loc(ixpt), :) = &
+        &       xlims_loc(ixpt, 1:Nxchunks_loc(ixpt), :) + ixlb(ixpt)
+    end do     
+
     ! Chunk in Y-direction
     call MakeYChunks(Nychunks, ylims, ny)
 
@@ -72,24 +89,23 @@ CONTAINS
     end do
   END SUBROUTINE MakeBulkChunks
 
-  SUBROUTINE MakeXChunks(Nxchunks, xlims, start, nx)
+  SUBROUTINE MakeXChunks(Nxchunks, xlims, nx)
     IMPLICIT NONE
-    INTEGER, INTENT(IN):: nx, start
+    INTEGER, INTENT(IN):: nx
     INTEGER, INTENT(OUT):: Nxchunks
-    INTEGER, INTENT(OUT), ALLOCATABLE:: xlims(:,:)
+    INTEGER, INTENT(OUT), DIMENSION(nx+1,2):: xlims(:,:)
     INTEGER ix
     REAL dx
     ! Ensure chunking setup is valid: between 1 and n(x/y) chunks
     Nxchunks = MAX(MIN(nx, Nxchunks),1)
     ! Get the dx per chunk
     dx = real(nx)/(Nxchunks)
-    ALLOCATE( xlims(Nxchunks,2) )
     ! Calculate poloidal chunking intervals
     ! Include protections for boundaries
-    xlims(1,1) = start; xlims(1,2)=start + max(1,int(dx))
+    xlims(1,1) = 0; xlims(1,2) = max(1,int(dx))
     do ix = 2, Nxchunks-1
-        xlims(ix,1) = start + xlims(ix-1,2)+1
-        xlims(ix,2) = start + int(dx*ix)
+        xlims(ix,1) = xlims(ix-1,2)+1
+        xlims(ix,2) = int(dx*ix)
     end do
     if (Nxchunks .gt. 1) xlims(Nxchunks,1) = xlims(Nxchunks-1,2)+1
     xlims(Nxchunks,2) = nx+1
