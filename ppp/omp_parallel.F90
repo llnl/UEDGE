@@ -2,53 +2,142 @@ MODULE CHUNK
 CONTAINS
   SUBROUTINE Make2DChunks(Nxchunks, Nychunks, &
     &   N, Niv, ivchunk, rangechunk, Nxptchunks, Nivxpt, &
-    &   ivxptchunk, rangexptchunk, Nmax, Nxptmax, Nivxptmax)!, ixychunk, Nixy)
-    Use Dim, ONLY: nx, ny, nxpt
-    Use Indexes, ONLY: igyl
-    Use Lsode, ONLY: neq
-    Use Xpoint_indices, ONLY: iysptrx1, ixpt1, ixpt2
+    &   ivxptchunk, rangexptchunk, Nmax, Nxptmax, Nivxptmax)
+    Use Dim, ONLY: nxpt
     IMPLICIT NONE
     INTEGER, INTENT(OUT):: N, Nxptchunks(nxpt), Nxchunks, Nychunks
-!    INTEGER, ALLOCATABLE, DIMENSION(:,:,:), INTENT(OUT):: ixychunk
     INTEGER, ALLOCATABLE, DIMENSION(:,:,:,:), INTENT(OUT):: rangexptchunk
     INTEGER, ALLOCATABLE, DIMENSION(:,:,:), INTENT(OUT)::  ivxptchunk
     INTEGER, ALLOCATABLE, DIMENSION(:,:), INTENT(OUT)::  ivchunk, &
     &               rangechunk, Nivxpt
     INTEGER, ALLOCATABLE, DIMENSION(:), INTENT(OUT)::  Niv !, Nixy
     INTEGER, INTENT(OUT) :: Nmax, Nxptmax, Nivxptmax
-    integer:: ix, iy, nxi, nyi, ii, idx(2), idxl, ixpt, iix, iicut, iscut
-    real:: dx, dy, dyxpt(2)
-    integer, allocatable:: xlims(:,:), ylims(:,:), xlimsxpt(:,:,:,:), ylimsxpt(:,:,:,:)
+    integer:: ix, iy, ii, idx(2), idxl, ixpt, iix, iicut, iscut
+    
+    ! Create the ranges for the main-body chunks
+    call MakeBulkChunks(Nxchunks, Nychunks, rangechunk, N)
+    ! Create special patches covering X-points
+    call MakeXptChunks(Nxptchunks, Nxptmax, rangexptchunk)
+    ! Create indices for mapping index-space chunks to yl "iv"-indices
+    call MakeIndexChunks(rangechunk, rangexptchunk, ivchunk, &
+    &       ivxptchunk, Nivxpt, Niv, N, Nxptchunks, Nmax, Nivxptmax)
 
-    ! Ensure chunking setup is valid: between 1 and n(x/y) chunks
-    Nxchunks = MAX(MIN(nx, Nxchunks),1)
-    Nychunks = MAX(MIN(ny-1, Nychunks),1)
+  END SUBROUTINE Make2DChunks
+
+  SUBROUTINE MakeBulkChunks(Nxchunks, Nychunks, rangechunk, N)
+    Use Dim, ONLY: nxpt, nx, ny
+    Use Xpoint_indices, ONLY: ixpt1, ixpt2, ixlb, ixrb
+    IMPLICIT NONE
+    INTEGER, INTENT(INOUT):: Nxchunks, Nychunks
+    INTEGER, INTENT(OUT):: N
+    INTEGER, ALLOCATABLE, DIMENSION(:,:):: xlims(:,:), ylims(:,:)
+    INTEGER, ALLOCATABLE, DIMENSION(:,:), INTENT(OUT)::  rangechunk
+    INTEGER:: ix, iy, ixpt
+
+    ! Chunk in X-direction
+    do ixpt = 1, nxpt
+        call MakeXChunks(Nxchunks, xlims, 0, nx) 
+    end do
+    ! Chunk in Y-direction
+    call MakeYChunks(Nychunks, ylims, ny)
+
     ! Calculate the number of chunks needed maximum
     N = Nxchunks * Nychunks + 3*nxpt
+    ! 3*nxpt accounts for special inner boundary chunks
+    ALLOCATE( rangechunk(N, 4))
+
+    ! Make special chunks for iy=0 boundary
+    do ixpt = 1, nxpt
+        rangechunk(1+3*(ixpt-1),1) =   ixlb(ixpt)
+        rangechunk(1+3*(ixpt-1),2) =   ixpt1(ixpt)-2
+        rangechunk(1+3*(ixpt-1),3) =   0
+        rangechunk(1+3*(ixpt-1),4) =   1
+        rangechunk(2+3*(ixpt-1),1) =   ixpt1(ixpt)-1
+        rangechunk(2+3*(ixpt-1),2) =   ixpt2(ixpt)+2
+        rangechunk(2+3*(ixpt-1),3) =   0
+        rangechunk(2+3*(ixpt-1),4) =   1
+        rangechunk(3+3*(ixpt-1),1) =   ixpt2(ixpt)+3
+        rangechunk(3+3*(ixpt-1),2) =   ixrb(ixpt)+1
+        rangechunk(3+3*(ixpt-1),3) =   0
+        rangechunk(3+3*(ixpt-1),4) =   1
+    end do
+    ! Ravel the ranges into chunks 
+    do ix = 1, Nxchunks
+        do iy = 1, Nychunks
+            rangechunk(Nxchunks*(iy-1) + ix + 3*nxpt, 1) = xlims(ix,1)
+            rangechunk(Nxchunks*(iy-1) + ix + 3*nxpt, 2) = xlims(ix,2)
+            rangechunk(Nxchunks*(iy-1) + ix + 3*nxpt, 3) = ylims(iy,1)
+            rangechunk(Nxchunks*(iy-1) + ix + 3*nxpt, 4) = ylims(iy,2)
+        end do
+    end do
+  END SUBROUTINE MakeBulkChunks
+
+  SUBROUTINE MakeXChunks(Nxchunks, xlims, start, nx)
+    IMPLICIT NONE
+    INTEGER, INTENT(IN):: nx, start
+    INTEGER, INTENT(OUT):: Nxchunks
+    INTEGER, INTENT(OUT), ALLOCATABLE:: xlims(:,:)
+    INTEGER ix
+    REAL dx
+    ! Ensure chunking setup is valid: between 1 and n(x/y) chunks
+    Nxchunks = MAX(MIN(nx, Nxchunks),1)
+    ! Get the dx per chunk
+    dx = real(nx)/(Nxchunks)
+    ALLOCATE( xlims(Nxchunks,2) )
+    ! Calculate poloidal chunking intervals
+    ! Include protections for boundaries
+    xlims(1,1) = start; xlims(1,2)=start + max(1,int(dx))
+    do ix = 2, Nxchunks-1
+        xlims(ix,1) = start + xlims(ix-1,2)+1
+        xlims(ix,2) = start + int(dx*ix)
+    end do
+    if (Nxchunks .gt. 1) xlims(Nxchunks,1) = xlims(Nxchunks-1,2)+1
+    xlims(Nxchunks,2) = nx+1
+  END SUBROUTINE MakeXChunks
+
+  SUBROUTINE MakeYChunks(Nychunks, ylims, ny)
+    IMPLICIT NONE
+    INTEGER, INTENT(IN):: ny
+    INTEGER, INTENT(OUT):: Nychunks
+    INTEGER, INTENT(OUT), ALLOCATABLE:: ylims(:,:)
+    REAL:: dy
+    INTEGER:: iy
+    Nychunks = MAX(MIN(ny-1, Nychunks),1)
+    ALLOCATE( ylims(Nychunks,2) )
+    ! Get the dy per chunk
+    dy = real(ny-1)/(Nychunks)
+    ! Calculate radial chunking intervals
+    ! Include protections for boundaries
+    ylims(1,1) = 2; ylims(1,2)=2+int(dy)
+    do iy = 2, Nychunks-1
+        ylims(iy,1) = ylims(iy-1,2)+1
+        ylims(iy,2) = 2+int(dy*iy)
+    end do
+    if (Nychunks .gt. 1) ylims(Nychunks,1) = ylims(Nychunks-1,2)+1
+    ylims(Nychunks,2) = ny+1
+  END SUBROUTINE MakeYChunks
+
+  SUBROUTINE MakeXptChunks(Nxptchunks, Nxptmax, rangexptchunk)
+    Use Dim, ONLY: nxpt
+    Use Xpoint_indices, ONLY: iysptrx1, ixpt1, ixpt2
+    IMPLICIT NONE
+    INTEGER, INTENT(INOUT):: Nxptchunks(nxpt)
+    INTEGER, INTENT(OUT):: Nxptmax
+    INTEGER, INTENT(OUT), ALLOCATABLE, DIMENSION(:,:,:,:):: rangexptchunk
+    REAL:: dyxpt(2)
+    INTEGER:: iix, ixpt 
+    INTEGER, ALLOCATABLE:: xlimsxpt(:,:,:,:), ylimsxpt(:,:,:,:)
+
     do ixpt = 1, nxpt
         Nxptchunks(ixpt) = MIN(Nxptchunks(ixpt),iysptrx1(ixpt)-1) ! Number of X-point chunks
         dyxpt(ixpt) = real(iysptrx1(ixpt)-1)/(Nxptchunks(ixpt))
     end do
     Nxptmax = MAXVAL(Nxptchunks)
-    Nmax = neq
-!    Nixymax = (nx+2)*(ny+2)
-    ! Get the dx/dy per chunk
-    dx = real(nx)/(Nxchunks)
-    dy = real(ny-1)/(Nychunks)
-    ! Allocate the necassary arrays
-    allocate( &
-    &       xlims(Nxchunks,2), &
-    &       ylims(Nychunks,2), &
-    &       xlimsxpt(nxpt, 2, MAXVAL(Nxptchunks),2), &
-    &       ivchunk(N, Nmax), &
-    &       rangechunk(N, 4), &
-    &       Niv(N), &
+    ALLOCATE( xlimsxpt(nxpt, 2, MAXVAL(Nxptchunks),2), &
     &       ylimsxpt(nxpt, 2, MAXVAL(Nxptchunks),2), &
-    &       ivxptchunk(nxpt,MAXVAL(Nxptchunks),Nmax), & 
-    &       Nivxpt(nxpt,MAXVAL(Nxptchunks)), &
     &       rangexptchunk(nxpt,2,MAXVAL(Nxptchunks),4))
-    ! Calculate poloidal X-point intervals
-    do ixpt = 1, nxpt ! Separate teams for each X-point
+
+    do ixpt = 1, nxpt ! Separate chunks for each X-point
         ! Calculate Y-chunks
         ylimsxpt(ixpt,1,1,1) = 2; ylimsxpt(ixpt,1,1,2)=1+max(1,int(dyxpt(ixpt)))
         ylimsxpt(ixpt,2,1,1) = 2; ylimsxpt(ixpt,2,1,2)=1+max(1,int(dyxpt(ixpt)))
@@ -77,60 +166,42 @@ CONTAINS
         end do
         ! Create ranges 
         do iix = 1, Nxptchunks(ixpt)
-                ! Left cut
-                rangexptchunk(ixpt, 1, iix, 1) = xlimsxpt(ixpt, 1, iix, 1)
-                rangexptchunk(ixpt, 1, iix, 2) = xlimsxpt(ixpt, 1, iix, 2)
-                rangexptchunk(ixpt, 1, iix, 3) = ylimsxpt(ixpt, 1, iix, 1)
-                rangexptchunk(ixpt, 1, iix, 4) = ylimsxpt(ixpt, 1, iix, 2)
-                ! Right cut
-                rangexptchunk(ixpt, 2, iix, 1) = xlimsxpt(ixpt, 2, iix, 1)
-                rangexptchunk(ixpt, 2, iix, 2) = xlimsxpt(ixpt, 2, iix, 2)
-                rangexptchunk(ixpt, 2, iix, 3) = ylimsxpt(ixpt, 2, iix, 1)
-                rangexptchunk(ixpt, 2, iix, 4) = ylimsxpt(ixpt, 2, iix, 2)
+            ! Left cut
+            rangexptchunk(ixpt, 1, iix, 1) = xlimsxpt(ixpt, 1, iix, 1)
+            rangexptchunk(ixpt, 1, iix, 2) = xlimsxpt(ixpt, 1, iix, 2)
+            rangexptchunk(ixpt, 1, iix, 3) = ylimsxpt(ixpt, 1, iix, 1)
+            rangexptchunk(ixpt, 1, iix, 4) = ylimsxpt(ixpt, 1, iix, 2)
+            ! Right cut
+            rangexptchunk(ixpt, 2, iix, 1) = xlimsxpt(ixpt, 2, iix, 1)
+            rangexptchunk(ixpt, 2, iix, 2) = xlimsxpt(ixpt, 2, iix, 2)
+            rangexptchunk(ixpt, 2, iix, 3) = ylimsxpt(ixpt, 2, iix, 1)
+            rangexptchunk(ixpt, 2, iix, 4) = ylimsxpt(ixpt, 2, iix, 2)
         end do
     end do
-    ! Calculate poloidal chunking intervals
-    ! Include protections for boundaries
-    xlims(1,1) = 0; xlims(1,2)=max(1,int(dx))
-    do ix = 2, Nxchunks-1
-        xlims(ix,1) = xlims(ix-1,2)+1
-        xlims(ix,2) = int(dx*ix)
-    end do
-    if (Nxchunks .gt. 1) xlims(Nxchunks,1) = xlims(Nxchunks-1,2)+1
-    xlims(Nxchunks,2) = nx+1
-    ! Calculate radial chunking intervals
-    ! Include protections for boundaries
-    ylims(1,1) = 2; ylims(1,2)=2+int(dy)
-    do iy = 2, Nychunks-1
-        ylims(iy,1) = ylims(iy-1,2)+1
-        ylims(iy,2) = 2+int(dy*iy)
-    end do
-    if (Nychunks .gt. 1) ylims(Nychunks,1) = ylims(Nychunks-1,2)+1
-    ylims(Nychunks,2) = ny+1
-    ! Make special chunks for iy=0 boundary
-    do ixpt = 1, nxpt
-        rangechunk(1+3*(ixpt-1),1) =   0
-        rangechunk(1+3*(ixpt-1),2) =   ixpt1(ixpt)-2
-        rangechunk(1+3*(ixpt-1),3) =   0
-        rangechunk(1+3*(ixpt-1),4) =   1
-        rangechunk(2+3*(ixpt-1),1) =   ixpt1(ixpt)-1
-        rangechunk(2+3*(ixpt-1),2) =   ixpt2(ixpt)+2
-        rangechunk(2+3*(ixpt-1),3) =   0
-        rangechunk(2+3*(ixpt-1),4) =   1
-        rangechunk(3+3*(ixpt-1),1) =   ixpt2(ixpt)+3
-        rangechunk(3+3*(ixpt-1),2) =   nx+1
-        rangechunk(3+3*(ixpt-1),3) =   0
-        rangechunk(3+3*(ixpt-1),4) =   1
-    end do
-    ! Ravel the ranges into chunks 
-    do ix = 1, Nxchunks
-        do iy = 1, Nychunks
-            rangechunk(Nxchunks*(iy-1) + ix + 3*nxpt, 1) = xlims(ix,1)
-            rangechunk(Nxchunks*(iy-1) + ix + 3*nxpt, 2) = xlims(ix,2)
-            rangechunk(Nxchunks*(iy-1) + ix + 3*nxpt, 3) = ylims(iy,1)
-            rangechunk(Nxchunks*(iy-1) + ix + 3*nxpt, 4) = ylims(iy,2)
-        end do
-    end do
+  END SUBROUTINE MakeXptChunks
+
+  SUBROUTINE MakeIndexChunks(rangechunk, rangexptchunk, ivchunk, &
+    &       ivxptchunk, Nivxpt, Niv, N, Nxptchunks, Nmax, Nivxptmax )
+    Use Indexes, ONLY: igyl
+    Use Lsode, ONLY: neq
+    Use Dim, ONLY: nxpt
+    IMPLICIT NONE
+    INTEGER, INTENT(IN):: N, Nxptchunks(nxpt)
+    INTEGER, ALLOCATABLE, DIMENSION(:,:,:,:), INTENT(IN):: rangexptchunk
+    INTEGER, ALLOCATABLE, DIMENSION(:,:,:), INTENT(OUT):: ivxptchunk
+    INTEGER, ALLOCATABLE, DIMENSION(:,:), INTENT(OUT):: ivchunk, Nivxpt
+    INTEGER, ALLOCATABLE, DIMENSION(:,:), INTENT(IN):: rangechunk
+    INTEGER, ALLOCATABLE, DIMENSION(:), INTENT(OUT)::  Niv 
+    INTEGER, INTENT(OUT):: Nmax, Nivxptmax
+    integer:: ix, iy, ii, idx(2), idxl, ixpt, iix, iicut, iscut
+
+    ! Allocate the necassary arrays
+    allocate( &
+    &       ivchunk(N, neq), &
+    &       ivxptchunk(nxpt,MAXVAL(Nxptchunks),neq), & 
+    &       Nivxpt(nxpt,MAXVAL(Nxptchunks)), &
+    &       Niv(N) )
+
     ! Get the yldot-indices for the chunks 
     Niv = 0
     Nivxpt = 0
@@ -169,7 +240,8 @@ CONTAINS
     Nmax = MAXVAL(Niv)
     Nivxptmax = MAXVAL(Nivxpt)
 
-  END SUBROUTINE Make2DChunks
+  END SUBROUTINE MakeIndexChunks
+    
 END MODULE CHUNK
 
 
@@ -360,8 +432,7 @@ END SUBROUTINE InitOMPPandf1
     if (OMPJacVerbose.gt.0) write(*,'(a,i9)') '**** Number of non-zero Jacobian elems:',nnzcum(NchunksJac)
 
     if (nnzcum(NchunksJac).gt.nnzmx) then
-        write(*,*) 'nnzcum=',nnzcum
-        write(*,*) nnzmx
+        write(*,*) 'nnzcum > nnzmx:', nnzcum(NchunksJac), nnzmx
         call xerrab(' Problem: nnzcum > nnzmx...')
     endif
 
