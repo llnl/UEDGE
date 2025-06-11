@@ -188,14 +188,14 @@ c            write(*,*) parvis
        psori = 0.0
        smoc = 0.0
        smov = 0.0
-       seec(ix,iy) = 0.0
-       seev(ix,iy) = 0.0
-       seic(ix,iy) = 0.0
-       seiv(ix,iy) = 0.0
-       seik(ix,iy) = 0.0
-       seid(ix,iy) = 0.0
-       seidh(ix,iy) = 0.0
-       psorbgz(ix,iy) = 0.    # diagnostic only
+       seec = 0.0
+       seev = 0.0
+       seic = 0.0
+       seiv = 0.0
+       seik = 0.0
+       seid = 0.0
+       seidh = 0.0
+       psorbgz = 0.    # diagnostic only
 
 ************************************************************************
 *  -- steady sources
