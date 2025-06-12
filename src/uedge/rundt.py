@@ -176,7 +176,7 @@ class UeRun():
 
     def convergenceanalysis(self, savefname, fig=None,
         xaxis = 'exmain', logx = False, color='k', label=None,
-        ylim = (None, None)):
+        ylim = (None, None), **kwargs):
         from h5py import File
         from matplotlib.pyplot import subplots
         from os.path import exists
@@ -218,16 +218,16 @@ class UeRun():
                 x = data['time'][()] - data['t_start'][()]
                 
             if logx is True:
-                ax[0].loglog(x, data['fnorm'][()], '-', color=color, label=label)
-                ax[1].loglog(data['dt_tot'][()], data['fnorm'][()], '-', 
-                    color=color, label=label)
-                ax[2].loglog(x, data['dtreal'][()], '-', color=color, label=label)
+                ax[0].loglog(x, data['fnorm'][()], color=color, label=label, **kwargs)
+                ax[1].loglog(data['dt_tot'][()], data['fnorm'][()], 
+                    color=color, label=label, **kwargs)
+                ax[2].loglog(x, data['dtreal'][()], color=color, label=label, **kwargs)
             else:
-                ax[0].semilogy(x, data['fnorm'][()], '-', color=color, label=label)
-                ax[1].semilogy(data['dt_tot'][()], data['fnorm'][()], '-', 
-                    color=color, label=label)
-                ax[2].semilogy(x, data['dtreal'][()], '-', color=color, 
-                    label=label)
+                ax[0].semilogy(x, data['fnorm'][()], color=color, label=label, **kwargs)
+                ax[1].semilogy(data['dt_tot'][()], data['fnorm'][()], 
+                    color=color, label=label, **kwargs)
+                ax[2].semilogy(x, data['dtreal'][()], color=color, 
+                    label=label, **kwargs)
             ax[1].set_title('Total exmain evaluations: {}'.format\
                 (len(data['dtreal'][()])))
 
