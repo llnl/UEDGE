@@ -2235,7 +2235,7 @@ psorrg(0:nx+1,0:ny+1,1:ngsp)  _real  [part/s]   +threadprivate # cell ave recomb
 psorcxgc(0:nx+1,0:ny+1,1:ngsp) _real [part/s]   +threadprivate # cell ctr cx source for neutrals
 psorcxg(0:nx+1,0:ny+1,1:ngsp) _real  [part/s]   +threadprivate # cell ave cx source for neutrals
 psori(0:nx+1,0:ny+1,1:nisp)   _real  [part/s]   +threadprivate # impurity gas source
-psordis(0:nx+1,0:ny+1,1:nisp) _real  [part/s]   +threadprivate # hyd. ion part source/sink from H2
+psordis(0:nx+1,0:ny+1) _real  [part/s]   +threadprivate # hyd. ion part source/sink from H2
 psordisg(0:nx+1,0:ny+1,1:ngsp) _real  [part/s]  +threadprivate # gas part source/sink from H2
 psorbgg(0:nx+1,0:ny+1,1:ngsp) _real  [part/s]   +threadprivate # diag artific neut backg source
 psorbgz(0:nx+1,0:ny+1)        _real  [part/s]   +threadprivate # diag artific impur backg source

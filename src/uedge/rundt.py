@@ -553,11 +553,13 @@ class UeRun():
                 self.savesuccess(savefname,
                     #bbb.label[0].strip(\).decode('UTF-8'), 
                     self.fnrm_old)
-                if (bbb.dt_tot>=t_stop  or  self.fnrm_old<ftol_min):
-                    print('')
-                    self.message('SUCCESS: ' + 'fnrm < bbb.ftol'\
-                        *(self.fnrm_old<ftol_min) + \
-                        'dt_tot >= t_stop'*(bbb.dt_tot >= t_stop), pad='**', 
+                if (bbb.dt_tot>=t_stop  or  self.fnrm_old<ftol_min):    
+                    reason = ''
+                    if (self.fnrm_old<ftol_min):
+                        reason = 'fnrm < bbb.ftol'
+                    if (bbb.dt_tot >= t_stop):
+                        reason = 'dt_tot >= t_stop'
+                    self.message('SUCCESS: ' + reason, pad='**', 
                         separator='*')
                     print('Total runtime: {}'.format(timedelta(
                         seconds=round(time()-self.tstart))))
@@ -643,7 +645,7 @@ class UeRun():
 #           ipt = bbb.idxte[nx-1,com.iysptrx] #note: ipt is local, 
 #               # bbb.ipt global
         bbb.dtphi = rdtphidtr*bbb.dtreal
-        svrpkg=bbb.svrpkg.tostring().strip()
+        svrpkg=str(bbb.svrpkg).strip()
         bbb.ylodt = bbb.yl
         self.fnrm_old = calc_fnrm()
         if initjac is True: 
