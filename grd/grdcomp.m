@@ -400,8 +400,8 @@ c     procedures --
          call meshgen(region)
    90 continue
 
-      call meshfin
 
+      call meshfin
 ccc   call remark("***** subroutine grdgen completed")
 
       return
@@ -1163,7 +1163,7 @@ Use(Inmesh)
 Use(Mmod)
 Use(Share)   # ismmon,ishalfm
       integer ix1,ix2,i,irange,i1,i2,region
-      integer j,jrange,j1,j2,jj
+      integer j,jrange,j1,j2,jj, rbegin
       real xavg,yavg,cmx,cmy
 
       external meshmod1,meshmod2,meshmod3
@@ -1327,6 +1327,14 @@ c        do smoothing on angle-like surfaces ????
 	      enddo
 	   enddo
 	endif
+
+      if (mincorecellwidth .eq. 1) then
+      rbegin = 1
+      if (ishalfm==1) rbegin = 2
+      do region = rbegin, noregs
+        call corexpointfix(region)
+      end do
+      endif
 
       return
       end
@@ -2428,6 +2436,94 @@ c     modified point i lies between (x,ycurveg) points ii-1 and ii
       end
 
 c----------------------------------------------------------------------c
+      function pointdist(x1, y1, x2, y2) result(dist)
+        IMPLICIT NONE
+        REAL, INTENT(IN):: x1, x2, y1, y2
+        REAL dist
+        dist = ((x1-x2)**2 + (y1-y2)**2)**0.5
+      end function pointdist
+
+      subroutine corexpointfix(region)
+        IMPLICIT NONE
+        INTEGER, INTENT(IN):: region
+        Use(Dimflxgrd)	#jdim,npts,noregs
+        Use(Comflxgrd)
+        Use(Dimensions)
+        Use(Curves)	# npointg,xcurveg,ycurveg
+        Use(Linkco)	# cmeshx,cmeshy
+        Use(Mmod)	# nupstream,rupstream,zupstream as temporary arrays
+                        # ndnstream,rdnstream,zdnstream as temporary arrays
+                # xcrv,ycrv,dsc,fuzzm,wtold
+        Use(Transfm)	# ijump
+        Use(Inmesh)     # ilmax
+        INTEGER:: j, i, ii, jmx, jmn, imin, kcu, icu, ierr, dir
+        REAL:: xxpt, yxpt, pointdist, xline(2), yline(2)
+        REAL:: xintersect, yintersect, xline2(2), yline2(2), dist
+        REAL:: deltadist, totdist
+
+        ! Set up indices and bounds depending on the region being worked on    
+        if (region .eq. 1) then
+            jmn = jsptrx(1) + 1
+            jmx = jmax(1)
+            dir = 1
+        else
+            jmn = jsptrx(2) - 1
+            jmx = jmax(1) + 2
+            dir = -1
+        endif
+        ! Set up totdist to account for expansion towards sep
+        deltadist = (MIN(maxdist(region), 0.4) - MIN(mindist(region),0.2)) / (ABS(jmn-jmx))
+        totdist = MIN(maxdist(region),0.4) + deltadist
+        ! Loop through all flux surfaces from sep to core
+        do j = jmn, jmx, dir
+            ! Work arrays
+            xcrv = xcurveg(:,j)
+            ycrv = ycurveg(:,j)
+            ! Add curvature to core cells
+            totdist = totdist - deltadist
+            ! Get midplane index
+            if (region .eq. 1) then
+                imin = MINLOC(cmeshx(:ixpoint(1, region),j),1)
+            else
+                imin = MAXLOC(cmeshx(:ixpoint(1,region),j),1)
+            endif
+            ! Loop through poloidal cells between midplane and X-point 
+            do i = ixpoint(1, region) - 1, imin, -1
+                ! Get distance to the neighboring grid cell
+                dist = pointdist(
+     .                      cmeshx(i,j), cmeshy(i,j), 
+     .                      cmeshx(i+1,j), cmeshy(i+1,j)
+     .          )
+                ! If the seed point is within the minimum distance
+                ! or on the _wrong_ side of the neighboring seed point, 
+                ! shift it to the minimum distance
+                if ( 
+     .              (dist < totdist) .or. 
+     .              (cmeshx(i,j)*dir > dir*cmeshx(i+1,j) ) 
+     .          ) then
+                    ! Define vertical line that is mindist from the X-point
+                    if (region .eq. 1) then
+                        xline = cmeshx(i+1,j) - totdist
+                    else
+                        xline = cmeshx(i+1,j) + totdist
+                    endif
+                    yline(1) = cmeshy(i+1,j)-0.1
+                    yline(2) = cmeshy(i+1,j)+0.1
+                    ! Find intersect between vertical line and flux surface
+                    call intersect2(    xline, yline, 1, 2,
+     .                          xcrv, ycrv, 1 , ijump(j),
+     .                          xintersect, yintersect, kcu, icu,
+     .                          fuzzm,ierr)
+                    ! Set new seed point to intersect with mindist line
+                    cmeshx(i,j) = xintersect
+                    cmeshy(i,j) = yintersect
+            endif
+        end do
+        end do
+
+
+      end subroutine corexpointfix
+
 
       subroutine smooth(i,j1,j2)
       implicit none
