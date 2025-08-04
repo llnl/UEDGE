@@ -1,5 +1,5 @@
 #
-FROM fusionbillm/basis 
+FROM fusionbillm/basis:almalinux
 LABEL maintainer="Bill Meyer <meyer8@llnl.gov>"
 #
 # This is dependent on the system it's being built on
