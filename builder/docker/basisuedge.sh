@@ -15,7 +15,6 @@ cd builder
 ./dsys build 
 ./dsys load
 ./dsys test
-popd
 exit $?
 
 
