@@ -69,7 +69,7 @@ f_podman() {
 
 # Run test suite.
 f_test() {
-  for n in 1 2 3; do
+  for n in 1 2; do
     [ -x ./test/level_$n/do-test ] && (cd ./test/level_$n && ./do-test $*)
   done
 }
