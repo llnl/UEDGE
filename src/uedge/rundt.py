@@ -643,7 +643,7 @@ class UeRun():
 #           ipt = bbb.idxte[nx-1,com.iysptrx] #note: ipt is local, 
 #               # bbb.ipt global
         bbb.dtphi = rdtphidtr*bbb.dtreal
-        svrpkg=bbb.svrpkg.tostring().strip()
+        svrpkg=bbb.svrpkg[0].decode('UTF-8').strip()
         bbb.ylodt = bbb.yl
         self.fnrm_old = calc_fnrm()
         if initjac is True: 
