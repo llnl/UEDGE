@@ -652,6 +652,7 @@ END SUBROUTINE InitOMPPandf1
     USE OmpCopyapi
     USE omp_lib
     USE PandfTiming
+    USE Imslwrk, ONLY: emcoef
     IMPLICIT NONE
 
     integer,intent(inout)::nnz(NchunksJac)
@@ -711,7 +712,7 @@ END SUBROUTINE InitOMPPandf1
       !$omp parallel do schedule(dynamic,OMPLoopJacNchunk) default(shared)&
       !$omp& firstprivate(ivmincopy,ivmaxcopy,tid,nnzlocal,ylcopy)&
       !$omp& firstprivate(NchunksJaccopy,iJacRowCopy,iJacColCopy,rJacElemCopy,TimeJacRowcopy)&
-      !$omp& private(TimeThread)  copyin(yinc,xlinc,xrinc)
+      !$omp& private(TimeThread)  copyin(yinc,xlinc,xrinc,emcoef)
 
         loopthread: do ichunk=1,NchunksJac !ichunk from 1 to Nthread, tid from 0 to Nthread-1
             Timethread = omp_get_wtime()
