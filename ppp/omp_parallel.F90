@@ -12,7 +12,7 @@ CONTAINS
     &               rangechunk, Nivxpt
     INTEGER, ALLOCATABLE, DIMENSION(:), INTENT(OUT)::  Niv !, Nixy
     INTEGER, INTENT(OUT) :: Nmax, Nxptmax, Nivxptmax
-    integer:: ix, iy, ii, idx(2), idxl, ixpt, iix, iicut, iscut
+    integer:: ii, jj, nn
     
     ! Create the ranges for the main-body chunks
     call MakeBulkChunks(Nxchunks, Nychunks, rangechunk, N)
@@ -21,6 +21,14 @@ CONTAINS
     ! Create indices for mapping index-space chunks to yl "iv"-indices
     call MakeIndexChunks(rangechunk, rangexptchunk, ivchunk, &
     &       ivxptchunk, Nivxpt, Niv, N, Nxptchunks, Nmax, Nivxptmax)
+
+    do ii = 1, nxpt
+        do jj = 1, 2 
+            do nn = 1, Nxptchunks(ii)
+                rangexptchunk(ii, jj, nn, 1) = rangexptchunk(ii, jj, nn, 1) - 1
+            end do
+        end do
+    end do
 
   END SUBROUTINE Make2DChunks
 
@@ -191,10 +199,10 @@ CONTAINS
         ! Set X-chunks
         do iix = 1, Nxptchunks(ixpt)
             ! Left cut
-            xlimsxpt(ixpt, 1, iix, 1) = xxpt(ixpt,1)-1
+            xlimsxpt(ixpt, 1, iix, 1) = xxpt(ixpt,1)-0
             xlimsxpt(ixpt, 1, iix, 2) = xxpt(ixpt,1)+2
             ! Right cut
-            xlimsxpt(ixpt, 2, iix, 1) = xxpt(ixpt,2)-1
+            xlimsxpt(ixpt, 2, iix, 1) = xxpt(ixpt,2)-0
             xlimsxpt(ixpt, 2, iix, 2) = xxpt(ixpt,2)+2
         end do
         ! Create ranges 

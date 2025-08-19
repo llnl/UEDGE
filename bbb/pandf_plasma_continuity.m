@@ -762,211 +762,6 @@ c *** Now do the gas
         end do
       endif
 
-
-
-*****************************************************************
-c In the case of neutral parallel mom, call neudif to get
-c flux fngy, vy and uu, now that we have evaluated nuix etc.
-*****************************************************************
-! Moved to Pandf - AH 250602
-!      if (TimingPandfOn.gt.0) TimeNeudif=tick()
-ccc      if (isupgon .eq. 1 .and. zi(ifld) .eq. 0.0) call neudif
-!      if (ineudif .eq. 1) then
-!         call neudif
-!      elseif (ineudif .eq. 2) then
-c ..Timing
-!      if(istimingon==1) tsnpg=tick()
-!         call neudifpg
-c ..Timing
-!      if(istimingon==1) ttnpg = ttnpg + tock(tsnpg)
-!      elseif (ineudif .eq. 3) then
-!         call neudifl
-!      else
-!         call neudifo
-!      endif
-!      if (TimingPandfOn.gt.0) TotTimeNeudif=TotTimeNeudif+tock(TimeNeudif)
-*****************************************************************
-*  Other volume sources calculated in old SRCMOD
-*****************************************************************
-*  ---------------------------------------------------------------------
-*  electron-ion transfer terms and an
-*  approximation to the ion-ion thermal force.
-*  cfw: For the neutral momentum eq there is also a v_gas*grad(p_gas)
-*       term which is evaluated using ng, ti and gpiy
-*  ---------------------------------------------------------------------
-
-c...  Force fluxes and gradients on cuts to be zero for half-space problems
-      if (isfixlb(1).eq.2.or. isfixrb(1).eq.2) then
-         if (isfixlb(1).eq.2) then
-            ix = ixpt2(1)
-         else
-            ix = ixpt1(1)
-         endif
-         if (ix.ge.i2 .and. ix.le.i5+1 .and. iysptrx1(1) > 0) then
-            do iy = 0, iysptrx1(1)
-               gpex(ix,iy) = 0.
-               frice(ix,iy) = 0.
-               ex(ix,iy) = 0.
-               upe(ix,iy) = 0.
-               do ifld = 1, nfsp
-                  gpix(ix,iy,ifld) = 0.
-                  frici(ix,iy,ifld) = 0.
-                  uu(ix,iy,ifld) = 0.
-                  upi(ix,iy,ifld) = 0.
-               enddo
-            enddo
-         endif
-      endif
-
-*  -- Set up electron parallel contribution to seec & smoc
-      do iy = j2omp, j5omp
-         do ix = i2omp, i5omp
-            ix1 = ixm1(ix,iy)
-            ix2 = ixp1(ix,iy)
-            nexface = 0.5*(ne(ix2,iy)+ne(ix,iy))
-            t1old =.5*cvgp*(upe(ix,iy)*rrv(ix,iy)*
-     .          ave(gx(ix,iy),gx(ix2,iy))*gpex(ix,iy)/gxf(ix,iy) +
-     .          upe(ix1,iy)*rrv(ix1,iy)*
-     .          ave(gx(ix,iy),gx(ix1,iy))*gpex(ix1,iy)/gxf(ix1,iy) )
-            t2old = 1.e-20* 0.25*(fqp(ix,iy)+fqp(ix1,iy))*
-     .          (ex(ix,iy)+ex(ix1,iy))/gx(ix,iy)
-            iyp1 = min(iy+1,ny+1)
-            iym1 = max(iy-1,0)
-            t1new = .5*cvgp*( vex(ix,iy)*
-     .          ave(gx(ix,iy),gx(ix2,iy))*gpex(ix,iy)/gxf(ix,iy) +
-     .          vex(ix1,iy)*
-     .          ave(gx(ix,iy),gx(ix1,iy))*gpex(ix1,iy)/gxf(ix1,iy) )
-            t2new = .5*cvgp*( vey(ix,iy)*
-     .          ave(gy(ix,iy),gy(ix,iyp1))*gpey(ix,iy)/gyf(ix,iy) +
-     .          vey(ix,iy)*
-     .          ave(gy(ix,iy),gy(ix,iym1))*gpey(ix,iym1)/gyf(ix,iym1)
-     .                                                            )
-            seec(ix,iy) = seec(ix,iy)
-     .          + (t1old*vol(ix,iy) - t2old)*oldseec
-     .          + ((t1new+t2new)*vol(ix,iy))*(1-oldseec)
-            if (nusp-isupgon(1).eq.1) smoc(ix,iy,1)=(( -cpgx*gpex(ix,iy)-
-     .                   qe*nexface*gpondpotx(ix,iy) )*rrv(ix,iy)  +
-     .                     pondomfpare_use(ix,iy) )*sx(ix,iy)/gxf(ix,iy)
-         enddo 
-      enddo
-
-*  -- Now loop over all ion species for seec, seic, and smoc --
-
-      do ifld = 1, nusp  #not nfsp; up only for ifld<=nusp
-* ------ *
-        if(zi(ifld) > 1.e-20) then  #only ions here; atoms follow
-* ------ *
-*     -- coupling in the x-direction --
-*     -- (note sign change in pondomfpari_use term starting 031722)
-           do iy = j2omp, j5omp
-             do ix = i2omp, i5omp
-               ix1 = ixm1(ix,iy)
-               ix2 = ixp1(ix,iy)
-               tv = gpix(ix ,iy,ifld)/gxf(ix,iy)
-               t1 = gpix(ix1,iy,ifld)/gxf(ix1,iy)
-               t1 = .5*cvgp*( up(ix,iy,ifld)*rrv(ix,iy)*
-     .                                 ave(gx(ix2,iy),gx(ix,iy))*tv
-     .                      + up(ix1,iy,ifld)*rrv(ix1,iy)*
-     .                                 ave(gx(ix,iy),gx(ix1,iy))*t1 )
-               seic(ix,iy) = seic(ix,iy) + cfvgpx(ifld)*t1*vol(ix,iy)
-               t0 = - cpiup(ifld)*( gpix(ix,iy,ifld)*rrv(ix,iy) -
-     .                                  pondomfpari_use(ix,iy,ifld) )*
-     .                                            sx(ix,iy)/gxf(ix,iy)
-               if (nusp-isupgon(1) .eq. 1) then  # single ion mom. eq.
-                  smoc(ix,iy,1) = smoc(ix,iy,1) + cpgx*t0
-               else                # multiple mom. eq., so nusp=nisp
-                  t0 = t0 +( qe*zi(ifld)*0.5*( ni(ix2,iy,ifld)+
-     .                       ni(ix,iy,ifld) )*ex(ix,iy)*rrv(ix,iy) +
-     .                       frici(ix,iy,ifld) )* sx(ix,iy)/gxf(ix,iy)
-                  if (ifld <= nusp) smoc(ix,iy,ifld) = 
-     .                                      smoc(ix,iy,ifld) + cpgx*t0 
-               endif
-c...  Add friction part of Q_e here
-               tv = 0.25*(frice(ix,iy)+frice(ix1,iy))*
-     .              ( upe(ix,iy)     + upe(ix1,iy) -
-     .              upi(ix,iy,ifld) - upi(ix1,iy,ifld) )
-               seec(ix,iy) = seec(ix,iy) - zi(ifld)**2*ni(ix,iy,ifld)*
-     .                                        tv*vol(ix,iy)/nz2(ix,iy)
-               
-            end do
-        end do
-
-*     -- coupling in the x & y-directions --
-           do iy = j2omp, j5omp
-            do ix = i2omp, i5omp
-             if (isgpye == 0) then
-               ix1 = ixm1(ix,iy)
-               ix2 = ixp1(ix,iy)
-               vyiy0 = fracvgpgp*vygp(ix,iy,ifld) 
-     .                    +(1.-fracvgpgp)*vycb(ix,iy,ifld)
-               vyiym1 = fracvgpgp*vygp(ix,iy-1,ifld) 
-     .                    +(1.-fracvgpgp)*vycb(ix,iy-1,ifld)
-               v2ix0 = fracvgpgp*v2xgp(ix,iy,ifld) 
-     .                    +(1.-fracvgpgp)*v2cb(ix,iy,ifld)
-               v2ixm1 = fracvgpgp*v2xgp(ix1,iy,ifld) 
-     .                    +(1.-fracvgpgp)*v2cb(ix1,iy,ifld)
-               t1 =.5*cvgp*( vygp(ix,iy  ,ifld)*gpiy(ix,iy  ,ifld) + 
-     .                       vygp(ix,iy-1,ifld)*gpiy(ix,iy-1,ifld) +
-     .                    v2xgp(ix ,iy,ifld)*ave(gx(ix,iy),gx(ix2,iy))*
-     .                               gpix(ix ,iy,ifld)/gxf(ix ,iy) +    
-     .                    v2xgp(ix1,iy,ifld)*ave(gx(ix,iy),gx(ix1,iy))*
-     .                               gpix(ix1,iy,ifld)/gxf(ix1,iy) )     
-               t2 = t1
-             elseif (isgpye == 1) then    # Old B2 model with Jperp=0
-               t1 = -0.5*( vy(ix,iy  ,ifld)*gpey(ix,iy  ) +
-     .                     vy(ix,iy-1,ifld)*gpey(ix,iy-1) )
-               t2 = t1
-             elseif (isgpye == 2) then    # Knoll expression
-               t1 = -0.5*( vy(ix,iy  ,ifld)*gpey(ix,iy  ) +
-     .                     vy(ix,iy-1,ifld)*gpey(ix,iy-1) )
-             endif
-             seec(ix,iy) = seec(ix,iy) - fluxfacy*t1 * vol(ix,iy)
-             seic(ix,iy) = seic(ix,iy) + fluxfacy*cfvgpy(ifld)*t2*
-     .                                                     vol(ix,iy)
-            end do
-        end do
-
-        endif  #test on zi(ifld) > 0, so only ion terms
-        end do  #ifld loop over ion species
-
-c ... Now include seic contribution from hydrogen atoms if isupgon=1
-c ... Then "ion" species 2 (redundant as gas species 1) is hydr atom
-
-      if(isupgon(1)==1 .and. zi(2)<1.e-20) then # .and. istgon(1)==0) then 
-        if(cfvgpx(2) > 0.) then
-          do iy = j2omp, j5omp
-            do ix = i2omp, i5omp
-              ix1 = ixm1(ix,iy)
-              ix2 = ixp1(ix,iy)
-              iy1 = max(0,iy-1)
-              seic(ix,iy) = seic(ix,iy) + cftiexclg
-     .                                   *0.5*cfvgpx(2)*( 
-     .                       uuxg(ix, iy,1)*gpix(ix,iy,2) +
-     .                       uuxg(ix1,iy,1)*gpix(ix1,iy,2) )*vol(ix,iy)
-              seic(ix,iy) = seic(ix,iy) + cftiexclg
-     .                                   *0.5*cfvgpy(2)*( 
-     .                        vyg(ix, iy,1)*gpiy(ix,iy,2) +
-     .                        vyg(ix,iy1,1)*gpiy(ix,iy1,2) )*vol(ix,iy)
-            enddo
-          enddo
-        else  # Here if cfvgpx(2)=0, old vpar_g*grad_Pg only => ifld=2
-          do iy = j2omp, j5omp
-            do ix = i2omp, i5omp
-               ix1 = ixm1(ix,iy)
-               ix2 = ixp1(ix,iy)
-               tv = gpix(ix ,iy,2)/gxf(ix,iy)
-               t1 = gpix(ix1,iy,2)/gxf(ix1,iy)
-               t1 = .5*cvgp*( up(ix,iy,2)*rrv(ix,iy)*
-     .                               ave(gx(ix2,iy),gx(ix,iy))*tv
-     .                    + up(ix1,iy,2)*rrv(ix1,iy)*
-     .                               ave(gx(ix,iy),gx(ix1,iy))*t1 )
-               seic(ix,iy) = seic(ix,iy) + cftiexclg*t1*vol(ix,iy)
-            enddo
-          enddo
-        endif  #test on cfvgpx(2) > 0 or = 0
-      endif   #test for inertial neutrals
-
-
       END SUBROUTINE calc_volumetric_sources
 
 
@@ -1168,6 +963,45 @@ c...  Add friction part of Q_e here
 
         endif  #test on zi(ifld) > 0, so only ion terms
         end do  #ifld loop over ion species
+
+c ... Now include seic contribution from hydrogen atoms if isupgon=1
+c ... Then "ion" species 2 (redundant as gas species 1) is hydr atom
+
+      if(isupgon(1)==1 .and. zi(2)<1.e-20) then # .and. istgon(1)==0) then 
+        if(cfvgpx(2) > 0.) then
+          do iy = j2omp, j5omp
+            do ix = i2omp, i5omp
+              ix1 = ixm1(ix,iy)
+              ix2 = ixp1(ix,iy)
+              iy1 = max(0,iy-1)
+              seic(ix,iy) = seic(ix,iy) + cftiexclg
+     .                                   *0.5*cfvgpx(2)*( 
+     .                       uuxg(ix, iy,1)*gpix(ix,iy,2) +
+     .                       uuxg(ix1,iy,1)*gpix(ix1,iy,2) )*vol(ix,iy)
+              seic(ix,iy) = seic(ix,iy) + cftiexclg
+     .                                   *0.5*cfvgpy(2)*( 
+     .                        vyg(ix, iy,1)*gpiy(ix,iy,2) +
+     .                        vyg(ix,iy1,1)*gpiy(ix,iy1,2) )*vol(ix,iy)
+            enddo
+          enddo
+        else  # Here if cfvgpx(2)=0, old vpar_g*grad_Pg only => ifld=2
+          do iy = j2omp, j5omp
+            do ix = i2omp, i5omp
+               ix1 = ixm1(ix,iy)
+               ix2 = ixp1(ix,iy)
+               tv = gpix(ix ,iy,2)/gxf(ix,iy)
+               t1 = gpix(ix1,iy,2)/gxf(ix1,iy)
+               t1 = .5*cvgp*( up(ix,iy,2)*rrv(ix,iy)*
+     .                               ave(gx(ix2,iy),gx(ix,iy))*tv
+     .                    + up(ix1,iy,2)*rrv(ix1,iy)*
+     .                               ave(gx(ix,iy),gx(ix1,iy))*t1 )
+               seic(ix,iy) = seic(ix,iy) + cftiexclg*t1*vol(ix,iy)
+            enddo
+          enddo
+        endif  #test on cfvgpx(2) > 0 or = 0
+      endif   #test for inertial neutrals
+
+
 
       END SUBROUTINE calc_srcmod
 
