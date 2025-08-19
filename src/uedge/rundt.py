@@ -556,7 +556,7 @@ class UeRun():
                 if (bbb.dt_tot>=t_stop  or  self.fnrm_old<ftol_min):
                     print('')
                     self.message('SUCCESS: ' + 'fnrm < bbb.ftol'\
-                        *(self.fnrm_old<ftol_min) + \
+                        *bool(self.fnrm_old<ftol_min) + \
                         'dt_tot >= t_stop'*(bbb.dt_tot >= t_stop), pad='**', 
                         separator='*')
                     print('Total runtime: {}'.format(timedelta(
