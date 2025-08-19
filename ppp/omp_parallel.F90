@@ -22,6 +22,7 @@ CONTAINS
     call MakeIndexChunks(rangechunk, rangexptchunk, ivchunk, &
     &       ivxptchunk, Nivxpt, Niv, N, Nxptchunks, Nmax, Nivxptmax)
 
+    ! Additional fixes around X-point cut to ensure sufficient padding
     do ii = 1, nxpt
         do jj = 1, 2 
             do nn = 1, Nxptchunks(ii)
@@ -29,6 +30,8 @@ CONTAINS
             end do
         end do
     end do
+    rangechunk(2,1) = rangechunk(2,1) - 1
+    rangechunk(3,1) = rangechunk(3,1) - 1
 
   END SUBROUTINE Make2DChunks
 
