@@ -3,7 +3,7 @@ CONTAINS
   SUBROUTINE Make2DChunks(Nxchunks, Nychunks, &
     &   N, Niv, ivchunk, rangechunk, Nxptchunks, Nivxpt, &
     &   ivxptchunk, rangexptchunk, Nmax, Nxptmax, Nivxptmax)
-    Use Dim, ONLY: nxpt
+    Use Dim, ONLY: nxpt, nx
     IMPLICIT NONE
     INTEGER, INTENT(OUT):: N, Nxptchunks(nxpt), Nxchunks, Nychunks
     INTEGER, ALLOCATABLE, DIMENSION(:,:,:,:), INTENT(OUT):: rangexptchunk
@@ -30,8 +30,11 @@ CONTAINS
             end do
         end do
     end do
-    rangechunk(2,1) = rangechunk(2,1) - 1
-    rangechunk(3,1) = rangechunk(3,1) - 1
+    do ii = 1, N
+        if (rangechunk(ii,1).ne.0) then
+            rangechunk(ii,1) = rangechunk(ii,1) - 1
+        endif
+    end do
 
   END SUBROUTINE Make2DChunks
 
