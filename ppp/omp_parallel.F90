@@ -22,20 +22,6 @@ CONTAINS
     call MakeIndexChunks(rangechunk, rangexptchunk, ivchunk, &
     &       ivxptchunk, Nivxpt, Niv, N, Nxptchunks, Nmax, Nivxptmax)
 
-    ! Additional fixes around X-point cut to ensure sufficient padding
-    do ii = 1, nxpt
-        do jj = 1, 2 
-            do nn = 1, Nxptchunks(ii)
-                rangexptchunk(ii, jj, nn, 1) = rangexptchunk(ii, jj, nn, 1) - 1
-            end do
-        end do
-    end do
-    do ii = 1, N
-        if (rangechunk(ii,1).ne.0) then
-            rangechunk(ii,1) = rangechunk(ii,1) - 1
-        endif
-    end do
-
   END SUBROUTINE Make2DChunks
 
   SUBROUTINE MakeBulkChunks(Nxchunks, Nychunks, rangechunk, N)
@@ -865,7 +851,7 @@ END SUBROUTINE OMPSplitIndex
     j7 = ye+2
     j8 = min(ny+1, ye+2)
 
-    i1omp = max(0, xs-0)
+    i1omp = max(0, xs-1)
     i1momp = max(0, xs-1)
     i2omp = max(1, xs-0)
     i3omp = xs
