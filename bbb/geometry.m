@@ -943,6 +943,7 @@ c              Effectively, use angfx(ix-1,iy)=angfx(ix,iy) at left boundaries
             rbfbt2(ix,iy) = rbfbt(ix,iy)/btot(ix,iy)
 *     -- define sx at density faces in x, density centers in y --
 *     -- 1/gyc is length*cos(angfx) between vertex (ix,iy) and (ix,iy-1)
+            if (mhdgeo == -1) cosangfx(ix,iy) = 1.
             dyc = sqrt((rm(ix+nj,iy,4)-rm(ix+nj,iy,2))**2
      .              + (zm(ix+nj,iy,4)-zm(ix+nj,iy,2))**2) *
      .               cosangfx(ix,iy)

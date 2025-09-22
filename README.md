@@ -75,7 +75,7 @@ There are a number of build options available for building the code:
 
 The options are passed to the build using the following syntax
 
-    pip install -v . -C "-global-option=--arg1 --arg2"
+    pip install -v . -C "--global-option=--arg1 --arg2"
 
 where arg1 and/or arg2 are one of the options from the above list.
 
