@@ -71,7 +71,8 @@ c...  local scalars
      .     yld_chm, t0p, zflux_chm, fqytotc, flux_inc,
      .     totfnex, totfnix, fqpsate, qpfac, aq, expkmx, arglgphi, faceel,
      .     faceel2, csfac, lambdae, uztotc, uztotc1, uztotc2,
-     .     fngytotc, fmiytotc, sytotc, f_cgpld, vparn, sfeeytotc, sfeiytotc
+     .     fngytotc, fmiytotc, sytotc, f_cgpld, vparn, sfeeytotc, sfeiytotc,
+     .     vxa, ta0, flxa
       integer ii,isphion2, nzsp_rt, jz
       real hflux, zflux
       integer ifld, ihyd, iimp, ix_fl_bc, ixc1, igsp2
@@ -1727,10 +1728,14 @@ c...  now do the gas and temperatures
                   vxn = 0.25 * sqrt( 8*t1/(pi*mg(igsp)) )
                   flux_inc = fac2sp*fnix(0,iy,1)
                   if (ishymol.eq.1 .and. igsp.eq.2) then
+                    ta0 = engbsr * max(tg(1,iy,1),temin*ev)
+                    vxa = 0.25 * sqrt( 8*ta0/(pi*mg(1)) )
+                    flxa = (1-alblb(iy,1,1))*ng(1,iy,1)*vxa*sx(0,iy)
+
                     if (isupgon(1) .eq. 1) then  # two atoms per molecule
-                      flux_inc = 0.5*( fnix(0,iy,1) + fnix(0,iy,2) )
+                      flux_inc = 0.5*( fnix(0,iy,1) + fnix(0,iy,2) + flxa)
                     else
-                      flux_inc = 0.5*( fnix(0,iy,1) + fngx(0,iy,1) ) 
+                      flux_inc = 0.5*( fnix(0,iy,1) + fngx(0,iy,1) + flxa) 
                     endif
                   endif
                   areapl = isoldalbarea*sx(0,iy) + (1-isoldalbarea)*sxnp(0,iy)
@@ -2078,10 +2083,14 @@ c       Do hydrogenic gas equations --
              if (recylb(iy,igsp,jx) .gt. 0.) then  # normal recycling
                flux_inc = fac2sp*fnix(ixt,iy,1)
                if (ishymol.eq.1 .and. igsp.eq.2) then
+                 ta0 = max(tg(ixt1,iy,1), temin*ev)
+                 vxa = 0.25 * sqrt( 8*ta0/(pi*mg(1)) )
+                 flxa = (1-alblb(iy,1,jx))*ng(ixt1,iy,1)*vxa*sx(ixt,iy)
+
                  if (isupgon(1) .eq. 1) then  # two atoms for one molecule
-                   flux_inc = 0.5*( fnix(ixt,iy,1) + fnix(ixt,iy,2) ) 
+                   flux_inc = 0.5*( fnix(ixt,iy,1) + fnix(ixt,iy,2) +flxa) 
                  else
-                   flux_inc = 0.5*( fnix(ixt,iy,1) + fngx(ixt,iy,1) ) 
+                   flux_inc = 0.5*( fnix(ixt,iy,1) + fngx(ixt,iy,1) +flxa) 
                  endif
                endif
                t0 = max(tg(ixt1,iy,igsp), tgmin*ev)
@@ -2393,10 +2402,13 @@ c...  now do the gas and temperatures
                   areapl = isoldalbarea*sx(nx,iy) + (1-isoldalbarea)*sxnp(nx,iy)
                   flux_inc = fac2sp*fnix(nx,iy,1)
                   if (ishymol.eq.1 .and. igsp.eq.2) then
+                    ta0 = engbsr * max(tg(nx,iy,1),temin*ev)
+                    vxa = 0.25 * sqrt( 8*ta0/(pi*mg(1)) )
+                    flxa=(1-albrb(iy,1,nxpt))*ng(nx,iy,1)*vxa*sx(nx,iy)
                     if (isupgon(1) .eq. 1) then  # two atoms for one molecule
-                      flux_inc = 0.5*( fnix(nx,iy,1) + fnix(nx,iy,2) ) 
+                      flux_inc = 0.5*( fnix(nx,iy,1) + fnix(nx,iy,2) -flxa) 
                     else
-                      flux_inc = 0.5*( fnix(nx,iy,1) + fngx(nx,iy,1) ) 
+                      flux_inc = 0.5*( fnix(nx,iy,1) + fngx(nx,iy,1) -flxa) 
                     endif
                   endif
                   yldot(iv) = -nurlxg * ( fngx(nx,iy,igsp) +
@@ -2762,10 +2774,14 @@ c       Next, the hydrogenic gas equations --
              if (recyrb(iy,igsp,jx) .gt. 0.) then  # normal recycling
                flux_inc = fac2sp*fnix(ixt1,iy,1)
                if (ishymol.eq.1 .and. igsp.eq.2) then
+                ta0 = max(tg(ixt1,iy,1), temin*ev)
+                vxa = 0.25 * sqrt( 8*ta0/(pi*mg(1)) )
+                flxa=(1-albrb(iy,1,jx))*ng(ixt1,iy,1)*vxa*sx(ixt1,iy)
+
                  if (isupgon(1) .eq. 1) then  # two atoms for one molecule
-                   flux_inc = 0.5*( fnix(ixt1,iy,1) + fnix(ixt1,iy,2) ) 
+                   flux_inc = 0.5*( fnix(ixt1,iy,1) +fnix(ixt1,iy,2)-flxa) 
                  else
-                   flux_inc = 0.5*( fnix(ixt1,iy,1) + fngx(ixt1,iy,1) ) 
+                   flux_inc = 0.5*( fnix(ixt1,iy,1) +fngx(ixt1,iy,1)-flxa) 
                  endif
                endif
                t0 = max(tg(ixt1,iy,igsp), tgmin*ev)

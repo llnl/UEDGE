@@ -130,6 +130,78 @@ c ...       impurity tables, if both are present.
 
       return
       end
+
+
+c-----------------------------------------------------------------------
+      subroutine crumpetread
+
+c ... Set up tables for hydrogenic molecular processes using a CRUMPET
+c ... CRM file
+
+      implicit none
+
+c ... Common blocks:
+      Use(Dim)
+      Use(UEpar)        # ismolcrm
+      Use(Share)        # nhdf, hdfilename
+      Use(Data_input)   # aphdir, data_directory, crmefname, crmnfname
+      Use(Rtcrumpet)      # cmpd, cmpe
+
+c ... Function:
+      integer utgetcl   # defined in the Basis runtime library
+
+c ... Local variable:
+      integer MAXSTRING
+      parameter (MAXSTRING=500)
+      character*(MAXSTRING) aphdirx
+      character*(MAXSTRING) adname
+      character*(MAXSTRING) dataDir
+      integer jd,jt
+
+      dataDir=data_directory
+
+c ... Get length of string containing directory name (omitting trailing
+c     blanks). Basis function basfilex expands $,~.
+c     NOTE: basfilex will not exist for Python; 
+c     FACETS replaces aphdirx with aphdir in calls to findFile below
+      call basfilex(aphdir,aphdirx)
+
+c...  Set-up tables for particle and energy sinks due to molecules
+         cmpe=60
+         cmpd=15
+         call gallot("Rtcrumpet",0)
+
+          
+         do jt=1,cmpe
+             do jd=1,cmpd
+
+                    crmdiss(jt,jd)=0
+                    crmarate(jt,jd)=0
+                    crmselm(jt,jd)=0
+                    crmsiam(jt,jd)=0
+                    crmspotm(jt,jd)=0
+                    crmsrada(jt,jd)=0
+                    crmsradm(jt,jd)=0
+
+             enddo
+         enddo
+
+                if (ismolcrm .ne. 0) then
+
+                     call findFile(crmnfname, aphdirx, dataDir, adname, isaphdir)
+                     call readcrumpetn(TRIM(adname))
+                     call findFile(crmefname, aphdirx, dataDir, adname, isaphdir)
+                     call readcrumpete(TRIM(adname))
+
+
+                endif
+        
+      call setcrmvar
+
+      return
+      end
+
+
 c ... ............................................................
 c ...  Determine where the data files exist.  The search order is:
 c ...   dir1, then dir2, then $PWD
@@ -740,6 +812,51 @@ c     ekpt = natural log of temperature(eV) :
 
       return
       end
+
+c-----------------------------------------------------------------------
+      subroutine setcrmvar
+      implicit none
+Use(Dim)
+Use(Share)        # istabon
+Use(Data_input)
+Use(Rtcrumpet)
+
+c-----------------------------------------------------------------------
+c     Set density and temperature data for DEGAS and POST93 rate tables
+c-----------------------------------------------------------------------
+
+c     local variables --
+      integer jd,je
+      real ddkpt,dekpt
+
+c     dkpt = log10 of density(/m**3) :
+      ddkpt = 0.5
+      cdkpt(1)=16.0
+      do jd=2,cmpd
+         cdkpt(jd)=cdkpt(jd-1)+ddkpt
+      enddo
+      crldmin=cdkpt(1)
+      crldmax=cdkpt(cmpd)
+      cdrefmin=10.0**crldmin
+      cdrefmax=10.0**crldmax
+      cdeldkpt=(crldmax-crldmin)/real(cmpd-1)
+
+c     ekpt = natural log of temperature(eV) :
+      cekpt(1)=-1.2*log(10.0)	# new tables start at .06 eV
+
+      dekpt = 0.1
+      do je=2,cmpe
+         cekpt(je)=cekpt(je-1)+dekpt*log(10.0)
+      enddo
+      crlemin=cekpt(1)
+      crlemax=cekpt(cmpe)
+      cerefmin=exp(crlemin)
+      cerefmax=exp(crlemax)
+      cdelekpt=(crlemax-crlemin)/real(cmpe-1)
+
+
+      return
+      end
 c-----------------------------------------------------------------------
 
       subroutine splined
@@ -842,3 +959,238 @@ c     Allows the framework to set the data directory
          data_directory=passedDataDirname
       return
       end
+
+c-----------------------------------------------------------------------
+      subroutine readcrumpetn (fname)
+      implicit none
+      character*(*) fname
+Use(Rtcrumpet)  # Variable arrays
+
+c     local variables --
+      integer ios, nget, jd, jt
+      character*80 zdummy
+      real crmdummy(cmpe,cmpd)
+
+c     procedures --
+      external freeus, xerrab
+
+c----------------------------------------------------------------------c
+c     Read CRM rate data from file
+c----------------------------------------------------------------------c
+
+      call freeus(nget)
+      open (nget, file=fname, form='formatted', iostat=ios,
+     .     status='old')
+      if (ios .ne. 0) then
+      write(*,*) fname
+         call xerrab('**** CRM rate file not found; set aphdir
+     . path')
+      endif
+
+c     Atom depletion rate in CRM (cm**3/sec):
+c     Currently zero as ionization is handled by UEDGE, not CRUMPET
+      read(nget,9017) zdummy
+      do 12 jd=1,cmpd
+         read(nget,9017) zdummy
+         read(nget,9016)(crmdummy(jt,jd),jt=1,cmpe)
+ 12   continue
+c     M->A rate in CRM (cm**3/s):
+      read(nget,9017) zdummy
+      do 14 jd=1,cmpd
+         read(nget,9017) zdummy
+         read(nget,9016)(crmarate(jt,jd),jt=1,cmpe)
+ 14   continue
+c     Mol. depletion (dissociation) rate (cm**3/s):
+      read(nget,9017) zdummy
+      do 16 jd=1,cmpd
+         read(nget,9017) zdummy
+         read(nget,9016)(crmdiss(jt,jd),jt=1,cmpe)
+ 16   continue
+c     Mol. creation rate (cm**3/s):
+c     No re-association considered, discard zeros
+      read(nget,9017) zdummy
+      do 18 jd=1,cmpd
+         read(nget,9017) zdummy
+         read(nget,9016)(crmdummy(jt,jd),jt=1,cmpe)
+ 18   continue
+c     Atomic external source (cm**3/s):
+c     Recombination considered by UEDGE, discard zeros
+      read(nget,9017) zdummy
+      do 20 jd=1,cmpd
+         read(nget,9017) zdummy
+         read(nget,9016)(crmdummy(jt,jd),jt=1,cmpe)
+ 20   continue
+c     Molecular external source (cm**3/s):
+c     No re-association considered, discard zeros
+      read(nget,9017) zdummy
+      do 22 jd=1,cmpd
+         read(nget,9017) zdummy
+         read(nget,9016)(crmdummy(jt,jd),jt=1,cmpe)
+ 22   continue
+      close (nget)
+
+c     convert to SI units:
+      do jt=1,cmpe
+         do jd=1,cmpd
+            crmdiss(jt,jd)=crmdiss(jt,jd)
+            crmarate(jt,jd)=crmarate(jt,jd)
+         enddo
+      enddo
+
+ 9016 format(10(6(1x,e12.5)/))
+ 9017 format(a80)
+
+      return
+      end
+
+c-----------------------------------------------------------------------
+      subroutine readcrumpete (fname)
+      implicit none
+      character*(*) fname
+Use(Rtcrumpet)  # Variable arrays
+Use(Physical_constants)   # ev
+
+c     local variables --
+      integer ios, nget, jd, jt
+      character*80 zdummy
+      real crmdummy(cmpe,cmpd)
+
+c     procedures --
+      external freeus, xerrab
+
+c----------------------------------------------------------------------c
+c     Read CRM rate data from file
+c----------------------------------------------------------------------c
+
+      call freeus(nget)
+      open (nget, file=fname, form='formatted', iostat=ios,
+     .     status='old')
+      if (ios .ne. 0) then
+         call xerrab('**** CRM rate file not found; set aphdir
+     . path')
+      endif
+
+c     Electron energy change due to atoms (W cm**3):
+c     Currently zero as atom-losses are handled by UEDGE, not CRUMPET
+      read(nget,9019) zdummy
+      do 12 jd=1,cmpd
+         read(nget,9019) zdummy
+         read(nget,9018)(crmdummy(jt,jd),jt=1,cmpe)
+ 12   continue
+c     Electron energy change due to molecules (W cm**3):
+      read(nget,9019) zdummy
+      do 14 jd=1,cmpd
+         read(nget,9019) zdummy
+         read(nget,9018)(crmselm(jt,jd),jt=1,cmpe)
+ 14   continue
+c     External electron energy loss rate (W cm**3):
+c     Currently zero as atom-losses are handled by UEDGE, not CRUMPET
+      read(nget,9019) zdummy
+      do 16 jd=1,cmpd
+         read(nget,9019) zdummy
+         read(nget,9018)(crmdummy(jt,jd),jt=1,cmpe)
+ 16   continue
+c     Ion/atom energy change due to elec-a interactions (W cm**3):
+c     Currently zero as atom-losses are handled by UEDGE, not CRUMPET
+      read(nget,9019) zdummy
+      do 18 jd=1,cmpd
+         read(nget,9019) zdummy
+         read(nget,9018)(crmdummy(jt,jd),jt=1,cmpe)
+ 18   continue
+c     Ion/atom energy change due to elec-mol interactions (W cm**3):
+      read(nget,9019) zdummy
+      do 20 jd=1,cmpd
+         read(nget,9019) zdummy
+         read(nget,9018)(crmsiam(jt,jd),jt=1,cmpe)
+ 20   continue
+c     Ion/atom energy change due to external interactions (W cm**3):
+c     Considered by UEDGE, discard zeros
+      read(nget,9019) zdummy
+      do 22 jd=1,cmpd
+         read(nget,9019) zdummy
+         read(nget,9018)(crmdummy(jt,jd),jt=1,cmpe)
+ 22   continue
+c     Potential energy change due to atom interactions (W cm**3):
+c     Considered by UEDGE, discard zeros
+      read(nget,9019) zdummy
+      do 24 jd=1,cmpd
+         read(nget,9019) zdummy
+         read(nget,9018)(crmdummy(jt,jd),jt=1,cmpe)
+ 24   continue
+c     Potential energy change due to molecule interactions (W cm**3):
+      read(nget,9019) zdummy
+      do 26 jd=1,cmpd
+         read(nget,9019) zdummy
+         read(nget,9018)(crmspotm(jt,jd),jt=1,cmpe)
+ 26   continue
+c     Potential energy change due to external interactions (W cm**3):
+c     Considered by UEDGE, discard zeros
+      read(nget,9019) zdummy
+      do 28 jd=1,cmpd
+         read(nget,9019) zdummy
+         read(nget,9018)(crmdummy(jt,jd),jt=1,cmpe)
+ 28   continue
+
+c     Atom radiation source due to atom interactions (W cm**3):
+c     Considered by UEDGE, discard zeros
+      read(nget,9019) zdummy
+      do 30 jd=1,cmpd
+         read(nget,9019) zdummy
+         read(nget,9018)(crmdummy(jt,jd),jt=1,cmpe)
+ 30   continue
+c     Atom radiation source due to molecule interactions (W cm**3):
+      read(nget,9019) zdummy
+      do 32 jd=1,cmpd
+         read(nget,9019) zdummy
+         read(nget,9018)(crmsrada(jt,jd),jt=1,cmpe)
+ 32   continue
+c     Atom radiation source due to external interactions (W cm**3):
+c     Considered by UEDGE, discard zeros
+      read(nget,9019) zdummy
+      do 34 jd=1,cmpd
+         read(nget,9019) zdummy
+         read(nget,9018)(crmdummy(jt,jd),jt=1,cmpe)
+ 34   continue
+
+c     Mol. radiation source due to atom interactions (W cm**3):
+c     Considered by UEDGE, discard zeros
+      read(nget,9019) zdummy
+      do 36 jd=1,cmpd
+         read(nget,9019) zdummy
+         read(nget,9018)(crmdummy(jt,jd),jt=1,cmpe)
+ 36   continue
+c     Mol. radiation source due to molecule interactions (W cm**3):
+      read(nget,9019) zdummy
+      do 38 jd=1,cmpd
+         read(nget,9019) zdummy
+         read(nget,9018)(crmsradm(jt,jd),jt=1,cmpe)
+ 38   continue
+c     Mol. radiation source due to external interactions (W cm**3):
+c     Considered by UEDGE, discard zeros
+      read(nget,9019) zdummy
+      do 40 jd=1,cmpd
+         read(nget,9019) zdummy
+         read(nget,9018)(crmdummy(jt,jd),jt=1,cmpe)
+ 40   continue
+
+
+
+      close (nget)
+
+c     convert to SI units:
+      do jt=1,cmpe
+         do jd=1,cmpd
+            crmselm(jt,jd)= crmselm(jt,jd)*ev
+            crmsiam(jt,jd)= crmsiam(jt,jd)*ev
+            crmspotm(jt,jd)= crmspotm(jt,jd)*ev
+            crmsrada(jt,jd)= crmsrada(jt,jd)*ev
+            crmsradm(jt,jd)= crmsradm(jt,jd)*ev
+         enddo
+      enddo
+
+ 9018 format(10(6(1x,e12.5)/))
+ 9019 format(a80)
+
+      return
+      end
+

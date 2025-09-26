@@ -683,10 +683,10 @@ cnxg      data igs/1/
       integer zmax,znuc
       real dene,denz(0:1),radz(0:1)
       real rsa, rra, rqa, rcx, emissbs, erl1, erl2, radneq, radimpmc
-      real radmc, svdiss, vyiy0, vyiym1, v2ix0, v2ixm1
-      real tgupyface, ngupyface, n1upyface, ng2upyface
+      real radmc, svdiss, vyiy0, vyiym1, v2ix0, v2ixm1, sv_crumpet
       external rsa, rra, rqa, rcx, emissbs, erl1, erl2, radneq, radimpmc
-      external radmc, svdiss
+      real tgupyface, ngupyface, n1upyface, ng2upyface
+      external radmc, svdiss, sv_crumpet
       real tick,tock
       external tick,tock
 	  
@@ -1907,7 +1907,7 @@ c ... get optical-depth to outer (iy=ny+1) bdry; selection of min rtau
 
 c...  Initialize save-variables if this is a Jacobian (xc,yc > -1)
          if (xc .ge. 0 .and. yc .ge. 0) then
-            psordisold = psordis(xc,yc)
+            psordisold = psordis(xc,yc,ifld)
 cc            write(*,*) 'Just after psordisold; xc,yc=',xc,yc
             do ifld = 1, nfsp
                psorold(ifld) = psorc(xc,yc,ifld)
@@ -1969,6 +1969,7 @@ c     Ionization of neutral hydrogen by electrons and recombination--
                psorgc(ix,iy,igsp) = -ng(ix,iy,igsp)*nuiz(ix,iy,igsp)*vol(ix,iy) +
      .                              psorbgg(ix,iy,igsp)
                psorc(ix,iy,ifld) = - psorgc(ix,iy,igsp)
+               psordis(ix,iy,2) = psorc(ix,iy,1)  # changed below if ishymol=1
                psordis(ix,iy) = cfdiss*psorc(ix,iy,1)  # overwritten below if ishymol=1
                psorxrc(ix,iy,ifld) = -ni(ix,iy,ifld)*nurc(ix,iy,igsp)*vol(ix,iy)
                psorrgc(ix,iy,igsp) = -psorxrc(ix,iy,ifld)
@@ -2327,25 +2328,36 @@ c ... Set up nuiz & sources for hydrogen molecular gas
         endif
         do iy = iys1, iyf6
          do ix = ixs1, ixf6
-           nuiz(ix,iy,2) = ne(ix,iy) * (  #.. Tom 
-     .                          svdiss( te(ix,iy) )
+           nuiz(ix,iy,2) = ne(ix,iy) * (  
+     .                        (1-ismolcrm)*(svdiss( te(ix,iy) )
      .                        + cfizmol*rsa(te(ix,iy),ne_sgvi,rtau(ix,iy),0)
-     .                        + sigvi_floor )
+     .                        + sigvi_floor ) 
+     .                        - ismolcrm*sv_crumpet( te(ix,iy), ne(ix,iy),10)
+                      )
            massfac = 16*mi(1)/(3*(mg(2)+mi(1)))
            nuix(ix,iy,2)= fnuizx*nuiz(ix,iy,2) + 
      .                           massfac*( kelighi(2)*ni(ix,iy,1)+
      .                                     kelighg(2)*ng(ix,iy,1) )
 c ...  molecule-molecule collisions would enter viscosity, not nuix
-           psorbgg(ix,iy,2) = ngbackg(2)* 
+                psorbgg(ix,iy,2) = ngbackg(2)* 
      .                     (0.9+0.1*(ngbackg(2)/ng(ix,iy,2))**ingb ) * 
      .                                        nuiz(ix,iy,2) * vol(ix,iy)
-           psorgc(ix,iy,2) = - ng(ix,iy,2)*nuiz(ix,iy,2)*vol(ix,iy) +
+                psorgc(ix,iy,2) = - ng(ix,iy,2)*nuiz(ix,iy,2)*vol(ix,iy) +
      .                        psorbgg(ix,iy,2)
-           psorg(ix,iy,2) = psorgc(ix,iy,2)  # no mol sor averaging
-           psordis(ix,iy) = -2*psorgc(ix,iy,2)  # 2 atoms per molecule
-           if(isupgon(1) .eq. 1) then
-             psor(ix,iy,iigsp) = psor(ix,iy,iigsp) + psordis(ix,iy)
-           endif
+                psorg(ix,iy,2) = psorgc(ix,iy,2)  # no mol sor averaging
+                psordisg(ix,iy,2) = - ng(ix,iy,2)*nuiz(ix,iy,2)*vol(ix,iy)
+                psordis(ix,iy,2) = ng(ix,iy,2)*vol(ix,iy)*( 2*(1-ismolcrm)*
+     .                      ne(ix,iy)*(svdiss(te(ix,iy)) + sigvi_floor) + 
+     .                      ismolcrm*cfcrma*sv_crumpet(te(ix,iy),ne(ix,iy),11))
+                # 2 atoms per molecule in old model, rates from CRM for new
+                psordisg(ix,iy,1)=psordis(ix,iy,2)
+                psordis(ix,iy,1) = -cfcrmi*(2*psordisg(ix,iy,2)+
+     .                              psordis(ix,iy,2))
+                psor(ix,iy,1) = psor(ix,iy,1) + psordis(ix,iy,1)
+c ... TODO: How to deal with diffusive atom model - is it maintained?
+                if(isupgon(1) .eq. 1) then
+                  psor(ix,iy,iigsp) = psor(ix,iy,iigsp) + psordis(ix,iy,2)
+                endif
          enddo
         enddo 
       endif  # end of loop for ishymol=1 (hydrogen molecules on)
@@ -4511,8 +4523,11 @@ c...  Electron radiation loss -- ionization and recombination
      .                                           eeli(ix,iy) = 13.6*ev + 
      .                               erliz(ix,iy)/(fac2sp*psor(ix,iy,1))
 
+                   edisse(ix,iy)=-(1-ismolcrm)*ediss*ev*(0.5*psordis(ix,iy,2)) +
+     .                               ismolcrm*ng(ix,iy,2)*vol(ix,iy)*
+     .                               sv_crumpet(te(ix,iy), ne(ix,iy), 20)
                   pradhyd(ix,iy)= ( (eeli(ix,iy)-ebind*ev)*psor(ix,iy,1)+
-     .                                         erlrc(ix,iy) )/vol(ix,iy)
+     .                                         erlrc(ix,iy) )/vol(ix,iy)                  
  315           continue
  316        continue
 
@@ -4523,7 +4538,7 @@ c...  Electron radiation loss -- ionization and recombination
      .          + cfneut*cfneutsor_ee*cnsor*13.6*ev*fac2sp*psorrgc(ix,iy,1)
      .          - cfneut*cfneutsor_ee*cnsor*erliz(ix,iy)
      .          - cfneut*cfneutsor_ee*cnsor*erlrc(ix,iy)
-     .          - cfneut*cfneutsor_ee*cnsor*ediss*ev*(0.5*psordis(ix,iy))
+     .          + cfneut*cfneutsor_ee*cnsor*cmesore*edisse(ix,iy)
         enddo
       enddo
 
@@ -4591,6 +4606,14 @@ c*************************************************************
             ix1 = ixm1(ix,iy)
             w0(ix,iy) = vol(ix,iy) * eqp(ix,iy) * (te(ix,iy)-ti(ix,iy))
             resee(ix,iy) = resee(ix,iy) - w0(ix,iy) + vsoree(ix,iy)
+c ... Energy density change due to molecular dissociation
+            eiamoldiss(ix,iy)=(1-ismolcrm)*eion*ev*psordis(ix,iy,2) 
+            if (ishymol .ne. 0) then
+                eiamoldiss(ix,iy) = eiamoldiss(ix,iy) + 
+     .                      ismolcrm*2*psordisg(ix,iy,2)*tg(ix,iy,2) 
+            endif
+            emolia(ix,iy)=ismolcrm*ng(ix,iy,2)*vol(ix,iy)*
+     .                      sv_crumpet(te(ix,iy), ne(ix,iy), 21) 
             if (isupgon(1).eq.1) then
 c These terms include electron-ion equipartition as well as terms due
 c to the friction force between neutrals and ions
@@ -4604,11 +4627,11 @@ c to the friction force between neutrals and ions
                t0 = 1.5*( tg(ix,iy,1)* (psor(ix,iy,1)+tv)
      .                     -ti(ix,iy) * (psorrg(ix,iy,1)+tv) )
                resei(ix,iy) = resei(ix,iy) + w0(ix,iy)
-     .             + cfneut * cfneutsor_ei * cfnidh * 0.5*mi(1) * 
-     .                          ( (t1-t2)*(t1-t2)+temp3+temp4 ) * 
-     .                    (  psor(ix,iy,1) + cftiexclg*psorrg(ix,iy,1)
-     .              + tv + cftiexclg * tv  )
      .              + (1.0-cftiexclg) * t0
+c <<<<<<< h2crm
+c     .             + cfneut * cfneutsor_ei * (cnsor*eiamoldiss(ix,iy) +
+c     .                                        cmesori*emolia(ix,iy) )
+c =======
      .             + cftiexclg * cfneut * cfneutsor_ei * cnsor
      .               *( eion*ev+cfnidhdis*
      .                  0.5*mg(1)*(t2*t2+temp3+temp4) )*psordis(ix,iy) 
@@ -4616,6 +4639,7 @@ c to the friction force between neutrals and ions
      .                       ( -mi(1)*t1*t2*(psor(ix,iy,1)+tv)
      .                         +0.5*mi(1)*t1*t1*
      .                          (psor(ix,iy,1)+psorrg(ix,iy,1)+2*tv) )
+c >>>>>>> upstream-develop-h2crm
                reseg(ix,iy,1) = reseg(ix,iy,1)
      .                            - t0+0.5*mg(1) * ( (t1-t2)*(t1-t2)
      .                                              +temp3+temp4 )
@@ -4631,7 +4655,8 @@ c to the friction force between neutrals and ions
      .             + cfneut * cfneutsor_ei * ctsor*1.25e-1*mi(1)*
      .                    (upi(ix,iy,1)+upi(ix1,iy,1))**2*
      .                    fac2sp*psor(ix,iy,1)
-     .             + cfneut * cfneutsor_ei * ceisor*cnsor* eion*ev*psordis(ix,iy)
+     .             + cfneut * cfneutsor_ei * ceisor*(cnsor* eiamoldiss(ix,iy) +
+     .                                               cmesori*emolia(ix,iy) )
      .             - cfneut * cfneutsor_ei * ccoldsor*ng(ix,iy,1)*nucx(ix,iy,1)*
      .                    (  1.5*ti(ix,iy)
      .                     - 0.125*mi(1)*(upi(ix,iy,1)+upi(ix1,iy,1))**2
@@ -5023,7 +5048,7 @@ c...  Finally, reset some source terms if this is a Jacobian evaluation
             frice(xc,yc) = friceo
             upe(ix1,yc) = upeom
             upe(xc,yc) = upeo
-            psordis(xc,yc) = psordisold
+            psordis(xc,yc,ifld) = psordisold
             do ifld = 1, nfsp
                psorc(xc,yc,ifld) = psorold(ifld)
                psorxr(xc,yc,ifld) = psorxrold(ifld)
@@ -5996,7 +6021,7 @@ c.... Calculate the residual for the gas equation for diffusive neutral case
      .             - fluxfacy*(fngy(ix,iy,igsp) - fngy(ix ,iy-1,igsp))
      .                       + psgov_use(ix,iy,igsp)*vol(ix,iy)
                if (igsp.eq.1 .and. ishymol.eq.1) resng(ix,iy,igsp) =
-     .                                  resng(ix,iy,igsp)+psordis(ix,iy)
+     .                              resng(ix,iy,igsp)+psordis(ix,iy,2)
  891        continue
  892     continue
       endif
@@ -6589,7 +6614,7 @@ c ... is it correct to use ng instead of ni??? i.e. will ng enter jacobian?
      .             + volpsorg(ix,iy,igsp)
      .             + psgov_use(ix,iy,igsp)*vol(ix,iy)
             if (igsp.eq.1 .and. ishymol.eq.1)
-     .            resng(ix,iy,igsp) = resng(ix,iy,igsp) + psordis(ix,iy)
+     .          resng(ix,iy,igsp) = resng(ix,iy,igsp)+psordis(ix,iy,2)
             resng(ix,iy,igsp) = resng(ix,iy,igsp) - cfneutdiv*
      .          cfneutdiv_fng*((fngx(ix,iy,igsp) - fngx(ix1,iy, igsp)) +
      .          fluxfacy*(fngy(ix,iy,igsp) - fngy(ix,iy-1,igsp)) )
@@ -7007,8 +7032,8 @@ c.... Calculate the residual for the gas equation for diffusive neutral case
      .             - fluxfacy*(fngy(ix,iy,igsp) - fngy(ix ,iy-1,igsp))
      .                       + psgov_use(ix,iy,igsp)*vol(ix,iy)
 
-               if (igsp.eq.1 .and. ishymol.eq.1) resng(ix,iy,igsp) =
-     .                                  resng(ix,iy,igsp)+psordis(ix,iy)
+               if (igsp.eq.1 .and. ishymol.eq.1)  
+     .              resng(ix,iy,igsp) = resng(ix,iy,igsp)+psordis(ix,iy,2)
  891        continue
  892     continue
       endif
@@ -7425,8 +7450,8 @@ c.... Calculate the residual or right-hand-side for the gas equation
      .                       - fngx(ix,iy,igsp) + fngx(ix1,iy  ,igsp)
      .                       - fngy(ix,iy,igsp) + fngy(ix ,iy-1,igsp)
      .                       + psgov_use(ix,iy,igsp)*vol(ix,iy)
-               if (igsp.eq.1 .and. ishymol.eq.1) resng(ix,iy,igsp) =
-     .                                  resng(ix,iy,igsp)+psordis(ix,iy)
+               if (igsp.eq.1 .and. ishymol.eq.1) 
+     .              resng(ix,iy,igsp) = resng(ix,iy,igsp)+psordis(ix,iy,2)
  891        continue
  892     continue
       else if (isupgon(igsp).eq.1) then
@@ -10275,7 +10300,7 @@ c ... Common blocks:
       Use(Selec)            #ixm1,ixp1
       Use(Comflo)           #feex,feix,feey,feiy,fqx,fqy,fnix,fniy
       Use(Compla)           #up,mi,ng,v2,vy
-      Use(UEpar)            #ediss,eion,ebind,iigsp,ishosor,fsprd,ishymol
+      Use(UEpar)            #ediss,eion,ebind,iigsp,ishosor,fsprd,ishymol,ismolcrm
       Use(Phyvar)           #ev,qe
       Use(Share)            #cutlo
       Use(Rhsides)          #psor,psorg,psorxr,erliz,erlrc,psor_tmpov
@@ -10290,7 +10315,8 @@ c ... Common blocks:
 
 c ... Local variables:
       integer ix,iy,ix1,ix2,ix3,ix4,iimp,id,igsp,jz,jx,ixt,ixt1,ixr,ixr1
-      real ave,a1,a2,t1,t2,thetaix,thetaix2,eta_dup2dy
+      real ave,a1,a2,t1,t2,thetaix,thetaix2,eta_dup2dy,sv_crumpet
+      external sv_crumpet
 
 c ... Implicit function:
       ave(a1,a2) = a1 * a2 / (a1 + a2 + cutlo)
@@ -10380,11 +10406,19 @@ c ... Implicit function:
 # energy is included in eeli term, but it is carried by the ions.
 # Note also that eion and ediss generally balance in the next line
 # because should have ediss=2*eion - transfer from electron to ion energy
+                pmloss(ix,iy) =(1-ismolcrm)*cnsor*(ediss*ev*(0.5*psordis(ix,iy,2))+
+     .                      ceisor*eion*ev*(psordis(ix,iy,2)) ) + 
+     .                      ismolcrm*cnsor*(cmesori*emolia(ix,iy)+cmesore*edisse(ix,iy))
+                pmpot(ix,iy) = ismolcrm*ng(ix,iy,2)*vol(ix,iy)*
+     .                          sv_crumpet(te(ix,iy), ne(ix,iy), 22)
+                pmrada(ix,iy) = ismolcrm*ng(ix,iy,2)*vol(ix,iy)*
+     .                          sv_crumpet(te(ix,iy), ne(ix,iy), 23)
+                pmradm(ix,iy) = ismolcrm*ng(ix,iy,2)*vol(ix,iy)*
+     .                          sv_crumpet(te(ix,iy), ne(ix,iy), 24)
             peirad(ix,iy) = cnsor*( erliz(ix,iy) + erlrc(ix,iy) +
      .                              ebind*ev*psor(ix,iy,1) -
      .                              ebind*ev*psorrg(ix,iy,1) +
-     .                              ediss*ev*(0.5*psordis(ix,iy)) -
-     .                        ceisor*eion*ev*(psordis(ix,iy)) )
+     .                              pmloss(ix,iy))
 
 # other energy diagnostics are given below
 
@@ -10475,11 +10509,15 @@ cc            ptjdote = ptjdote + jdote(ix,iy)
             pradiz = pradiz + (eeli(ix,iy)-ebind*ev) * psor(ix,iy,1) 
             pbinde = pbinde + ebind*ev * psor(ix,iy,1)
             pbindrc = pbindrc + ebind*ev*psorrg(ix,iy,1)
-            prdiss = prdiss + ediss * ev * (0.5*psordis(ix,iy))
-            pibirth = pibirth + ceisor* eion*ev * (psordis(ix,iy)) -
+            prdiss = prdiss+(1-ismolcrm)*(ediss*ev*(0.5*psordis(ix,iy,2)))+
+     .                              ismolcrm*cmesore*edisse(ix,iy)
+            pibirth = pibirth+(1-ismolcrm)*(ceisor* eion*ev * (psordis(ix,iy,2)) -
      .                ccoldsor*ng(ix,iy,1)*(1.5*ti(ix,iy)-eion*ev)*
-     .                                          nucx(ix,iy,1)*vol(ix,iy) 
-          enddo
+     .                                          nucx(ix,iy,1)*vol(ix,iy) )+
+     .                  ismolcrm*( ceisor*cmesore*emolia(ix,iy) -
+     .                  ccoldsor*ng(ix,iy,1)*(1.5*ti(ix,iy)-eion*ev)*
+     .                                          nucx(ix,iy,1)*vol(ix,iy) )
+         enddo
         enddo
       enddo
       pradht = pradiz + pradrc

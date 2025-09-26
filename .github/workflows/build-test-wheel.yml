@@ -21,7 +21,7 @@ jobs:
     - name: Install pip dependencies
       run: |
         python -m pip install --upgrade pip
-        python -m pip install forthon>=0.10.7 numpy==1.26.4 h5py
+        python -m pip install "forthon>=0.10.7" numpy h5py
         python -m pip install flake8
         python -m pip install pytest-isolate pytest-xdist
     - name: Build UEDGE
@@ -30,7 +30,7 @@ jobs:
     - name: Return to pytests branch
       uses: actions/checkout@v4
       with:
-        ref: pytests-develop
+        ref: pytests
         repository: LLNL/UEDGE 
     - name: Test with pytest
       run: |
@@ -74,8 +74,8 @@ jobs:
         uses: pypa/cibuildwheel@v2.17.0
         env:
             CIBW_BUILD: ${{matrix.pyver}}-*
-            CIBW_SKIP: "pp37-* cp37-* *-win32 *-manylinux_i686"
             CIBW_ARCHS_LINUX: auto
+            CIBW_SKIP: "pp37-* cp37-* *-win32 *-manylinux_i686"
             CIBW_BEFORE_BUILD: pip install numpy 'forthon>=0.10.7' 'build<0.10.0'
 
       - name: Upload Artifacts
@@ -151,8 +151,8 @@ jobs:
         uses: pypa/cibuildwheel@v2.17.0
         env:
             CIBW_BUILD: ${{matrix.pyver}}-*
-            IBW_SKIP: cp37-*
             CIBW_ARCHS: ${{matrix.arch}}
+            CIBW_SKIP: "pp37-* cp37-* *-win32 *-manylinux_i686"
             CIBW_BEFORE_BUILD: pip install numpy 'forthon>=0.10.7' 'build<0.10.0'
 
       - name: Upload Artifacts

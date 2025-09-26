@@ -3,3 +3,4 @@ src/uedge/VERSION merge=ours
 *.m linguist-language=Fortran
 *.v linguist-language=Fortran
 doc/* linguist-documentation
+

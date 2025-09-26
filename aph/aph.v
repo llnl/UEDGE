@@ -11,6 +11,8 @@ sgvcxc   real [m^2/s] /2.e-14/# const. value of sigv_cx for issgvcxc=1;
                               # const. sig for issgvcxc=2, sig-v=sig*sqrt(T/mi)
 			      # with units now [m^2]
 isaphdir integer       /1/    #=1 uses aphdir; =0 uses explicit rate file names
+crmnfname character*120 /"crumpet_nrates.dat"/ # Name of CRM rate data file
+crmefname character*120 /"crumpet_Erates.dat"/ # Name of CRM E-sink data file
 aphdir	character*120 # name of directory containing data files
 data_directory	character*120 # another dirname containing data files. This is to be be passed in
 
@@ -37,6 +39,34 @@ htlcx(0:htnt,0:htnn,0:htns-1)	_real
 	# log(htcx) where htcx is ADPAK rate parameter data for charge exchange
 htlqa(0:htnt,0:htnn,0:htns-1)	_real	
 	# log(htqa) where htqa is ADPAK rate parameter data for energy loss
+
+
+***** Rtcrumpet:
+# data from CRUMPET rate tables
+cmpe	integer	/60/		# number of energy points for crm params
+cmpd	integer /15/		# number of density points for crm params
+crmdiss(cmpe,cmpd) _real [m**3/s] # Mol diss rate vs. temp and dens
+crmarate(cmpe,cmpd) _real [m**3/s] # a-create rate from mol vs tem, dens
+crmselm(cmpe,cmpd) _real [W m**3] # el e-change due to mol diss vs temp, dens
+crmsiam(cmpe,cmpd) _real [W m**3] # ia e-change due to mol diss vs temp, dens
+crmspotm(cmpe,cmpd) _real [W m**3] # Epot change due to mol diss vs temp, dens
+crmsrada(cmpe,cmpd) _real [W m**3] # Radiation due to mol diss vs temp, dens
+crmsradm(cmpe,cmpd) _real [W m**3] # Radiation due to mol diss vs temp, dens
+cekpt(cmpe)	_real		# natural log of temperature (eV)
+crlemin		real		# minimum of ekpt
+crlemax		real		# maximum of ekpt
+cerefmin	real	[eV]	# minimum temperature in table data
+cerefmax	real	[eV]	# maximum temperature in table data
+cdelekpt	real		# interval size for ekpt in table data
+cdkpt(cmpd)	_real		# log10 of density (/m**3)
+crldmin		real		# minimum of dkpt
+crldmax		real		# maximum of dkpt
+cdrefmin	real	[/m**3]	# minimum density in table data
+cdrefmax	real	[/m**3]	# maximum density in table data
+cdeldkpt	real		# dkpt interval in atomic data tables
+ctaumin		real		# minimum tau in rtau opt-dep table data
+ctaumax		real		# maximum tau in trau opt-dep table data
+cdeltau	    real		# log int. size of rtau in opt-dep table dat
 
 ***** Rtdegas:
 # data from DEGAS rate tables eh.dat, ehr1.dat, nwfits and atmc.dat
@@ -142,6 +172,23 @@ readehr1(fname:string)	subroutine
 readehr2(fname:string)	subroutine
 	# read 2004 data (n=2-9) files thin.dat, thickLyA.dat, thickAllLy.dat
 	# in    fname  filename to read
+readcrumpete(fname:string)  subroutine
+    # read CRUMPET energy sink/source file
+    # in    fname  filename to read
+readcrumpetn(fname:string)  subroutine
+    # read CRUMPET rate file
+    # in    fname  filename to read
+sv_crumpet(te:real,ne:real,rate:integer) real function [X m**3/s]
+    # calculate CRUMPET atomic creation form molecules
+    # in    te=electron temperature [J]
+    # in    ne=electron density [/m**3]
+    # in    rate=data table to be read
+    #            10: mol diss rate, [X]=1
+    #            11: mol->atom rate, [X]=1
+    #            20: el E change due to mol interaction, [X]=J
+    #            21: i/a E change due to mol interaction, [X]=J
+    #            22: Epot change due to mol interaction, [X]=J
+    #            23: radiation due to mol interaction, [X]=J
 
 ***** Aphwrk:
 # working arrays for 2-d spline interpolation
@@ -166,5 +213,6 @@ rqacoef(1:nxdata_aph,1:nydata_aph)  _real # spline coeff's for line emission
 ***** Subs:
 # Subroutines that can be called from the parser
 aphread                                     subroutine
+crumpetread                                 subroutine
 
 
