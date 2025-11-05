@@ -170,6 +170,8 @@ c     Read mesh parameters from a UEDGE code grid data file
 
       if (geometry=="dnull" .or. geometry=="snowflake15" .or.
      .    geometry=="snowflake45" .or. geometry=="snowflake75" .or.
+     .    geometry=="snowflake105" .or. geometry=="snowflake135" .or.
+     .    geometry=="snowflake165" .or.
      .    geometry=="dnXtarget" .or. geometry=="isoleg") then
          read(nuno,1999) nxm,nym
          read(nuno,1999) iysptrx1(1),iysptrx2(1)
@@ -224,6 +226,8 @@ c     Read a UEDGE code grid data file
 
       if (geometry=="dnull" .or. geometry=="snowflake15" .or.
      .    geometry=="snowflake45" .or. geometry=="snowflake75" .or.
+     .    geometry=="snowflake105" .or. geometry=="snowflake135" .or.
+     .    geometry=="snowflake165" .or.	  
      .    geometry=="dnXtarget" .or. geometry=="isoleg") then
          read(nuno,1999) nxm,nym
          read(nuno,1999) iysptrx1(1),iysptrx2(1)
