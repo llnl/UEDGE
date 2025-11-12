@@ -1131,7 +1131,13 @@ c...  of the core boundary region
 
 c...  Setup the isixcore(ix) array: =1 if ix on iy=0 core bdry; =0 if not
       do ix = 0, nx+1
-        if ((geometry(1:9)=="snowflake" .and. geometry(10:11).ne."15")
+        if (geometry(1:9)=="snowflake" .and. geometry(10:12)=="135") then 
+          if( ix > ixpt2(1) .and. ix <= ixpt1(2)) then
+            isixcore(ix) = 1
+          else
+            isixcore(ix) = 0
+          endif
+        else if ((geometry(1:9)=="snowflake" .and. geometry(10:11).ne."15")
      &       .or. geometry=="dnXtarget") then
           if( ix > ixpt1(1) .and. ix <= ixpt2(1)) then
             isixcore(ix) = 1
