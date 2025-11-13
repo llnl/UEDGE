@@ -1328,12 +1328,21 @@ c ... Fix the core boundary; just a convention
 *  -- define y on density faces -- at outboard midplane (?)
       if (ixpt2(1) > 0 .and. (isudsym.ne.1) .and.isddcon==0) then
          rmmax = rm(nxleg(1,1)+nxcore(1,1)+1,ny,0)
-         do ix = nxleg(1,1)+nxcore(1,1)+1, ixpt2(1)
-           if (rm(ix,ny,0) >= rmmax) then
-              rmmax = rm(ix,ny,0)
-              ixmp = ix
-           endif
-         enddo
+         if (geometry=='snowflake135') then 
+            do ix = nxleg(1,1)+nxcore(1,1)+1, ixpt1(2)
+               if (rm(ix,ny,0) >= rmmax) then
+                  rmmax = rm(ix,ny,0)
+                  ixmp = ix
+               endif
+            enddo
+         else 
+            do ix = nxleg(1,1)+nxcore(1,1)+1, ixpt2(1)
+            if (rm(ix,ny,0) >= rmmax) then
+               rmmax = rm(ix,ny,0)
+               ixmp = ix
+            endif
+            enddo
+         end if
       endif
       if (geometry.eq.'dnbot') ixmp = nxc+1
       if (geometry.eq.'dnull' .or. geometry=='snowflake15' .or.
