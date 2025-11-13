@@ -105,8 +105,15 @@ c ====================================================================
 c...  do the iy = 0 boundary
 c...  if extrapolation b.c. on p.f. region, isextrpf=1, otherwise isextrpf=0
       if (iymnbcl .eq. 0) goto 1100   # interior domain boundary; no bdry eqn
-      ixc1 = max(0, ixpt1(1)+1)       # 1st  core cell;used for core flux BC
-      if ((geometry(1:9)=="snowflake" .and. geometry(10:11).ne."15")
+      
+      if (geometry=='snowflake135') then 
+        ixc1 = max(0, ixpt2(1)+1) # 1st  core cell;used for core flux BC
+      else 
+        ixc1 = max(0, ixpt1(1)+1) # 1st  core cell;used for core flux BC
+      end if
+      if (geometry=='snowflake135') then 
+        ix_fl_bc = min(ixpt1(2), nx)
+      else if ((geometry(1:9)=="snowflake" .and. geometry(10:11).ne."15")
      &                     .or. geometry=="dnXtarget") then
         ix_fl_bc = min(ixpt2(1), nx)
       else
@@ -412,7 +419,7 @@ c     the adjacent cells.
                      yldot(iv1) = nurlxn*( ni(ix,0,iimp) -
      .                                 ni(ixp1(ix,0),0,iimp) ) / n0(iimp)
                      if (ix.eq.ix_fl_bc) then
-                        ii=max(0,ixpt1(1)+1)
+                        ii=ixc1
                         fniytotc=fniy(ii,0,iimp)-fniycbo(ii,iimp)
                         do
                           ii=ixp1(ii,0)
@@ -487,7 +494,7 @@ c    if flux energy condition, precompute feeytotc & feiytotc for use
         feiytotc = 0.
         do ix = i4+1-ixmnbcl, i8-1+ixmxbcl
           if (iymnbcl==1 .and. isixcore(ix)==1) then  # domain part of core bdry
-            ii = max(0, ixpt1(1)+1)
+            ii = ixc1
             feeytotc = feey(ii,0)-feeycbo(ii)
             feiytotc = feiy(ii,0)-feiycbo(ii)
             do    # loop over ii as changed by ii=ixp1 statement
@@ -529,7 +536,7 @@ c ... Set Te and Ti BCs
                  yldot(iv1) = -nurlxe*(te(ix,0)-te(ixp1(ix,0),0))*n0(1)/ennorm
                  if (ix.eq.ix_fl_bc) then # not all Jac elems included
                     # sum core power:
-                    ii = max(0, ixpt1(1)+1)
+                    ii = ixc1
                     feeytotc = feey(ii,0)-feeycbo(ii)
                     do    # loop over ii as changed by ii=ixp1 statement
                        ii = ixp1(ii,0)
@@ -577,7 +584,7 @@ c ... Set Te and Ti BCs
      .                                                     n0(1) /ennorm
                  if (ix.eq.ix_fl_bc) then # not all Jac elems included
                     # sum core power:
-                    ii = max(0, ixpt1(1)+1)
+                    ii = ixc1
                     feiytotc = feiy(ii,0)-feiycbo(ii)
                     do
                        ii = ixp1(ii,0)
