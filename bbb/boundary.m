@@ -115,7 +115,7 @@ c...  if extrapolation b.c. on p.f. region, isextrpf=1, otherwise isextrpf=0
         ix_fl_bc = min(ixpt1(2), nx)
       else if ((geometry(1:9)=="snowflake" .and. geometry(10:11).ne."15")
      &                     .or. geometry=="dnXtarget") then
-        ix_fl_bc = min(ixpt2(1), nx)
+        ix_fl_bc = min(ixpt2(1), nx) # last core cell;use for flux BC
       else
         ix_fl_bc = min(ixpt2(nxpt), nx) # last core cell;use for flux BC
       endif 
@@ -233,7 +233,7 @@ c
                      yldot(iv1) = -nurlxn*( ni(ix,0,ifld) -
      .                                ni(ixp1(ix,0),0,ifld) ) / n0(ifld)
                      if (ix.eq.ix_fl_bc) then
-                        ii=max(0,ixpt1(1)+1)
+                        ii=ixc
                         fniytotc=fniy(ii,0,ifld)-fniycbo(ii,ifld)
                         fngytotc = fngy(ii,0,1)  # needs generalization
                         do
@@ -339,7 +339,7 @@ c...  Now do the parallel velocity BC at iy = 0 for full mom eqn species
      .                          (rm(ixp1(ix,0),0,2)*ni(ix,0,ifld)) )/vpnorm
                     if (ix.eq.ix_fl_bc) then # not all Jac elems included
                       # sum core parallel momentum flux:
-                      ii = max(0, ixpt1(1)+1)
+                      ii = ixc
                       fmiytotc = rm(ii,0,0)*fmiy(ii,0,ifld)
                       sytotc = sy(ii,0)
                       uztotc = uz(ii,0,ifld)/gxf(ii,0)
@@ -996,7 +996,7 @@ c  ####################################################################
 c...  If isnewpot=1, phi boundary involves two eqns at iy=0 and 1
 c...  Note: j3 is local range index for iy passed from pandf in oderhs.m
       if (isnewpot*isphion.eq.1 .and. j3.le.3) then
-        do ix = min(i4+1-ixmnbcl,ixpt1(1)+1), max(i8-1+ixmxbcl,ixpt2(nxpt))
+        do ix = min(i4+1-ixmnbcl,ixc1), max(i8-1+ixmxbcl,ix_fl_bc)
           if(isphionxy(ix,0)*isphionxy(ix,1)==1) then
             iv  = idxphi(ix,0)
             iv1 = idxphi(ix,1)

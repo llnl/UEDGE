@@ -1114,7 +1114,7 @@ c...  Set dxnog for orthog mesh; if isnonog=1, call to nonorthg above sets
 
 c...  Calculate a normalization constant for the iy=0 cells
 c...  of the core boundary region
-      if ((geometry(1:9)=="snowflake" .and. geometry(10:11).ne."15")
+      if ((geometry(1:9)=="snowflake" .and. ((geometry(10:11).ne."15") .and. (geometry(10:12).ne."165")))
      &       .or. geometry=="dnXtarget") then
         ix_last_core_cell = ixpt2(1)
       else
@@ -1137,7 +1137,7 @@ c...  Setup the isixcore(ix) array: =1 if ix on iy=0 core bdry; =0 if not
           else
             isixcore(ix) = 0
           endif
-        else if ((geometry(1:9)=="snowflake" .and. geometry(10:11).ne."15")
+        else if ((geometry(1:9)=="snowflake" .and. ((geometry(10:11).ne."15") .and. (geometry(10:12).ne."165")))
      &       .or. geometry=="dnXtarget") then
           if( ix > ixpt1(1) .and. ix <= ixpt2(1)) then
             isixcore(ix) = 1
