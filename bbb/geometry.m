@@ -1124,8 +1124,9 @@ c...  of the core boundary region
       ix = min(ix, nx+ixmxbcl)
       sygytotc = sy(ix,0)*gyf(ix,0)
       do ix = ixpt1(1)+1, ix_last_core_cell
+         !TODO: Should this block move below definition of isixcore below, and then this loop should only be over cells where isixcore(ix) == 1?
          if ( .not. (isudsym==1 .and. ((ix==nxc) .or. (ix==nxc+1))) ) then
-           sygytotc = sygytotc + sy(ix,0)*gyf(ix,0)
+         sygytotc = sygytotc + sy(ix,0)*gyf(ix,0)
          endif
       enddo
 
@@ -1155,7 +1156,6 @@ c...  Setup the isixcore(ix) array: =1 if ix on iy=0 core bdry; =0 if not
           endif
         endif
       enddo
-          
 *----------------------------------------------------------------------
 *  -- Calculate geometrical factors needed for curvature and grad_B drifts
 
