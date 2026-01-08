@@ -106,12 +106,12 @@ c...  do the iy = 0 boundary
 c...  if extrapolation b.c. on p.f. region, isextrpf=1, otherwise isextrpf=0
       if (iymnbcl .eq. 0) goto 1100   # interior domain boundary; no bdry eqn
       
-      if (geometry=='snowflake135') then 
+      if (geometry=='snowflake135' .or. geometry=='snowflake105') then 
         ixc1 = max(0, ixpt2(1)+1) # 1st  core cell;used for core flux BC
       else 
         ixc1 = max(0, ixpt1(1)+1) # 1st  core cell;used for core flux BC
       end if
-      if (geometry=='snowflake135') then 
+      if (geometry=='snowflake135' .or. geometry=='snowflake105') then 
         ix_fl_bc = min(ixpt1(2), nx)
       else if ((geometry(1:9)=="snowflake" .and. geometry(10:11).ne."15")
      &                     .or. geometry=="dnXtarget") then
@@ -119,6 +119,8 @@ c...  if extrapolation b.c. on p.f. region, isextrpf=1, otherwise isextrpf=0
       else
         ix_fl_bc = min(ixpt2(nxpt), nx) # last core cell;use for flux BC
       endif 
+
+      ! write(*,*) ix_fl_bc
 
 c  Note: j3 is local range index for iy passed from pandf in oderhs.m
       if (j3 .le. isextrnpf .or. j3 .le. isextrtpf .or. 
