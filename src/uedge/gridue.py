@@ -6,7 +6,7 @@ from h5py import File
 
 def read_gridpars(fname=None):
     from uedge import bbb, com, grd
-    dblxpts = ['dnull', 'snowflake15', 'snowflake45', 'snowflake75', 
+    dblxpts = ['dnull', 'snowflake15', 'snowflake45', 'snowflake75', 'snowflake105', 'snowflake135', 'snowflake165',
         'dnXtarget', 'isoleg']
     geometry = com.geometry[0].decode('UTF-8').strip()
     if fname is None:
