@@ -223,7 +223,13 @@ istion      integer  /1/             +input #user:turns on (=1) ion enegy eqn.
 isngon(ngspmx) integer  /6*1/        +input #user:turns on (=1) neutral eqn.; index igsp
 istgon(ngspmx) integer  /6*0/        +input #user:turns on (=1) gas enegy eqn.
 isphion     integer  /0/             +input #user:turns on (=1) potential eqn.
-isphiofft integer  /0/ +input #user:=1 leaves old cur. on & ex=-d(phis)/dx; must be used
+isphiofft integer  /0/ +input   #user: set =1 only when continuing a simulation that 
+                                #previously had isphion=1, but now the user wants to
+                                #freeze the potential by setting isphion=0, while 
+                                #continuing to use the poloidal electric field 
+                                #ex=-d(phis)/dx and the previous parallel current
+
+#user:=1 leaves old cur. on & ex=-d(phis)/dx; must be used
                        #with isphion=0
 isnewpot  integer  /0/ +input #user:turns on (=1) new potential; J_r from tor. mom. bal.
                        #=-2 sets phi constant on core boundary with

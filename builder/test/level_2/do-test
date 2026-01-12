@@ -1,6 +1,6 @@
 #!/bin/csh -f
 #
-# DO_TEST - automatic test script for UEDGE level_1 tests
+# DO_TEST - automatic test script for UEDGE level_2 tests
 #
 
 setenv LC_ALL    C
@@ -10,22 +10,24 @@ set GenRef   = FALSE
 set Passed   = ""
 set Failed   = ""
 set Leaked   = ""
-set Lvl      = 1
+set Lvl      = 2
 set Tests    = ""
 
 set RM   = "rm -f"
-set DIFF = /usr/bin/diff
+#set DIFF = /usr/bin/diff
+set DIFF = "pdbdiff -q -r -p 1e-8"
 
 set Arch = `$BASIS_ROOT/bin/cfgman use`
 
 set Base = `pwd`
 set Base = $Base:h
 set Base = $Base:h
+set Base = $Base:h
 set Root = $Base/dev/$Arch
 set BinD = $Root/bin
 
-setenv UEDGE $Base/test
-setenv UEDGE_SCRIPTS $Base/test/scripts
+setenv UEDGE $Base/builder/test
+setenv UEDGE_SCRIPTS $Base/builder/test/scripts
 
 if (-e $BinD/xuedge) then
    set Code = $BinD/xuedge
@@ -119,7 +121,8 @@ foreach i ($Tests)
    echo -n "  $i"
    set SRC = $i
    set RES = $SRC.res
-   set REF = ../ref/$i
+   set RESPDB = $SRC.pdb # Should be constructed by the job itself.
+   set REF = ../ref/$i.pdb
    set DIF = $RES.diff
 
    touch $i.foo
@@ -136,6 +139,7 @@ foreach i ($Tests)
    else
       set tstatus = 254
    endif
+       
 
    if ($tstatus == 255) then
       echo "	(OMITTED)"
@@ -147,17 +151,14 @@ foreach i ($Tests)
       echo "	(CRASHED)"
 
    else if (($GenRef == TRUE) || (!(-e $REF))) then
-      awk '$1 !~ /PROC/ || $4 !~ /HOST/ { print }' $RES >! $REF
-      $RM $RES
+      cat $RESPDB >! $REF
+      $RM $RESPDB
       echo "	(ADDED)"
+
 
    else
 
-      mv $RES $RES.tmp
-      awk '$1 !~ /PROC/ || $4 !~ /HOST/ { print }' $RES.tmp >! $RES
-      $RM $RES.tmp
-
-      $DIFF $RES $REF >& $DIF
+      $DIFF $RESPDB $REF >& $DIF
       set ErrCmp = $status
 
       grep "Block:" $RES >& /dev/null
@@ -169,7 +170,7 @@ foreach i ($Tests)
 	 echo "	(FAILED)"
       else
          set Passed = ( $Passed $i )
-         $RM $RES $DIF
+         $RM $RES $DIF $RESPDB
          echo " "
       endif
    endif

@@ -4,10 +4,18 @@ import numpy as np
 import sys,os,inspect
 import re
 import logging
-#try:
-#    from uedge import bas2py_rules
-#except:
-#    import bas2py_rules
+try:
+    from uedge import bas2py_rules
+except:
+    import bas2py_rules
+try:
+    from tkFileDialog import askopenfilename,asksaveasfilename
+except:
+    pass
+try:
+    from tkinter.filedialog import askopenfilename,asksaveasfilename
+except:
+    pass
  
 logger = logging.getLogger('bas2py')
 logging.basicConfig()
@@ -17,43 +25,9 @@ sys.path.append(mydir)
 infile = None
 outfile = None
 
-from uedge import *
-import uedge.uedge_lists as ul
-subrules = [
-   ['\(','['],
-   ['\)',']'],
-   [';','\n'],
-   ['^!','#!'],
-   ['^ *',''],
-   ['^\t*',''],
-   [r'\ballocate\b','bbb.allocate()'],
-   [r'\bexmain\b','bbb.exmain()'],
-   [r'\bexponseed\b','grd.exponseed()'],
-   ]
-warnrules = []
-def raw_string(s):
-    s = s.encode('unicode-escape').decode()
-    return s
-
-for p in ul.list_packages():
-   subrules.append([r'\b'+raw_string('package '+ p)+r'\b','from uedge import '+p])
-   po = ul.packagename2object(p)
-   for v in ul.list_package_variables(p):
-       subrules.append([r'\b'+raw_string(v)+r'\b',p+'.'+v])
-
-       if "Dimension:" in po.listvar(v):
-          d = po.listvar(v).split("Dimension:")[1].split("\n")
-          if "0:" in d[0]:
-             warnrules.append([r'\b'+raw_string(v)+r'\b','base 0, '+d[0]])
-
-       
-
-subrules.append([r'\bbbb.del\b','bbb.delpy'])
-
-
 
 if __name__ == "__main__":
-   try:
+#   try:
       from argparse import ArgumentParser
       parser = ArgumentParser(description='Convert scripts from Basis to Python')
       parser.add_argument('basis_filename',type=str,nargs='?',
@@ -65,70 +39,66 @@ if __name__ == "__main__":
             default='WARNING',help='Set the logging level')
       args = parser.parse_args()
       logger.setLevel(args.loglevel)
-      try:
-         from tkFileDialog import askopenfilename,asksaveasfilename
-      except:
-         from tkinter.filedialog import askopenfilename,asksaveasfilename
       if args.basis_filename == None:
          infile = askopenfilename(title="Select input basis file",filetypes=[("allfiles","*"),("bas","*.bas")])
       else:
          infile = args.basis_filename
       logger.debug('Input file %s' % (infile,))
 
-  if infile == None or infile == ():
-     logger.error("Input file must be selected or specify stdin with -")
-     sys.exit(1)
-  elif infile == '-':
-     fi = sys.stdin
-  else:
-     try:
-        fi = open(infile,"r")
-     except:
-        logger.error("Couldn't open input file: %s" % (infile))
-        sys.exit(1)
+      if infile == None or infile == ():
+         logger.error("Input file must be selected or specify stdin with -")
+         sys.exit(1)
+      elif infile == '-':
+         fi = sys.stdin
+      else:
+         try:
+            fi = open(infile,"r")
+         except:
+            logger.error("Couldn't open input file: %s" % (infile))
+            sys.exit(1)
 
-  if args.python_filename == None:
-     outfile = asksaveasfilename(title="Select output python file",filetypes=[("allfiles","*"),("py","*.py")])
-  else:
-     outfile = args.python_filename
-  logger.debug('Output file %s' % (outfile,))
-  if outfile == None or outfile == ():
-     logger.error("Output file must be selected or specify stdout with -")
-     sys.exit(1)
-  elif outfile == '-':
-     fo = sys.stdout
-  else:
-     try:
-        fo = open(outfile,"w")
-     except:
-        logger.error("Couldn't open output file: %s" % (outfile))
-        sys.exit(1)
-  lines = fi.readlines()
-
-  for pat in bas2py_rules.subrules:
-    try:
-        pat.append(re.compile(pat[0]))
-    except:
-         logger.error("Couldn't compile regular experssion: %s" % (pat[0]))
-  for pat in bas2py_rules.warnrules:
-    try:
-        pat.append(re.compile(pat[0]))
-    except:
-         logger.error("Couldn't compile regular experssion: %s" % (pat[0]))
-
-  stripnl = re.compile('\n')
-
-  for line in lines:
-    line = stripnl.sub('',line)
-    for pat in bas2py_rules.subrules:
-        line = pat[2].sub(pat[1],line)
-    fo.write(line)
-    for pat in bas2py_rules.warnrules:
-        if pat[2].search(line) != None:
-           fo.write(' # '+pat[1]) 
-    fo.write('\n')
-        
-  fi.close()
-  fo.close()
-except:
-  sys.exit(1)
+      if args.python_filename == None:
+         outfile = asksaveasfilename(title="Select output python file",filetypes=[("allfiles","*"),("py","*.py")])
+      else:
+         outfile = args.python_filename
+      logger.debug('Output file %s' % (outfile,))
+      if outfile == None or outfile == ():
+         logger.error("Output file must be selected or specify stdout with -")
+         sys.exit(1)
+      elif outfile == '-':
+         fo = sys.stdout
+      else:
+         try:
+            fo = open(outfile,"w")
+         except:
+            logger.error("Couldn't open output file: %s" % (outfile))
+            sys.exit(1)
+      lines = fi.readlines()
+    
+      for pat in bas2py_rules.subrules:
+        try:
+            pat.append(re.compile(pat[0]))
+        except:
+             logger.error("Couldn't compile regular experssion: %s" % (pat[0]))
+      for pat in bas2py_rules.warnrules:
+        try:
+            pat.append(re.compile(pat[0]))
+        except:
+             logger.error("Couldn't compile regular experssion: %s" % (pat[0]))
+    
+      stripnl = re.compile('\n')
+    
+      for line in lines:
+        line = stripnl.sub('',line)
+        for pat in bas2py_rules.subrules:
+            line = pat[2].sub(pat[1],line)
+        fo.write(line)
+        for pat in bas2py_rules.warnrules:
+            if pat[2].search(line) != None:
+               fo.write(' # '+pat[1]) 
+        fo.write('\n')
+            
+      fi.close()
+      fo.close()
+#   except:
+#      sys.exit(1)

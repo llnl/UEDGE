@@ -319,7 +319,6 @@ nhdf      integer /1/   # number of hydrogenic b2frates-format data files
 hdfilename(1:12)   Filename  /12*'b2frates'/  # names of hydrogenic data files
 nzdf	  integer /1/	# number of impurity   b2frates-format data files
 mcfilename(1:12)   Filename  /12*'b2frates'/  +input # names of impurity   data files
-coronalimpfname  character*120 /'mist.dat'/   +input # name coronal impurity rate file
 istabon	integer	/7/ +input
                        #turns on look-up table for hydrogenic rate coefficients
 #	= 0  simple analytic rates and constant energy loss per ionization

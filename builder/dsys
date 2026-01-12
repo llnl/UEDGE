@@ -13,16 +13,19 @@ Usage:
   dsys delete [ pck | \$Arch ]
    # Delete pck files, or a specific architecture under ../dev, or
    # without arguments, delete *all* config and build products.
+  dsys podman [branch]  # run podmman image to build and test 
+  dsys docker [branch]  # run docker image to build and test 
 EOF
 }
 
 # Produce a list of project directories that have a "Package" file.
 # Parent directory is listed last, if at all.
 pkglist() {
-  for i in ../*/Package .././Package; do
-    [ -f $i ] && dirname $i
+  for i in `cat ../Dirlist` .; do
+     [ -f ../$i/Package ] && dirname ../$i/Package
   done
 }
+
 
 # Execute an operation over all project package directories.
 xop() {
@@ -41,10 +44,33 @@ getpack() {
 # Configure with mio. Use $BASIS_ROOT
 f_config() { $BASIS_ROOT/bin/mio -a $*; }
 
+f_docker() { 
+  br=master
+  if [ -n "$1" ] ; then
+	  br=$1
+  fi
+  if [ -n "`which docker`" ] ; then
+      /usr/bin/env docker run --rm --pull always fusionbillm/basisuedge checkout $br
+  else 
+      echo "Docker binary not found in environment."
+  fi
+}
+f_podman() { 
+  br=master
+  if [ -n "$1" ] ; then
+	  br=$1
+  fi
+  if [ -n "`which podman`" ] ; then
+      /usr/bin/env podman run --rm --pull always docker.io/fusionbillm/basisuedge checkout $br
+  else 
+      echo "Podman binary not found in environment."
+  fi
+}
+
 # Run test suite.
 f_test() {
-  for n in 1 2 3; do
-    [ -x ../test/level_$n/do-test ] && (cd ../test/level_$n && ./do-test $*)
+  for n in 1 2; do
+    [ -x ./test/level_$n/do-test ] && (cd ./test/level_$n && ./do-test $*)
   done
 }
 
@@ -64,7 +90,7 @@ case "$1" in
             b=`basename $i`
             if [ "$b" = pck -o -f "../$b/pre-Make" ]; then
               xop $RM -rf $b
-              $RM -rf ../dev/$b ../test/level_?/$b debuggable.$b optimized.$b
+              $RM -rf ../dev/$b ./test/level_?/$b debuggable.$b optimized.$b
               echo "$b deleted"
             elif [ "$b" = "*" ]; then # ../dev is empty: Do nothing.
               :
@@ -73,6 +99,6 @@ case "$1" in
               usage
             fi
           done;;
-  config|test) comm=f_$1; shift; $comm "$@";;
+  config|test|docker|podman) comm=f_$1; shift; $comm "$@";;
   *) usage;;
 esac

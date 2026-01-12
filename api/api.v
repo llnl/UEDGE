@@ -100,6 +100,10 @@ avgz2(NCASET,NCASENO,NCASENT)	real
 ***** Impdata:
 # name of directory containing impurity atomic rate data
 apidir character*120 /"."/  # name of directory containing impurity data files
+coronalimpfname  character*120 /"mist.dat"/   +input # name coronal impurity rate file
+                                                     # File looked for relative to coronalimpfname
+coronalimppath  character*120 /"."/   +input    # path to folders of coronal imp files
+                                                # file name defined by coronalimpfname
   
 
 ***** MC_subs:

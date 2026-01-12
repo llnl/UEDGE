@@ -521,6 +521,84 @@ c	  Allocate PNC_data group
 ***************************************
 c----------------------------------------------------------------------c
 
+      subroutine setwallbcarrays
+
+c...  Set boundary condition flags/arrays on private-flux wall depending on
+c...  input flag ispfbcvsix, where 0 gives uniform bndry conds and 1 leaves
+c...  arrays as set by the user after allocation
+
+      implicit none
+
+      Use(Dim)      # nx,ny,nisp,ngsp
+      Use(Bcond)    # wall BC arrays
+#      Use(UEpar)    # isnion,isupon,isngon,isteon,istion,isphion
+                    # isnionxy,isuponxy,isngonxy,isteonxy,istionxy,isphionxy
+                    # isnioffxy,isupoffxy,isngoffxy,isteoffxy,istioffxy,isphioffxy
+#      Use(Math_problem_size)   # neqmx
+#      Use(Lsode)    # neq
+      Use(Parallv)    # neq
+#      Use(Indices_domain_dcl)  # ixmxbcl,ixmnbcl,iymxbcl,iymnbcl
+
+      integer ix,ifld,igsp
+      
+c...  Need to allocate BC arrays with proper dimensions
+      call gchange("Bcond",0)
+
+      if(ispfbcvsix == 0) then  #inner private-flux wall
+
+        do ix = 0, nx+1
+          iphibcwiix(ix) = iphibcwi
+          istepfcix(ix) = istepfc
+          istipfcix(ix) = istipfc
+          lyteix(1,ix) = lyte(1)
+          lytiix(1,ix) = lyti(1)
+          lyphiix(1,ix) = lyphi(1)
+          do ifld = 1, nisp
+            isnwconiix(ix,ifld) = isnwconi(ifld)
+            isupwiix(ix,ifld) = isupwi(ifld)
+            lyniix(1,ix,ifld) = lyni(1)
+          enddo       
+          do ifld = 1, nisp
+            isupwiix(ix,ifld) = isupwi(ifld)
+            lyupix(1,ix,ifld) =lyup(1)
+          enddo
+          do igsp = 1, ngsp
+            istgpfcix(ix,igsp) = istgpfc(igsp)
+          enddo  
+        enddo
+        
+      endif   #test on ispfbcvsix for private-flux wall
+
+c ..................
+      if(iswobcvsix == 0) then  #outer main-chamber wall
+
+        do ix = 0, nx+1
+          iphibcwoix(ix) = iphibcwo
+          istewcix(ix) = istewc
+          istiwcix(ix) = istiwc
+          lyteix(2,ix) = lyte(2)
+          lytiix(2,ix) = lyti(2)
+          lyphiix(2,ix) = lyphi(2)
+          do ifld = 1, nisp
+            lyniix(2,ix,ifld) = lyni(2)
+            isnwconoix(ix,ifld) = isnwcono(ifld)
+            isupwoix(ix,ifld) = isupwo(ifld)
+          enddo
+          do ifld = 1, nisp
+            isupwoix(ix,ifld) = isupwo(ifld)
+            lyupix(2,ix,ifld) =lyup(2)
+          enddo
+          do igsp = 1, ngsp
+            istgwcix(ix,igsp) = istgwc(igsp)
+          enddo
+        enddo
+        
+      endif   #test on iswobcvsix for main-chamber wall
+          
+      return
+      end
+c----------------------------------------------------------------------c
+      
       subroutine setonxy
 
 c...  Compute which equations are evolved based on input vars isnionffxy etc.
@@ -1033,7 +1111,7 @@ c ... Set up tables for impurity atomic-physics processes.
       if (isimpon .eq. 1) then		# obsolete option
          call xerrab ('ueinit -- option isimpon=1 is obsolete; use 2')
       elseif (isimpon .eq. 2) then	# data supplied by D. Post 1993
-         call readpost(coronalimpfname)
+         call readpost
          call splinem
          call remark('*** For isimpon=2, set afracs, not afrac ***')
       elseif ((isimpon .eq. 3) .and. (nzspt .gt. 0)) then    # avg-ion
@@ -1053,7 +1131,7 @@ c ... Set up tables for impurity atomic-physics processes.
          endif
       elseif (isimpon .eq. 7) then      # read both Post and Braams tables
 c.....First the Post table(s):
-         call readpost(coronalimpfname)
+         call readpost
          call splinem
          call remark('*** For isimpon=7, set afracs, not afrac ***')
 c.....Then the Braams table(s):

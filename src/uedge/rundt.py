@@ -152,16 +152,10 @@ class UeRun():
             self.__setattr__(var, bbb.__getattribute__(var))
         for var in [ 'nisp', 'ngsp', 'nhsp', 'nhgsp', 'nzsp']:
             self.__setattr__(var, com.__getattribute__(var))
-
-
-
         if not exists('/'.join(savename.split('/')[:-1])):
             print('Folder {} not found, saving output to cwd...'\
                 .format(savename.split('/')[0]))
             hdf5_save(savename)
-            
-    
-
         try:
             self.save(savename)#.replace('.hdf5', '_UeCase.hdf5'))
         except:
