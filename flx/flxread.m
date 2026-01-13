@@ -895,6 +895,13 @@ ccc	 ymaxf0(ns)=zseps*1.1
             jserch0(ns) = jseps
 	    istepf0(ns) = -2          # MER (28 Aug 2012) fix for NSTX
             jstepf0(ns) = -1
+         elseif (altsearch==3) then   #	MVU (7-Dec-2023) fix for NT configuration
+            iserch0(ns) = iseps
+            jserch0(ns) = jseps
+	    istepf0(ns) =  2
+            jstepf0(ns) = -1
+         else
+	    print *, "Invalid altsearch value ", altsearch
          endif
       endif  # end if-test on nycore for region 2
 
@@ -930,7 +937,7 @@ ccc	 ymaxf0(ns)=zseps*1.1
          xminf0(ns) = max( xlbnd, rseps-xoverlap(2)*dxefit )
          xmaxf0(ns) = xubnd
 	 yminf0(ns) = ylbnd
-	 ymaxf0(ns) = zseps
+	 ymaxf0(ns) = ymax4fac*zseps #-MVU 19-dec-2023, adding ymax4fac	/1.0/
 # Set initial search position and direction:
          if (istcvon==1) then
             write(*,*) "**WARNING: istcvon=1 OBSOLETE; setting altsearch=2"
@@ -951,6 +958,13 @@ ccc	 ymaxf0(ns)=zseps*1.1
             jserch0(ns) = jseps
             istepf0(ns) = -2          # MER (28 Aug 2012) fix for NSTX
             jstepf0(ns) = -1
+	 elseif (altsearch==3) then   # MVU (7-Dec-2023) fix for NT configuration
+            iserch0(ns) = iseps
+            jserch0(ns) = jseps
+            istepf0(ns) =  2
+            jstepf0(ns) = -1
+         else
+            print *, "Invalid altsearch value ", altsearch
          endif
       endif  # end if-test on nycore for region 4
 
