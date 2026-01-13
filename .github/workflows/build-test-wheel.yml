@@ -40,7 +40,7 @@ jobs:
 
   build_wheels:
     name: Build wheels on ${{ matrix.os }} for Python ${{ matrix.pyver }}
- #   if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request'
     needs: run-all-tests
     runs-on: ${{ matrix.os }}
     continue-on-error: true
@@ -86,7 +86,7 @@ jobs:
 
   build_wheels_pypy:
     name: Build PyPy wheels on ${{ matrix.os }} 
-#    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request'
     needs: run-all-tests
     runs-on: ${{ matrix.os }}
     continue-on-error: true
