@@ -1,0 +1,23 @@
+#
+FROM fusionbillm/basis:almalinux
+LABEL maintainer="Bill Meyer <meyer8@llnl.gov>"
+#
+# This is dependent on the system it's being built on
+# but this should copy all the required packages that need
+# to be built, eg NCAR, Pact, and Basis.
+#
+#
+#
+RUN cd /home/user && git clone https://github.com/LLNL/UEDGE
+COPY --chown=user ./basisuedge.sh /home/user
+RUN chown -R user:user /home/user && chmod -R a+r /home/user
+#
+# default to run by a generic user that can't modify Corsica.
+#
+WORKDIR /home/user
+USER user
+#
+# Run a shell. To run basis just type basis at shell prompt.
+#
+ENTRYPOINT ["/home/user/basisuedge.sh"]
+CMD ["", "", "", "", "", "", "", "", ""]

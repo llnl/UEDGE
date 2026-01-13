@@ -60,6 +60,10 @@ ymax1fac        real    /1.0/ +gridgen
      # multiplies zmagx to set upper bound on search region 1
 ymax2fac        real    /3.0/ +gridgen
      # multiplies zseps to set upper bound on search region 2
+ymax3fac        real    /1.0/ +gridgen
+     # multiplies zseps to set upper bound on search region 3
+ymax4fac        real    /1.0/ +gridgen
+     # multiplies zseps to set upper bound on search region 4
 imagx		integer
      # horizontal (R) index of the refined-EFIT cell containing the magnetic axis
 jmagx		integer

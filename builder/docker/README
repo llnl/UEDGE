@@ -1,0 +1,14 @@
+
+The Docker container for building/running the Basis Uedge version can be
+created here. This requires that Docker is installed. Test the Docker
+installation by running the hello world container with
+"docker run -it --rm hello-world". It's a good idea to do a "make realclean" 
+to remove local containers and images. It will force pulls of current Docker
+containers. 
+
+Once Docker is confirmed to run just do a "make". The Makefile "push" target
+is included for developer convenience but will only work for users with access
+to the Docker account.
+
+This build depends on the existance of the Basis container (fusionbillm/basis)
+which is built and uploaded seperate from Uedge.  

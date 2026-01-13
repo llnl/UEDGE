@@ -1,15 +1,41 @@
 c----------------------------------------------------------------------c
 
-      subroutine readpost (fname)
+      subroutine readpost
       implicit none
-      character*(*) fname
-Use(P93dat)   # atn,atw,nt,nr,nn
+      character*(500) fname
+      logical fileExists
+Use(P93dat)     # atn,atw,nt,nr,nn
+Use(Impdata)    # coronalimppath, coronalimpfilename
 
 c     local variables --
       integer ios, nget
 
 c     procedures --
       external xerrab, remark, gallot, readpost1
+
+c----------------------------------------------------------------------c
+c     Set up path to mist.dat file
+c----------------------------------------------------------------------c
+
+
+       fname=TRIM(coronalimppath) // '/'//TRIM(coronalimpfname)
+       INQUIRE(FILE=TRIM(fname),EXIST=fileExists)
+       if (fileExists .neqv. .TRUE.) then
+         fname=TRIM(coronalimpfname)
+         INQUIRE(FILE=TRIM(fname),EXIST=fileExists)
+         if (fileExists .neqv. .TRUE.) then
+            write(*,*) "**** Coronal Equilibrium data file not found! ****"
+            write(*,*) ""
+            write(*,*) "Cannot find "//TRIM(coronalimpfname)//" in:"
+            write(*,*) TRIM(coronalimppath)
+            write(*,*) " or current directory."
+            write(*,*) ""
+            write(*,*) "Specify the file name using coronalimpfname"
+            write(*,*) "and its path using coronalimppath"
+            call xerrab("")
+         endif
+       endif
+
 
 c----------------------------------------------------------------------c
 c     Read impurity emissivity and charge state from POST93 data files
@@ -20,11 +46,6 @@ c----------------------------------------------------------------------c
      .     status='old')
       if (ios .ne. 0) then
          call remark("**** data file mist.dat not found --")
-         call remark(" ")
-         call remark("**** Data files for various impurities are available;")
-         call remark("**** check uedge/in/api or contact authors")
-         call remark(" ")
-         call remark("**** For UEDGE, the data file must be re-named mist.dat")
          call xerrab("")
       endif
 

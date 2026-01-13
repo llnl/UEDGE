@@ -16,20 +16,25 @@ use the free install option to run the Docker container image we've created for
 Uedge. Once you have Docker installed you should verify that it works by running
 the hello-world container with "docker run -it --rm hello-world". 
 
+Podman is a daemonless, open source, Linux tool for running containers. For the commands listed below it's a drop-in replacement for docker. The use of graphics with podman is unknown.
+
 The Uedge container contains the full build environment required to build and 
 run some simple tests. The Uedge container is fusionbillm/basisuedge. There are
 many ways it may be run and you should refer to the Docker documentation for any
 thing not covered here. What follows is the expected uses of this container with
 runstrings and actions described:
 
+podman run -it --rm fusionbillm/basisuedge
 docker run -it --rm fusionbillm/basisuedge
       This will pull the latest master branch of Uedge, build, and run the
       some simple tests. Returns to host with 0=success or 1=failure.
+podman run -it --rm fusionbillm/basisuedge checkout develop
 docker run -it --rm fusionbillm/basisuedge checkout develop
       This passes the argument after the container name to git after the pull.
       In this case a "git pull" followed by a "git checkout develop". Then
       the usual build and tests are run. Returns to host with 0=success or
       1=failure.
+podman run -it --rm --entrypoint /bin/bash fusionbillm/basisuedge
 docker run -it --rm --entrypoint /bin/bash fusionbillm/basisuedge
       This just runs the container and you should receive a bash shell prompt.
       The ~/UEDGE directory is a git clone with the master branch checked out.
@@ -58,4 +63,7 @@ Windows:
 This needs to be determined. It's assumed that an X11 environment would need to
 be run in the Windows host.
 
+Docker Container
+================
 
+The files required to build the Docker container used here are located in builder/docker. For normal users, and developers interested in specific physics modules, the utility of building the container is limited.

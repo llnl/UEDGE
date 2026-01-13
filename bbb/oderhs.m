@@ -2657,8 +2657,13 @@ c
                   endif
                   csh = lmfpn*nm(ix,iy,ifld)*vtn*
      .                                      lgvmax/(lgvmax + lmfpn)  
-                  qsh = csh * (up(ix1,iy,ifld)-up(ix,iy,ifld)) *
-     .                                                       gx(ix,iy)
+                  if (isgxvon .eq. 0) then 
+                    qsh = csh * (up(ix1,iy,ifld)-up(ix,iy,ifld))
+     .                                         *gx(ix,iy)
+                  elseif (isgxvon .eq. 1) then
+                    qsh = csh * (up(ix1,iy,ifld)-up(ix,iy,ifld))
+     .                *2*gxf(ix,iy)*gxf(ix1,iy)/(gxf(ix,iy)+gxf(ix1,iy))
+                  endif
                   visx(ix,iy,ifld)= cfvisxn*csh/ 
      .               (1 + (abs(qsh/(qfl+cutlo))**flgamvg))**(1./flgamvg)
      .               + cfanomvisxg*travis(ifld)*nm(ix,iy,ifld)
