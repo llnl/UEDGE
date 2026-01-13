@@ -1,0 +1,12 @@
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    # Optional: group all action bumps into one PR
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+
