@@ -1202,3 +1202,47 @@ c ...    check for extrapolation and limit change to chng
       end
 c ***** end of subroutine polintp ****
 
+c__________________________________________________________
+      subroutine filldead_guardcells
+      
+c...  For core-only simulations, the poloidal guard-cells are not included
+c...  in the simulation but must have finite values, which is done here
+
+      Use(Dim)     # nx,ny,nisp,ngsp
+      Use(Compla)  # ni,up,ng,te,ti,phi
+      Use(Share)   # nyomitmx
+      
+c...  Local variables
+      integer ifld, igsp, ix, iy
+      do ifld = 1, nisp
+         do iy = 0, ny+1
+            ni(0,iy,ifld) = ni(1,iy,ifld)
+            ni(nx+1,iy,ifld) = ni(nx,iy,ifld)
+         enddo
+      enddo
+         
+      do ifld = 1, nusp
+         do iy = 0, ny+1
+            up(0,iy,ifld) = up(1,iy,ifld)
+            up(nx+1,iy,ifld) = up(nx,iy,ifld)
+         enddo
+      enddo
+
+      do igsp = 1, ngsp
+         do iy = 0, ny+1
+            ng(0,iy,igsp) = ng(1,iy,igsp)
+            ng(nx+1,iy,igsp) = ng(nx,iy,igsp)
+         enddo
+      enddo
+
+      do iy = 0, ny+1
+         te(0,iy) = te(1,iy)
+         te(nx+1,iy) = te(nx,iy)
+         ti(0,iy) = ti(1,iy)
+         ti(nx+1,iy) = ti(nx,iy)
+         phi(0,iy) = phi(1,iy)
+         phi(nx+1,iy) = phi(nx,iy)
+      enddo
+
+      return
+      end

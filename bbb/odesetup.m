@@ -44,7 +44,7 @@ c-----------------------------------------------------------------------
       Use(Reduced_ion_interface)   # misotope,natomic,nchstate
       Use(Ynorm)               # iscolnorm
       Use(Selec)               # xlinc,xrinc,yinc
-      Use(Bcond)               # nwsor,igspsori
+      Use(Bcond)               # nwsor,igspsori,ispfbcvsix,iswobcvsix
       Use(Parallv)             # nxg,nyg
       Use(Jac_work_arrays)     # lwp,liwp
       Use(Indices_domain_dcg)  # isddcon
@@ -63,7 +63,6 @@ cc      Use(Rccoef)
 
 *=======================================================================
 *//computation//
-
       id = 1
       call gallot("Grid",0)
       call gallot("Stat",0)
@@ -139,6 +138,10 @@ c----------------------------------------------------------------------c
                ixpt1(1) = (nxm - ixpt2(1))/2
                ixpt2(1) = (nxm + ixpt2(1))/2
             endif
+            if (nyomitmx >= nysol(igrid)+nyout(1)) then
+               ixmnbcl = 0
+               ixmxbcl = 0
+            endif
 c----------------------------------------------------------------------c
          endif	# end if-test on mhdgeo
 c----------------------------------------------------------------------c
@@ -209,6 +212,7 @@ ccc         call xerrab("")
       endif
 
 c ... Check consistency of radial gradient boundary conditions
+c ... Note: only ix=1 is checked for "is..." flag as they are now function of ix
       if ((isnwcono(1)==3 .or. isnwconi(1)==3) .and.
      .                                       lyni(1)+lyni(2)>1e9) then
         call remark('*** WARNING: large lyni does not give 0 flux B.C.')
@@ -303,6 +307,12 @@ c...  Compute which equations are actually evolved from input parameters
 c...  Calculate actual number of equations (some may be turned-off)
       call setonxy   #sets neq = acutal number eqns; neqmx adds 2 - usually
 
+c...  Set PF and main-chamber boundary-condition arrays that either be uniform
+c...  in the ix poloidal direction or varying by user input. The two walls are
+c...  treated independtly with flags bbb.ispfbcvsix and bbb.iswobcvsix where 0
+c...  yields uniform BCs versus ix and 1 utilizes array values set by user
+      call setwallbcarrays
+      
       if (svrpkg .eq. "cvode" .or. svrpkg .eq. "kinsol") then
         neqmx = neq      #cvode, kinsol allow no extra storage for yl
       else
@@ -800,7 +810,7 @@ c-----------------------------------------------------------------------
       real ssmin, s2min
 
 *  -- local scalars --
-      integer i, iu, ir
+      integer i, iu, ir, irstart, irend
       integer ifld
       integer impflag
       real crni, ctemp, cj, zn_last, proffacx, proffacy, proffacv
@@ -817,7 +827,6 @@ c-----------------------------------------------------------------------
 *  ---------------------------------------------------------------------
 *  preliminaries.
 *  ---------------------------------------------------------------------
-
 *  -- check nx, ny, nhsp --
       if (nx.lt.1 .or. ny.lt.1 .or. nhsp.lt.1) then
          call xerrab ('ueinit -- faulty argument nx, ny, nhsp')
@@ -1068,32 +1077,32 @@ c...  Initialize external eng fluxes to 0 if ext_flags=0 as used anyway
       endif
 
 c...  Set boundary conditions for lyni on walls; if isulynix=0, use lyni
-      if (isulynix == 0) then
-        do ifld = 1, nisp
-          do iu = 0, nx+1
-            lynix(1,iu,ifld)=lyni(1)
-            lynix(2,iu,ifld)=lyni(2)
-          enddo
-        enddo
-      endif
-      if (isulytex == 0) then
-        do iu = 0, nx+1
-          lytex(1,iu) = lyte(1)
-          lytex(2,iu) = lyte(2)
-        enddo
-      endif
-      if (isulytix == 0) then
-        do iu = 0, nx+1
-          lytix(1,iu) = lyti(1)
-          lytix(2,iu) = lyti(2)
-        enddo
-      endif
-      if (isulyphix == 0) then
-        do iu = 0, nx+1
-          lyphix(1,iu) = lyphi(1)
-          lyphix(2,iu) = lyphi(2)
-        enddo
-      endif
+ccTR      if (isulynix == 0) then
+ccTR       do ifld = 1, nisp
+ccTR          do iu = 0, nx+1
+ccTR            lynix(1,iu,ifld)=lyni(1)
+ccTR            lynix(2,iu,ifld)=lyni(2)
+ccTR          enddo
+ccTR        enddo
+ccTR      endif
+ccTR     if (isulytex == 0) then
+ccTR       do iu = 0, nx+1
+ccTR          lytex(1,iu) = lyte(1)
+ccTR          lytex(2,iu) = lyte(2)
+ccTR        enddo
+ccTR      endif
+ccTR      if (isulytix == 0) then
+ccTR        do iu = 0, nx+1
+ccTR          lytix(1,iu) = lyti(1)
+ccTR          lytix(2,iu) = lyti(2)
+ccTR        enddo
+ccTR      endif
+ccTR      if (isulyphix == 0) then
+ccTR        do iu = 0, nx+1
+ccTR          lyphix(1,iu) = lyphi(1)
+ccTR          lyphix(2,iu) = lyphi(2)
+ccTR        enddo
+ccTR      endif
 
 c...  Set values of sheath potential/Te to 3.0 if values are zero
       do jx=1,nxpt
@@ -1155,6 +1164,7 @@ c ... If isimpon > 0 and isph_sput = 1, init. DIVIMP data for physical sputt.
 c ... Set up new grid geometry, if desired.
       if(newgeo .eq. 1) then
          call nphygeo
+
 c...  "zero out" sx at ixpt2(1) if isfixlb=2 and ixpt1(1).le.0 to prevent
 c...  flux thru cut
          if (isfixlb(1).eq.2 .and. ixpt1(1).le.0 .and. ixpt2(1).ge.0) then
@@ -1318,7 +1328,6 @@ c...  Now set sidewall flux limit factors
         flalftgya(0) = 1.e20
         flalftgya(ny) = 1.e20
       endif
-	  
 c...  set wall sources
       call walsor
 
@@ -1331,15 +1340,17 @@ c...  set plate recycling coefficient profiles
 c...  set volume power sources if the internal Gaussian sources desired
       if (isvolsorext == 0) call volsor
 
-c ... Set impurity sources on inner and outer walls.
-      call imp_sorc_walls (nx, nzspt, xcpf, xcwo, sy(0,0), sy(0,ny),
+c ... Set impurity sources on inner and outer walls; poss prob if nyomitmx>0
+      if (isimpwallsor == 1) then  #impurity wall-flux sources
+        call imp_sorc_walls (nx, nzspt, xcpf, xcwo, sy(0,0), sy(0,ny),
      .                        ixp1(0,0), ixp1(0,ny), fnzysi, fnzyso)
+      endif
 
 c ... Initialize molecular thermal equilibration array in case not computed
       do igsp = 1,ngsp
         call s2fill (nx+2, ny+2, 0.0e0, eqpg(0:,0:,igsp), 1, nx+2)
       enddo
-      
+
 *---  bbbbbb begin ifloop b  bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
       if (ig .eq. 1 .and. restart .eq. 0) then
 *---  bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
@@ -1655,28 +1666,45 @@ c..   Continue ordering if double null or snowflake
           ixend(4) = ixrb(1)+1
           ixst(5) = ixlb(2) 
         endif  # remain indices are the same
-          ixend(5) = ixcut4
-          ixst(6) = ixcut4+1
-          ixend(6) = ixrb(2)+1
+        ixend(5) = ixcut4
+        ixst(6) = ixcut4+1
+        ixend(6) = ixrb(2)+1
       endif  # if-test on nxpt
+              
+c...  Set number of regions for interpolation; 3 for single null, 6
+c...  for double null, and 1 for core-only simulations
+      if (nysol(1) <= nyomitmx) then  #core only, no divertor legs
+         irstart = 2
+         irend = 2
+         ixst(2) = 1
+         ixsto(2) = 1
+         ixend(2) = ixend(2) - 1
+         ixendo(2) = ixendo(2) - 1
+      elseif (nxpt == 1) then  #single-null with SOL, divertor legs
+         irstart = 1
+         irend = 3
+      else   #must be double-null with nxpt=2
+          irstart = 1
+          irend = 6
+      endif
 
 c...  Construct first intermediate density grid, (xnrmox,ynrmox)
       call gchange("Interp",0)
-      do ir = 1, 3*nxpt
+      do ir = irstart, irend
         call grdintpy(ixst(ir),ixend(ir),ixsto(ir),ixendo(ir),
      .                0,ny+1,0,nyold+1,nx,ny,nxold,nyold,
      .                xnrm,ynrm,xnrmo,ynrmo,xnrmox,ynrmox,ixmg,iyomg)
       enddo
          
 c...  Construct second intermediate density grid, (xnrmnx,ynrmnx)
-      do ir = 1, 3*nxpt
+      do ir = irstart, irend
         call grdintpy(ixsto(ir),ixendo(ir),ixst(ir),ixend(ir),
      .                0,ny+1,0,ny+1,nxold,ny,nx,ny,
      .                xnrmox,ynrmox,xnrm,ynrm,xnrmnx,ynrmnx,ix2g,iy2g)
       enddo
 
 c...  Construct first intermediate velocity grid (xvnrmox,yvnrmnox)
-      do ir = 1, 3*nxpt
+      do ir = irstart, irend
         call grdintpy(ixst(ir),ixend(ir),ixsto(ir),ixendo(ir),
      .                0,ny+1,0,nyold+1,nx,ny,nxold,nyold,
      .                xvnrm,yvnrm,xvnrmo,yvnrmo,xvnrmox,yvnrmox,
@@ -1684,7 +1712,7 @@ c...  Construct first intermediate velocity grid (xvnrmox,yvnrmnox)
       enddo
 
 c...  Construct second intermediate velocity grid (xvnrmnx,yvnrmnx)
-      do ir = 1, 3*nxpt
+      do ir = irstart, irend
         call grdintpy(ixsto(ir),ixendo(ir),ixst(ir),ixend(ir),
      .                0,ny+1,0,ny+1,nxold,ny,nx,ny,
      .                xvnrmox,yvnrmox,xvnrm,yvnrm,xvnrmnx,yvnrmnx,
@@ -1749,6 +1777,9 @@ c...  Reset gas density to minimum if too small or negative
       endif          # end of very-large 2-branch-if: (1), same mesh size
                      # or (2), index-based interp with isnintp=1 
 
+      if (nyomitmx >= nysol(1)+nyout(1)) then
+        call filldead_guardcells
+      endif
 c...  Check if any ion density is zero
       do ifld = 1, nisp
         do iy = 0, ny+1
@@ -1802,8 +1833,6 @@ c...  Check if any ion density is zero
         enddo
       enddo
 
-ccc      write(*,*)  'Just initialized psorc, etc.in ueinit; nisp = ',nisp
-
       do ifld = 1, nusp
          call s2fill (nx+2, ny+2, 0., fmixy(0:,0:,ifld), 1, nx+2)
          call s2fill (nx+2, ny+2, 0., frici(0:,0:,ifld), 1, nx+2)
@@ -1836,6 +1865,11 @@ c...  Set boundary conditions for ni and Te,i on walls if end-element zero
       if (tewallo(nx+1).lt.1.e-10) call sfill (nx+2,tedge,tewallo(0:),1)
       if (tiwallo(nx+1).lt.1.e-10) call sfill (nx+2,tedge,tiwallo(0:),1)
 
+c...  Initialize dead pol guard cells if core-only simulation
+      if (nyomitmx >= nysol(1)+nyout(1)) then
+        call filldead_guardcells
+      endif
+         
       call convert
       if (svrpkg.eq.'daspk') then
 	 call pandf1(-1,-1,0,ipar(1),tv,yl,yldot)
@@ -1889,6 +1923,11 @@ c...  Set boundary conditions for ni and Te,i on walls if end-element zero
 *---  bbbbbb end ifloop b bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
       endif
 *---  bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+
+c ... Now that new indexing (e.g., ixendi, ixendo etc.) is done, set
+c ... impurity wall sources that depend on these indices.
+ccc     call imp_sorc_walls (nx, nzspt, xcpf, xcwo, sy(0,0), sy(0,ny),
+ccc     .                        ixp1(0,0), ixp1(0,ny), fnzysi, fnzyso)
 
 c ... Set variable-normalization array.
       call set_var_norm (iscolnorm, neq, numvar, yl, norm_cons,

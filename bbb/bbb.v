@@ -195,6 +195,7 @@ isplflxl  integer /0/  +input #=0, flalfe,i not active at ix=0 & nx;=1 active al
 isplflxlv integer /0/  +input #=0, flalfv not active at ix=0 & nx;=1 active all ix
 isplflxlgx integer /0/ +input #=0, flalfgx not active at ix=0 & nx;=1 active all ix
 isplflxlgxy integer /0/ +input #=0, flalfgxy not active at ix=0 & nx;=1 active all ix
+islimflxlgx integer /0/ +input #=0, flalfgx,xy not active at ix=ix_lim
 iswflxlgy   integer /0/ +input #=0, flalfgy not active at iy=0 & ny;=1 active all iy
 isplflxlvgx integer /0/ +input #=0, flalfvgx not active at ix=0 & nx;=1 active all ix
 isplflxlvgxy integer /0/ +input #=0, flalfvgxy not active at ix=0 & nx;=1 active all ix
@@ -414,6 +415,10 @@ cftgeqp  real       /1.5/   +input #Coef for gas thermal equipartion (usually mo
 
 ***** Bcond restart:
 #Variables for setting the boundary conditions.
+ispfbcvsix integer      /0/ +input #=0 for uniform BC on PF wall;
+                                   #=1 for user variable BC vs pol ix index
+iswobcvsix integer      /0/ +input #=0 for uniform BC on outer wall;
+                                   #=1 for user variable BC vs pol ix index
 ibctepl   integer	/1/	+input 
                 #Switch for ix=0 energy flux bc's
 				#=0, fixed te (see tepltl)
@@ -440,14 +445,16 @@ iphibcc 	integer /3/	+input #core BC at iy=1 when isnewpot=1;iy=0
                                 #=3, phi=constant & ey(ixmp,0)=eycore
                                 #>3 or < 1 now unavailable, previously
 				#dphi(ix,1)=dphi_iy1,isutcore ctrls ix=ixmp
-iphibcwi        integer /0/   +input #=0, d(ey)/dy=0
+iphibcwi integer /0/   +input #=0, d(ey)/dy=0
 				#=1, phi(ix,0) = phintewi*te(ix,0)/ev
 				#=3, d(phi)/dy/phi = 1/lyphi(1)
 				#=4, phi(ix,0)=phiwi(ix) in PF region
-iphibcwo        integer /0/    +input  #=0, d(ey)/dy=0
+iphibcwiix(0:nx+1) _integer +input # pol depend iphibcwi if ispfbcvsix=1
+iphibcwo integer /0/    +input  #=0, d(ey)/dy=0
 				#=1, phi(ix,ny+1) = phintewi*te(ix,ny+1)/ev
 				#=3, d(phi)/dy/phi = 1/lyphi(2)
 				#=4, phi(ix,ny+1)=phiwo(ix)
+iphibcwoix(0:nx+1) _integer +input # pol depend iphibcwo if iswobcvsix=1
 phiwi(0:nx+1) _real [eV] +input #/(nx+2)*0./
                                 #PF wall phi profile if iphicwi=4;user set
 phiwo(0:nx+1) _real [eV] +input #/(nx+2)*0./
@@ -521,36 +528,45 @@ tipltr    real [eV]  /2./    +input #right plate Ti B.C. if ibctiplr=0
 tbmin     real [eV] /.1/     +input #min. wall & pf temp for extrap. b.c.(isextrt..)
 nbmin     real [m**-3] /1.e17/ +input #min. wall & pf den for extrap. b.c.(isextrn..)
 ngbmin    real [m**-3] /1.e10/ +input #min. core gas den for extrap. b.c.(isextrngc)
-istewc    integer    /1/     +input # switch for outer-wall BC on Te
+istewc integer /1/ +input # switch for outer-wall BC on Te
 			     # =0, set zero energy flux
 	 		     # =1, set fixed temp to tedge or tewallo
 			     # =2, use extrapolation BC
 			     # =3, set Te scale length to lyte
                              # =4, set feey = bceew*fniy*te
-istiwc    integer    /1/     +input #switch for outer-wall BC on Ti, see istewc detail
-istgwc(ngspmx) integer/ngspmx*0/    +input #switch for outer-wall BC on Tg(,0,igsp)
+istewcix(0:nx+1) _integer +input # pol depend BC for istewc if iswobcvsix=1
+istiwc integer /1/ +input #switch for outer-wall BC on Ti, see istewc detail
+istiwcix(0:nx+1) _integer +input # pol depend BC for istiwc if iswobcvsix=1
+istgwc(ngspmx) integer /ngspmx*0/ +input #switch for outer-wall BC on Tg(,0,igsp)
 	 		     # =0, set fixed temp to tgwall
 			     # =1, use extrapolation BC
 			     # =2, set Tg scale length to lytg(2,
 			     # =3, eng flux = 2Tg*Maxw-flux
 			     # =4, eng flux = sum of all parts e.g. recycled,spttered,pumped, assuming a half-Maxw for each
 			     # =5, tg = ti*cftgtiwc
-                             # >5, report error in input
-istepfc   integer    /0/    +input  # switch for priv.-flux BC on Te
+           # >5, report error in input
+
+istgwcix(0:nx+1,ngspmx) _integer +input #pol depend BC for chamber wall tg if iswobcvsix=1
+istepfc integer  /0/ +input  # switch for priv.-flux BC on Te
+
 			     # =0, set zero energy flux
 	 		     # =1, set fixed temp to tedge or tewalli
 			     # =2, use extrapolation BC
 			     # =3, set Te scale length to lyte
-                             # =4, set feey = bceew*fniy*te
-istipfc   integer    /0/    +input  #switch for priv.-flux BC on Ti, see istewc detail
-istgpfc(ngspmx) integer/ngspmx*0/   +input #switch for PF BC on Tg(,0,igsp)
+           # =4, set feey = bceew*fniy*te
+istepfcix(0:nx+1) _integer #/(nx+2)*0/ +input  #pol depend BC for pf wall te if ispfbcvsix=1 
+istipfc integer  /0/ +input  #switch for priv.-flux To BC, see istepfc detail
+istipfcix(0:nx+1) _integer +input  #pol depend BC for pf wall ti if ispfbcvsix=1
+istgpfc(ngspmx) integer /ngspmx*0/   +input #switch for PF BC on Tg(,0,igsp)
 	 		     # =0, set fixed temp to tgwall
 			     # =1, use extrapolation BC
 			     # =2, set Tg scale length to lytg(1,
 			     # =3, eng flux = 2Tg*Maxw-flux
-			     # =4, eng flux = sum of all parts e.g. recycled,spttered,pumped, assuming a half-Maxw for each
-                             # =5, tg = ti*cftgtipfc
-                             # >5, report error in input
+           # =4, eng flux = sum of all parts e.g. recycled,spttered,pumped, 
+           # ...  assuming a half-Maxw for each
+           # =5, tg = ti*cftgtipfc
+           # >5, report error in input           
+istgpfcix(0:nx+1,ngspmx) _integer +input # pol depend BC for pf wall tg if ispfbcvsix=1
 cftgtiwc(ngspmx)   real   /ngspmx*1./    +input #wall Tg B.C.: tg = ti*cftgtiwc if istgwc=5
 cftgtipfc(ngspmx)  real   /ngspmx*1./    +input #pfc Tg B.C.: tg = ti*cftgtipfc if istgpfc=5
 tewalli(0:nx+1) _real [eV] +input #/(nx+2)*0./
@@ -563,20 +579,14 @@ tiwallo(0:nx+1) _real [eV] +input #/(nx+2)*0./
                              #outer wall Ti for istiwc=1.; = tedge if not set
 tgwall(ngspmx)   real [eV] /ngspmx*0.025/ +input #Wall gas temp BC
 lyte(1:2)  real /2*1e20/ [m] +input #decaying rad Te grad leng;(1,2) istepfc,wc=3
-isulytex        integer /0/  +input #if=0, lytex filled with lyte
-                             #if=1, user values of lytex used
-lytex(2,0:nx+1)    _real [m] +input # pol dep radial te grad length if set < 1e5
+lyteix(2,0:nx+1)    _real [m] +input # pol dep radial te grad length if set < 1e5
                              # istepfc,wc=3: 1:2=i:o, 2nd dim ix
 lyti(1:2)  real /2*1e20/ [m] +input #decaying rad Ti grad leng;(1,2) istipfc,wc=3
 lytg(1:2,ngspmx) real /12*1e20/ +input #rad tg scale length: PF (1,; Outer(2,
-isulytix        integer /0/  +input #if=0, lytix filled with lyti
-                             #if=1, user values of lytex used
-lytix(2,0:nx+1)    _real [m] +input # pol dep radial ti grad length if set < 1e5
+lytiix(2,0:nx+1)    _real [m] +input # pol dep radial ti grad length if set < 1e5
                              # istipfc,wc=3: 1:2=i:o, 2nd dim ix
 lyphi(1:2) real /2*1e20/ [m] +input #decaying rad phi grad leng;(1,2) iphibcwi,o=3
-isulyphix       integer /0/  +input #if=0, lyphix filled with lyphix
-                             #if=1, user values of lyphix used
-lyphix(2,0:nx+1)   _real [m] +input # pol dep radial phi grad length if set < 1e5
+lyphiix(2,0:nx+1)   _real [m] +input # pol dep radial phi grad length if set < 1e5
                              # isphipfc,wc=3: 1:2=i:o, 2nd dim ix
 isextrnp  integer   /0/      +input #=1 sets extrap. b.c. at div. plate bound'y for ni
 isextrnpf integer   /0/      +input #=1 sets extrap. b.c. at p.f. bound'y for ni
@@ -599,28 +609,28 @@ isnwconi(1:nispmx) integer /nispmx*0/ +input
 		#=1, fixed density to nwalli(ix) array
 		#=2, extrapolation B.C.
 		#=3, approx grad-length lyni, but limited by nwimin
-isnwcono(1:nispmx) integer /nispmx*0/ +input 
+isnwconiix(0:nx+1,1:nispmx) _integer +input  #pol depen isnwconi if ispfvsix=1
+isnwcono(1:nispmx) integer /nispmx*0/ +input
 		#switch for outer wall (iy=ny+1) density B.C.
 		#=0, old case; if ifluxni=0, dn/dy=0; if ifluxni=1, fniy=0
 		#=1, fixed density to nwallo(ix) array
 		#=2, extrapolation B.C.
 		#=3, approx grad-length lyni, but limited by nwomin
+isnwconoix(0:nx+1,1:nispmx) _integer +input  #pol depen isnwcono if iswobcvsix=1
 nwalli(0:nx+1) _real [m**-3] +input #inner wall dens set by isnwconi
 nwallo(0:nx+1) _real [m**-3] +input #outer wall dens set by isnwcono
 nwimin(nispmx)  real [m**-3] /nispmx*1e16/  +input # min inner wall dens if isnwconi=3
 nwomin(nispmx)  real [m**-3] /nispmx*1e16/  +input # min outer wall dens if isnwcono=3
 ncoremin(nispmx) real [m**-3] /nispmx*1e10/ +input # min ncore for isnicore=5
 lyni(2)         real [m]     /2*1e20/       +input #rad dens grad length -isnwconi,o=3
-isulynix        integer      /0/            +input #if=0, lynix filled with lyni
-					    #if=1, user values of lynix used
-lynix(2,0:nx+1,nisp) _real [m] +input # pol dep radial dens grad length if set < 1e5
+lyniix(2,0:nx+1,nisp) _real [m] +input # pol dep radial dens grad length if set < 1e5
 			         # isnwconi,o=3: 1:2=i:o, 2nd dim ix, 3rd spec
 lynicore(nispmx) real [m] /nispmx*1e20/     +input # ni core BC rad scale-length if
 					    # isnicore=5
 lyup(2) real    /2*1e20/     +input #radial up grad length if isupwi,o=3: 1:2=i:o
 isulyupx        integer      /0/            #if=0, lyupx filled with lyup
 					    #if=1, user values of lynup used
-lyupx(2,0:nx+1,nusp) _real [m] +input # pol dep radial up grad length if set < 1e5
+lyupix(2,0:nx+1,nisp) _real [m] +input # pol dep radial up grad length if set < 1e5
 			       # isupwi,o=3: indices,1:2=i:o, 2nd dim ix, 3rd spec
 nwsor     integer    /1/     +input #number of sources on wall; must be < 10
 igasi(10) real [Amp] /10*0./ +input #Gas currents from inner wall (iy=0)
@@ -714,16 +724,18 @@ isutcore  integer      /0/      +input #Used for ix=ixcore phi BC ONLY IF iphibc
 				#=0, tor mom=lzcore on core;
                 #=1, d<uz>/dy=0;
 				#>1, d^2(Ey)/dy^2=0 at outer midplane
-isupwi(nispmx) integer /nispmx*2/ +input 
+isupwi(nispmx) integer /nispmx*2/ +input #options for up BC on inner (PF) wall
                         #=0 sets up=0 on inner wall
                         #=1 sets fmiy=0 (parallel mom-dens y-flux)
               			#=2 sets dup/dy=0 on inner wall
               			#=3 sets (1/up)dup/dy=1/lyup(1) scale length
-isupwo(nispmx) integer /nispmx*2/ +input 
+isupwiix(0:nx+1,nispmx) _integer +input #pol depend BC for isupwi if ispfbcvsix=1
+isupwo(nispmx) integer /nispmx*2/ +input #options for up BC on outer (main-chamber) wall
                         #=0 sets up=0 on outer wall
                         #=1 sets fmiy=0 (parallel mom-dens y-flux)
               			#=2 sets dup/dy=0 on outer wall
               			#=3 sets (1/up)dup/dy=1/lyup(2) scale length
+isupwoix(0:nx+1,nispmx) _integer +input #pol depend BC for isupwo if iswobcvsix=1
 islbcn    integer      /2/	+input 
                 # b.c. for ni at limiter guard cells;
 				# =0,1 set ni in 2 cells
@@ -762,6 +774,11 @@ isi_sputpf(ngspmx) integer /ngspmx*0/ +input
                 #flag for priv flux ion-based sputter;
 				#=0, no ion sputtering
 				#=1 adds phys ion sputt; =2 adds chem ion sputt
+islim_sput(ngspmx) integer /ngspmx*0/ +input
+                #flag for limiter flux ion-based sputter;
+				#=0, no ion sputtering
+				#=1 adds phys ion sputt; =2 adds chem ion sputt
+
 matt	  integer               #output flag from syld96 for sputt. target mat.
 matp	  integer               #output flag from syld96 for sputt. plasma
 cion      integer     /6/       +input #input to syld96; atom num. of sputt. target
@@ -793,6 +810,10 @@ fchemylb(ngspmx,nxptmx) _real /1./ +input #fac*inner plt gas chem yield; isch_sp
 fchemyrb(ngspmx,nxptmx) _real /1./ +input #fac*outer plt gas chem yield; isch_sput>0
 fphysylb(ngspmx,nxptmx) _real /1./ +input #fac*inner plt ion phys sp yield;isch_sput>0
 fphysyrb(ngspmx,nxptmx) _real /1./ +input #fac*outer plt ion phys sp yield;isch_sput>0
+fchemyllim(ngspmx)      _real /1./ +input #fac*left-limiter gas chem yield; isch_sput>0
+fchemyrlim(ngspmx)      _real /1./ +input #fac*right-limiter gas chem yield; isch_sput>0
+fphysyllim(ngspmx)      _real /1./ +input #fac*left limiter ion phys sp yield;isch_sput>0
+fphysyrlim(ngspmx)      _real /1./ +input #fac*right limiter plt ion phys sp yield;isch_sput>0
 isexunif  integer      /0/      +maybeinput #=1 forces ex ~ uniform at div. plates
 xcnearlb  logical    /FALSE/    #=TRUE if Jac'n "box" overlaps a left boundary
 xcnearrb  logical    /FALSE/    #=TRUE if Jac'n "box" overlaps a right boundary
@@ -898,11 +919,13 @@ recyrb(0:ny+1,ngspmx,nxptmx) _real     +input
 recylb_use(0:ny+1,ngspmx,nxptmx) _real +input #inner plate recycling coeff. user input
 recyrb_use(0:ny+1,ngspmx,nxptmx) _real +input #outer plate recycling coeff. user input
 recycp(ngspmx)   real       /.9,5*0./  +input #recycling coef at plates if ndatlb,rb=0
+recyllim(0:ny+1,ngspmx) _real /1./     +input #recyling coeff on left-side of limiter
+recyrlim(0:ny+1,ngspmx) _real /1./     +input #recyling coeff on right-side of limiter		 
 recycflb(ngspmx,nxptmx) _real /1./     +maybeinput #extra factor for recycling at ix=0
 recycfrb(ngspmx,nxptmx) _real /1./     +maybeinput #extra factor for recycling at ix=nx+1
 recycm           real       /-0.9/     +input #mom recycling inertial gas; at plates
                                        # =up(,,2)/up(,,1)=-recycm.
-				       #if recycm betwn -9.9 & -10.1 d(up)/dx=0
+				                               #if recycm betwn -9.9 & -10.1 d(up)/dx=0
                                        #if recycm < -10.1, therm mom flux used
 recycmlb_use(0:ny+1,ngspmx,nxptmx) _real +maybeinput #inner plt mom-recycl coeff user input
 recycmrb_use(0:ny+1,ngspmx,nxptmx) _real +maybeinput #outer plt mom-recycl coeff user input
@@ -910,12 +933,11 @@ recycmlb(0:ny+1,ngspmx,nxptmx) _real   +maybeinput #total inner plt mom recyclin
 recycmrb(0:ny+1,ngspmx,nxptmx) _real   +maybeinput #total outer plt mom recycling coeff
 recyce           real       /0./       +input #energy recycling/Rp for inertial gas
 recycwe          real       /0./       +input #energy recycling/Rp for inertial gas on walls and prfs
-recycl           real       /1./       +input #recycling coef. at a limiter (ix_lim)
 recycml          real       /0.1/      +input #momentum recycling/Rp for gas at limtr
 recycc(ngspmx)   real       /6*1./     +input #core recycling coeff. if isnicore=3
 albedoc(ngspmx)  real       /6*1./     +input #core neut albedo for isngcore=0
-albedolb(ngspmx,nxptmx) _real /1./       +input #albedo at inner plate if ndatlb=0
-albedorb(ngspmx,nxptmx) _real /1./       +input #albedo at outer plate if ndatrb=0
+albedolb(ngspmx,nxptmx) _real /1./     +input #albedo at inner plate if ndatlb=0
+albedorb(ngspmx,nxptmx) _real /1./     +input #albedo at outer plate if ndatrb=0
 cfalbedo         real       /2./       +input #coef. for Tg Eq. due to albedo
 ndatlb(ngspmx,nxptmx)    _integer   /0/  +maybeinput #number of recycp data pts on inner plt
 ndatrb(ngspmx,nxptmx)    _integer   /0/  +maybeinput #number of recycp data pts on outer plt
@@ -934,8 +956,12 @@ isoldalbarea    real   /0./ +input # Switch whether to use old (wrong) albedo
 albedo_by_user   integer            /0/  +input #if=1, user fills albedoo,i & albdlb,rb
 fngxslb(0:ny+1,ngspmx,nxptmx) _real [1/s]+input #inner plt liq vapor gas sour. if sputtlb>0
 fngxsrb(0:ny+1,ngspmx,nxptmx) _real [1/s]+input #outer plt liq vapor gas sour. if sputtlb>0
+fngxsllim(0:ny+1,ngspmx)      _real [1/s]+input #left limiter liq vapor gas sour. if sputtlb>0
+fngxsrlim(0:ny+1,ngspmx)      _real [1/s]+input #right limiter liq vapor gas sour. if sputtlb>0
 fngxlb_use(0:ny+1,ngspmx,nxptmx) _real [1/s] +input #user external left plate source
 fngxrb_use(0:ny+1,ngspmx,nxptmx) _real [1/s] +input #user external left plate source
+fngxllim_use(0:ny+1,ngspmx)      _real [1/s] +input #user external left limiter source
+fngxrlim_use(0:ny+1,ngspmx)      _real [1/s] +input #user external right limiter source
 adatlb(ngspmx,50,nxptmx) _real    /1./   +maybeinput #inner albdedo data for each ydati
 adatrb(ngspmx,50,nxptmx) _real    /1./   +maybeinput #outer albdedo data for each ydati
 recycw(ngspmx)   real     /ngspmx*1e-10/ +input #recycling coef. at side walls
@@ -948,12 +974,22 @@ gamsec           real       /0./         +input #secondary elec emiss coeff on p
 sputtr           real       /0./         +input #sputtering coef. at plates
 sputtlb(0:ny+1,ngspmx,nxptmx)    _real   +input #set sputt coef. inner plate (iy,igsp)
 sputtrb(0:ny+1,ngspmx,nxptmx)    _real   +input #set sputt coef. outer plate (iy,igsp)
+sputllim_use(0:ny+1,ngspmx)      _real   +input #user-set sputt coef. left 
+					        #limiter if>1; albedo if <0, >-1;
+                                                #ng=ngllim on limiter if < -1 
+sputrlim_use(0:ny+1,ngspmx)      _real   +input #user-set sputt coef. right 
+					        #limiter if>1; albedo if <0, >-1;
+                                                #ng=ngrlim on limiter if < -1		       	  
 sputflxlb(0:ny+1,ngspmx,nxptmx)  _real   +maybeinput #calc sput flux inner plate (iy,igsp)
 sputflxrb(0:ny+1,ngspmx,nxptmx)  _real   +maybeinput #calc sput flux outer plate (iy,igsp)
+sputflxllim(0:ny+1,ngspmx)       _real   #calc sput flux inner plate (iy,igsp)
+sputflxrlim(0:ny+1,ngspmx)       _real   #calc sput flux outer plate (iy,igsp)
 sputflxw(0:nx+1,ngspmx)          _real   +maybeinput #calc sput flux outer wall (ix,igsp)
 sputflxpf(0:nx+1,ngspmx)         _real   +maybeinput #calc sput flux PF wall (ix,igsp)
-ngplatlb(ngspmx,nxptmx)          _real   +input #ng on inner plate if sputti < -9.9
-ngplatrb(ngspmx,nxptmx)          _real   +input #ng on outer plate if sputto < -9.9
+ngplatlb(ngspmx,nxptmx)          _real   +input #ng on inner plate if sputti < -1
+ngplatrb(ngspmx,nxptmx)          _real   +input #ng on outer plate if sputto < -1
+ngllim(ngspmx)                   _real   +input #ng on left limiter if sputllim_use < -1
+ngrlim(ngspmx)                   _real   +input #ng on right limiter if sputrlim_use < -1
 ipsputt_s		integer /1/      +input #start dens-index phys sputt species
 ipsputt_e		integer /1/      +input #end dens-index of phys sputt species
 npltsor     integer    /1/               +input #number sources on plates; must be <= 10
@@ -965,14 +1001,24 @@ ygaslb(10,nxptmx)  _real [m]  /0./     +input #loc of left-plate sources wrt str
 ygasrb(10,nxptmx)  _real [m]  /0./     +input #loc of right-plate sources wrt strike pt
 wgaslb(10,nxptmx)  _real [m] /100./    +input #total cos width of left-plate gas sources
 wgasrb(10,nxptmx)  _real [m] /100./    +input #total cos  width of right-plate gas sources
-fvaplb(ngspmx,nxptmx) _real     /0./  +input #scale factor left-plate evap vapor source
+fvaplb(ngspmx,nxptmx) _real     /0./   +input #scale factor left-plate evap vapor source
 avaplb(ngspmx,nxptmx) _real [k**.5/(m**2s)] /1./ +input #lin coeff left-plate evapor sor
-bvaplb(ngspmx,nxptmx) _real [K] /1./  +input #expon. coeff. left-plate evap vapor source
-fvaprb(ngspmx,nxptmx) _real     /0./  +input #scale factor right-plate evap vapor source
+bvaplb(ngspmx,nxptmx) _real [K] /1./   +input #expon. coeff. left-plate evap vapor source
+fvaprb(ngspmx,nxptmx) _real     /0./   +input #scale factor right-plate evap vapor source
 avaprb(ngspmx,nxptmx) _real [k**.5/(m**2s)] /1./ +input #lin coeff right-plate evapor sor
-bvaprb(ngspmx,nxptmx) _real [K] /1./  +input #expon coeff. right-plate evap vapor source
-tvaplb(0:ny+1,nxptmx)   _real [K]     +input #left-plate temp for evap; input after alloc
-tvaprb(0:ny+1,nxptmx)   _real [K]     +input #right-plate temp for evap; input after alloc
+bvaprb(ngspmx,nxptmx) _real [K] /1./   +input #expon coeff. right-plate evap vapor source
+tvaplb(0:ny+1,nxptmx)   _real [K]      +input #left-plate temp for evap; input after alloc
+tvaprb(0:ny+1,nxptmx)   _real [K]      +input #right-plate temp for evap; input after alloc
+fvapllim(ngspmx)        _real     /0./ +input #scale factor left-plate evap vapor source
+avapllim(ngspmx) _real [k**.5/(m**2s)] /1./ +input #lin coeff left-plate evapor sor
+bvapllim(ngspmx) _real [K] /1./        +input #expon. coeff. left-plate evap vapor source
+fvaprlim(ngspmx) _real     /0./        +input #scale factor right-plate evap vapor source
+avaprlim(ngspmx) _real [k**.5/(m**2s)] /1./ +input #lin coeff right-plate evapor sor
+bvaprlim(ngspmx) _real [K] /1./        +input #expon coeff. right-plate evap vapor source
+tvapllim(0:ny+1) _real [K]             +input #left-lim-face temp for evap; input after alloc
+tvaprlim(0:ny+1) _real [K]             +input #right-lim-fac temp for evap; input after alloc
+tvliml(0:ny+1)   _real /300./ [K]      +input #user left limiter face temp
+tvlimr(0:ny+1)   _real /300./ [K]     +input #user right limiter face temp
 isextpltmod            integer  /0/   +input #=1 use ext gas plate fluxes fngxextlb,rb
                                       # and feixextlb,rb
 isextwallmod           integer  /0/   +input #=1 use ext gas wall fluxes fngyexti,o
@@ -1741,55 +1787,55 @@ spfwallr(0:nx+1,nxpt)   _real [W/m**2]#radiation pwr flux to PF wall
 
 ***** Volsrc:
 #Parameters for volume particle, mom. & power sources for electrons and ions
-pwrsore(0:nx+1,0:ny+1) _real [W]       +maybeinput #power src into electrons in cell ix,iy
-pwrsori(0:nx+1,0:ny+1) _real [W]       +maybeinput #power src into ions in cell ix,iy
-volpsor(0:nx+1,0:ny+1,1:nisp) _real [1/s]+maybeinput #current src into ions in cell ix,iy
-volmsor(0:nx+1,0:ny+1,1:nisp) _real [kg m/s**2] +maybeinput #up mom src in cell ix,iy
-voljcsor(0:nx+1,0:ny+1) _real [A]      +maybeinput #uniform core-region curr sor. in ix,iy
-volpsorg(0:nx+1,0:ny+1,1:ngsp) _real [1/s]+maybeinput #curr source for gas in cell ix,iy
-pondpot(0:nx+1,0:ny+1)  _real [V] /0./ +maybeinput #elec ponderomotive potential
-psgov_use(0:nx+1,0:ny+1,1:ngsp) _real [1/m**3 s]+maybeinput #user-specified gas source
-jcvsor                  real [A]  /0./ +maybeinput #total core-region current for voljcsor
-ix_sjcsor	        integer   /0/  +maybeinput #if nonzero, beginning ix for voljcsor
-ix_ejcsor	        integer   /0/  +maybeinput #if nonzero, ending ix for voljcsor
-iy_sjcsor	        integer   /0/  +maybeinput #if nonzero, beginning iy for voljcsor
-iy_ejcsor	        integer   /0/  +maybeinput #if nonzero, ending iy for voljcsor
-pvole                   real [W]  /0./ +maybeinput #total power into electrons
-pvoli                   real [W]  /0./ +maybeinput #total power into ions
-z0pe                    real [m]  /0./ +maybeinput #axial or x loc. of elec. power profile
-z0pi                    real [m]  /0./ +maybeinput #axial or x loc. of ion power profile
-r0pe                    real [m]  /0./ +maybeinput #radial or y loc. of elec. power profile
-r0pi                    real [m]  /0./ +maybeinput #radial or y loc. of ion power profile
-zwpe                    real [m] /3./  +maybeinput #axial or x Gauss. 1/2 width of e-power
-zwpi                    real [m] /3./  +maybeinput #axial or y Gaussian 1/2 width ion power
-rwpe                    real [m] /.05/ +maybeinput #rad. or x Gaussian 1/2 width e-power
-rwpi                    real [m] /.05/ +maybeinput #rad. or y Gaussian 1/2 width ion power
-ivolcur(1:nisp)        _real [A]  /0./ +maybeinput #total volume current
-mvolcur(1:nisp)        _real [kgA m/s] /0./ +maybeinput #total volume parallel mom. curr.
-z0ni                    real [m]  /0./ +maybeinput #axial or x loc. of ion particle profile
-r0ni                    real [m]  /0./ +maybeinput #rad. or y loc. of ion particle profile
-zwni                    real [m] /3./  +maybeinput #axial or y Gaussian 1/2 width ion prtcl
-rwni                    real [m] /.05/ +maybeinput #rad. or y Gaussian 1/2 width ion prtcl
-z0up                    real [m]  /0./ +maybeinput #axial or x loc. of ion mom. profile
-r0up                    real [m]  /0./ +maybeinput #rad. or y loc. of ion mom. profile
-zwup                    real [m] /3./  +maybeinput #axial or y Gaussian 1/2 width ion mom.
-rwup                    real [m] /.05/ +maybeinput #rad. or y Gaussian 1/2 width ion mom.
-ponderompot             real [V] /0./  +maybeinput #peak elec ponderomotive potential
-z0pondp                 real [m]  /0./ +maybeinput #axial or x loc. of ion mom. profile
-r0pondp                 real [m]  /0./ +maybeinput #rad. or y loc. of ion mom. profile
-zwpondp                 real [m] /3./  +maybeinput #axial or y Gaussian 1/2 width ion mom.
-rwpondp                 real [m] /.05/ +maybeinput #rad. or y Gaussian 1/2 width ion mom.
-thetarot		real [rad]/0./ +maybeinput #rotation angle for R,Z with effec. R,Z
+pwrsore(0:nx+1,0:ny+1) _real [W]       +input #power src into electrons in cell ix,iy
+pwrsori(0:nx+1,0:ny+1) _real [W]       +input #power src into ions in cell ix,iy
+volpsor(0:nx+1,0:ny+1,1:nisp) _real [1/s]+input #current src into ions in cell ix,iy
+volmsor(0:nx+1,0:ny+1,1:nisp) _real [kg m/s**2] +input #up mom src in cell ix,iy
+voljcsor(0:nx+1,0:ny+1) _real [A]      +input #uniform core-region curr sor. in ix,iy
+volpsorg(0:nx+1,0:ny+1,1:ngsp) _real [1/s]+input #curr source for gas in cell ix,iy
+pondpot(0:nx+1,0:ny+1)  _real [V] /0./ +input #elec ponderomotive potential
+psgov_use(0:nx+1,0:ny+1,1:ngsp) _real [1/m**3 s]+input #user-specified gas source
+jcvsor                  real [A]  /0./ +input #total core-region current for voljcsor
+ix_sjcsor	        integer   /0/  +input #if nonzero, beginning ix for voljcsor
+ix_ejcsor	        integer   /0/  +input #if nonzero, ending ix for voljcsor
+iy_sjcsor	        integer   /0/  +input #if nonzero, beginning iy for voljcsor
+iy_ejcsor	        integer   /0/  +input #if nonzero, ending iy for voljcsor
+pvole                   real [W]  /0./ +input #total power into electrons
+pvoli                   real [W]  /0./ +input #total power into ions
+z0pe                    real [m]  /0./ +input #axial or x loc. of elec. power profile
+z0pi                    real [m]  /0./ +input #axial or x loc. of ion power profile
+r0pe                    real [m]  /0./ +input #radial or y loc. of elec. power profile
+r0pi                    real [m]  /0./ +input #radial or y loc. of ion power profile
+zwpe                    real [m] /3./  +input #axial or x Gauss. 1/2 width of e-power
+zwpi                    real [m] /3./  +input #axial or y Gaussian 1/2 width ion power
+rwpe                    real [m] /.05/ +input #rad. or x Gaussian 1/2 width e-power
+rwpi                    real [m] /.05/ +input #rad. or y Gaussian 1/2 width ion power
+ivolcur(1:nisp)        _real [A]  /0./ +input #total volume current
+mvolcur(1:nisp)        _real [kgA m/s] /0./ +input #total volume parallel mom. curr.
+z0ni                    real [m]  /0./ +input #axial or x loc. of ion particle profile
+r0ni                    real [m]  /0./ +input #rad. or y loc. of ion particle profile
+zwni                    real [m] /3./  +input #axial or y Gaussian 1/2 width ion prtcl
+rwni                    real [m] /.05/ +input #rad. or y Gaussian 1/2 width ion prtcl
+z0up                    real [m]  /0./ +input #axial or x loc. of ion mom. profile
+r0up                    real [m]  /0./ +input #rad. or y loc. of ion mom. profile
+zwup                    real [m] /3./  +input #axial or y Gaussian 1/2 width ion mom.
+rwup                    real [m] /.05/ +input #rad. or y Gaussian 1/2 width ion mom.
+ponderompot             real [V] /0./  +input #peak elec ponderomotive potential
+z0pondp                 real [m]  /0./ +input #axial or x loc. of ion mom. profile
+r0pondp                 real [m]  /0./ +input #rad. or y loc. of ion mom. profile
+zwpondp                 real [m] /3./  +input #axial or y Gaussian 1/2 width ion mom.
+rwpondp                 real [m] /.05/ +input #rad. or y Gaussian 1/2 width ion mom.
+thetarot		real [rad]/0./ +input #rotation angle for R,Z with effec. R,Z
 		                       # R_e= R0+(R-R0)cos(th)+(Z-Z0)sin(th),
 		                       # Z_e= Z0-(R-R0)sin(th)+(Z-Z0)cos(th),
-rcutmin			real [m] /0./  +maybeinput #source zero if R<rcutmin
-zcutmin			real [m] /0./ +maybeinput  #source zero if Z<zcutmin
+rcutmin			real [m] /0./  +input #source zero if R<rcutmin
+zcutmin			real [m] /0./ +input  #source zero if Z<zcutmin
 effvng(1:ngsp)	       _real [m] /0./  # normalizing factor of gas source; calc
-ivolcurg(1:ngsp)       _real [A] /0./  +maybeinput #tot. volumn gas source strength
-z0ng(1:ngsp)	       _real [m] /0./  +maybeinput #axial or x loc. of gas particle profile
-r0ng(1:ngsp)           _real [m] /0./  +maybeinput #rad. or y loc. of gas particle profile
-zwng(1:ngsp)           _real [m] /3./  +maybeinput #axial or y Gaussian 1/2 width gas prtcl
-rwng(1:ngsp)           _real [m] /.05/ +maybeinput #rad. or y Gaussian 1/2 width gas prtcl
+ivolcurg(1:ngsp)       _real [A] /0./  +input #tot. volumn gas source strength
+z0ng(1:ngsp)	       _real [m] /0./  +input #axial or x loc. of gas particle profile
+r0ng(1:ngsp)           _real [m] /0./  +input #rad. or y loc. of gas particle profile
+zwng(1:ngsp)           _real [m] /3./  +input #axial or y Gaussian 1/2 width gas prtcl
+rwng(1:ngsp)           _real [m] /.05/ +input #rad. or y Gaussian 1/2 width gas prtcl
 
 ***** Bfield:
 #Variables for the B-field and grad_B drift geo/B-field factors
@@ -1971,6 +2017,8 @@ bcir(0:ny+1,nxpt)      _real  [ ]   +maybeinput #ion sheath energy transmission 
                                     #on the right boundary
 kappal(0:ny+1,nxpt)  _real  [ ]	+maybeinput #sheath pot'l drop on left  boundary, phi/Te
 kappar(0:ny+1,nxpt)  _real  [ ]	+maybeinput #sheath pot'l drop on right boundary, phi/Te
+kappallim(0:ny+1)    _real  [ ]	#sheath pot'l drop on left-side limiter, phi/Te
+kapparlim(0:ny+1)    _real  [ ]	#sheath pot'l drop on right-side limiter, phi/Te
 bctype(0:ny+1)    _integer #/0,ny*0,0/+maybeinput 
 phi0r(0:ny+1,nxpt)	_real [V] /0./ +maybeinput #plate pot'l at right poloidal boundary
 phi0l(0:ny+1,nxpt)	_real [V] /0./ +maybeinput #plate pot'l at left  poloidal boundary
@@ -2964,6 +3012,8 @@ fniyos_io 		integer /0/	     +maybeinput #=0,a flag to signal whether to read/wr
 feeyosn_io 		integer /0/	     +maybeinput #=0,a flag to signal whether to read/write kyi_use
 feiyosn_io 		integer /0/	     +maybeinput #=0,a flag to signal whether to read/write kyi_use
 isvolsorext             integer /0/   +maybeinput #volsor sources if =0; or user sors if =1
+isimpwallsor            integer /0/   +maybeinput #user imp ion wall fluxes; may have
+					          # prob with ixendo for nyomitmx>0
 
 ***** Interp:
 #Variables for the interpolation
@@ -3725,8 +3775,8 @@ isimpon                 integer   /0/ +input
                                #   see also isofric for full-Z drag term
                                # 7 for simultaneous fixed-fraction and
                                #       multi-charge-state (isimpon=6) models
-nusp_imp        integer  /0/   # fixes nusp for total num. of par. mom. eqns.
-isupimpap       integer  /1/   # =1 includes imp atm phys in up eqn; =0, omits
+nusp_imp        integer  /0/   +input # fixes nusp for total num. of par. mom. eqns.
+isupimpap       integer  /1/   +input # =1 includes imp atm phys in up eqn; =0, omits
 ismctab		integer		/1/	+input
 # Determines which data is used for multi-charge-state rates.
 #	=1  tables originally generated by R. Campbell for D. Knoll,
