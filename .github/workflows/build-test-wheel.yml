@@ -135,7 +135,7 @@ jobs:
   gather_wheels:
     name: Gather built wheels
     if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
-    needs: [build_wheels, build_wheels_pypy]
+    needs: [build_wheels]
     runs-on: ubuntu-latest
 
     steps:
