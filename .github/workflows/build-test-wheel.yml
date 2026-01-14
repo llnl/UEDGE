@@ -149,7 +149,7 @@ jobs:
           - os: macos-latest
             macos_target: "15.0"
           - os: macos-15-intel
-             macos_target: "15.0"
+            macos_target: "15.0"
 
     steps:
       - name: Check out repo (with tags)
