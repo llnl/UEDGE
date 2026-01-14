@@ -9,11 +9,13 @@ import string
 import site
 from Forthon.compilers import FCompiler
 import getopt
+import glob
+import shutil
 import logging
 from subprocess import call
 import numpy
 try:
-    from setuptools import Extension, setup, Distribution
+    from setuptools import Extension, setup, Distribution, find_packages
     from setuptools.command.build import build
 #    from setuptools.command.develop import develop
 #    from setuptools.command.egg_info import egg_info
@@ -74,14 +76,36 @@ class uedgeBuild(build):
         # with python2 everything is put into a single uedgeC.so file
         if sys.hexversion < 0x03000000:
             raise SystemExit("Python versions < 3 not supported")
-        else:
-#            if petsc == 0:
-            status = call(['make', '-f','Makefile.Forthon'])
-#            else:
-#                status = call(['make', '-f', 'Makefile.PETSc'])
-            if status != 0: 
-                raise SystemExit("Build failure")
-            build.run(self)
+        status = call(['make', '-f','Makefile.Forthon'])
+        if status != 0: 
+            raise SystemExit("Build failure")
+        # Run the normal setuptools build (creates build_lib, builds ext_modules, etc.)
+        build.run(self)
+
+
+        # ---- Stage generated modules into the wheel build tree ----
+        pkg_out = os.path.join(self.build_lib, "uedge")
+        os.makedirs(pkg_out, exist_ok=True)
+
+        # All the generated extension modules you listed live in builddir.
+        # We copy them into build_lib/uedge so they end up inside the wheel.
+        patterns = [
+            os.path.join(builddir, "*py*.so"),      # aphpy, apipy, bbbpy, flxpy, ...
+            os.path.join(builddir, "uedgeC.py"),    # if generated
+            os.path.join(builddir, "VERSION"),
+        ]
+
+        copied = 0
+        for pat in patterns:
+            for src in glob.glob(pat):
+                shutil.copy2(src, pkg_out)
+                copied += 1
+
+        if copied == 0:
+            raise SystemExit(
+                f"Build succeeded but no generated modules were found in build temp dir: {builddir}"
+            )
+
 
 
 class uedgeClean(build):
@@ -176,6 +200,11 @@ if rln == 0:
 
 
 setup(
+        packages=find_packages(),
+        include_package_data=True,
+        package_data={
+             "uedge": ["*.so", "*.dylib", "*.pyd", "VERSION", "uedgeC.py"],
+        },
         ext_modules=[Extension('uedge.uedgeC',
                             ['uedgeC_Forthon.c',
                             os.path.join(builddir, 'Forthon.c'),
