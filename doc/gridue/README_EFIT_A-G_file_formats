@@ -1,4 +1,4 @@
-#############################################################################
+ #############################################################################
 Structure of aeqdsk EFIT file needed by UEDGE; edit file aeqdsk_template by 
 inserting new data in format of the other real numbers (e16.9) only for 
 lines below beginning with *; leave other lines unchanged
