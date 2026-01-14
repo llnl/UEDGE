@@ -235,7 +235,7 @@ c
                      yldot(iv1) = -nurlxn*( ni(ix,0,ifld) -
      .                                ni(ixp1(ix,0),0,ifld) ) / n0(ifld)
                      if (ix.eq.ix_fl_bc) then
-                        ii=ixc
+                        ii=ixc1
                         fniytotc=fniy(ii,0,ifld)-fniycbo(ii,ifld)
                         fngytotc = fngy(ii,0,1)  # needs generalization
                         do
