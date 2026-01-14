@@ -203,14 +203,19 @@ jobs:
 
           # Pin the minimum supported macOS for THIS matrix entry
           # Also set CMAKE_OSX_DEPLOYMENT_TARGET for projects that use CMake internally
-          CIBW_ENVIRONMENT_MACOS: >
+         CIBW_ENVIRONMENT_MACOS: >
             MACOSX_DEPLOYMENT_TARGET=${{ matrix.macos_target }}
             CMAKE_OSX_DEPLOYMENT_TARGET=${{ matrix.macos_target }}
+            CONDA_PREFIX=${{ env.CONDA_PREFIX }}
+            DYLD_LIBRARY_PATH=${{ env.CONDA_PREFIX }}/lib
+            LIBRARY_PATH=${{ env.CONDA_PREFIX }}/lib
             CC=cc
             CXX=c++
             FC=gfortran
             F77=gfortran
             F90=gfortran
+            LDFLAGS=-Wl,-rpath,${{ env.CONDA_PREFIX }}/lib
+            CPPFLAGS=-I${{ env.CONDA_PREFIX }}/include
 
           # If you still need your usual build deps
           CIBW_BEFORE_BUILD: >
