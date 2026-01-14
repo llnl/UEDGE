@@ -76,6 +76,11 @@ class uedgeBuild(build):
         # with python2 everything is put into a single uedgeC.so file
         if sys.hexversion < 0x03000000:
             raise SystemExit("Python versions < 3 not supported")
+
+        if os.environ.get("UEDGE_CLEAN_BUILD", "") == "1":
+            print("UEDGE_CLEAN_BUILD=1: cleaning build directory")
+            shutil.rmtree("build", ignore_errors=True)
+
         status = call(['make', '-f','Makefile.Forthon'])
         if status != 0: 
             raise SystemExit("Build failure")

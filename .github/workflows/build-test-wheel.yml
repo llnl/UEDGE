@@ -114,6 +114,8 @@ jobs:
       - name: Build wheels (CPython)
         uses: pypa/cibuildwheel@v2.23.3
         env:
+          # Clean old UEDGE builds
+          UEDGE_CLEAN_BUILD: "1" 
           # Build all supported CPython wheels in one run.
           CIBW_BUILD: "cp3?-*"
           # Clean skip list: no 32-bit builds; no Linux i686. (We are *not* skipping musllinux.)
