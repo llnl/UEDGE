@@ -341,7 +341,7 @@ c...  Now do the parallel velocity BC at iy = 0 for full mom eqn species
      .                          (rm(ixp1(ix,0),0,2)*ni(ix,0,ifld)) )/vpnorm
                     if (ix.eq.ix_fl_bc) then # not all Jac elems included
                       # sum core parallel momentum flux:
-                      ii = ixc
+                      ii = ixc1
                       fmiytotc = rm(ii,0,0)*fmiy(ii,0,ifld)
                       sytotc = sy(ii,0)
                       uztotc = uz(ii,0,ifld)/gxf(ii,0)
