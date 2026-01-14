@@ -117,7 +117,7 @@ jobs:
           # Clean old UEDGE builds
           UEDGE_CLEAN_BUILD: "1" 
           # Build all supported CPython wheels in one run.
-          CIBW_BUILD: "cp3?-*"
+          CIBW_BUILD: "cp38-* cp39-* cp310-* cp311-* cp312-* cp313-*"
           # Clean skip list: no 32-bit builds; no Linux i686. (We are *not* skipping musllinux.)
           CIBW_SKIP: "*-manylinux_i686 *-musllinux_*"
           CIBW_ARCHS_LINUX: auto
@@ -134,10 +134,102 @@ jobs:
           name: cibw-wheels-cpython-${{ matrix.os }}-${{ github.event_name == 'workflow_dispatch' && steps.latest_tag.outputs.tag || github.ref_name }}
           path: ./wheelhouse/*.whl
 
+  build_wheels_legacy_os:
+    name: Build cibuildwheel legacy macOS wheels (${{ matrix.arch }} macOS>=${{ matrix.macos_target }})
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'release' || github.event_name == 'workflow_dispatch'
+    needs: run-all-tests
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Intel / x86_64 wheels (target macOS 10.x+)
+          - runner: macos-15-intel
+            arch: x86_64
+            macos_target: "10.9"
+          # Apple Silicon / arm64 wheels (target macOS 11+)
+          - runner: macos-latest
+            arch: arm64
+            macos_target: "11.0"
+
+    steps:
+      - name: Check out repo (with tags)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Install Miniforge (conda-forge) and create an env with compilers
+      - name: Set up Miniforge + conda-forge compilers
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniforge-variant: Miniforge3
+          miniforge-version: latest
+          activate-environment: cibw
+          auto-update-conda: true
+          use-mamba: true
+          channels: conda-forge
+          channel-priority: strict
+
+      - name: Install compilers (conda-forge)
+        shell: bash -l {0}
+        run: |
+          mamba install -y compilers make pkg-config
+          python -V
+          which cc || true
+          which clang || true
+          which gfortran || true
+          gfortran --version || true
+
+      # Ensure conda env is on PATH for subsequent steps (including cibuildwheel action)
+      - name: Put conda env on PATH
+        shell: bash -l {0}
+        run: |
+          echo "$CONDA_PREFIX/bin" >> "$GITHUB_PATH"
+          echo "CONDA_PREFIX=$CONDA_PREFIX" >> "$GITHUB_ENV"
+
+      - name: Build wheels (legacy macOS targets via conda-forge toolchain)
+        uses: pypa/cibuildwheel@v2.17.0
+        env:
+          # Clean old UEDGE builds
+          UEDGE_CLEAN_BUILD: "1" 
+          # Build CPython 3.8–3.13
+          CIBW_BUILD: "cp38-* cp39-* cp310-* cp311-* cp312-* cp313-*"
+
+          # Limit builds to the runner arch
+          CIBW_ARCHS_MACOS: ${{ matrix.arch }}
+
+          # Your existing skips; keep i686 skips, keep Windows out
+          CIBW_SKIP: "*-manylinux_i686 *-musllinux_*"
+
+          # Pin the minimum supported macOS for THIS matrix entry
+          # Also set CMAKE_OSX_DEPLOYMENT_TARGET for projects that use CMake internally
+          CIBW_ENVIRONMENT_MACOS: >
+            MACOSX_DEPLOYMENT_TARGET=${{ matrix.macos_target }}
+            CMAKE_OSX_DEPLOYMENT_TARGET=${{ matrix.macos_target }}
+            CC=cc
+            CXX=c++
+            FC=gfortran
+            F77=gfortran
+            F90=gfortran
+
+          # If you still need your usual build deps
+          CIBW_BEFORE_BUILD: >
+            python -m pip install --upgrade pip &&
+            pip install numpy "forthon>=0.10.7" "build<0.10.0"
+          CIBW_TEST_COMMAND: 'python -c "import uedge; print(\"uedge imported OK:\", uedge.__version__)"'
+
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: cibw-wheels-legacy-maxos-${{ matrix.arch }}-macosx_${{ matrix.macos_target }}-cpython-${{ github.event_name == 'workflow_dispatch' && steps.latest_tag.outputs.tag || github.ref_name }}
+          path: ./wheelhouse/*.whl
+
+
   gather_wheels:
     name: Gather built wheels
     if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
-    needs: [build_wheels]
+    needs: [build_wheels, build_wheels_legacy_os]
     runs-on: ubuntu-latest
 
     steps:
