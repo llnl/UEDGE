@@ -203,7 +203,7 @@ jobs:
 
           # Pin the minimum supported macOS for THIS matrix entry
           # Also set CMAKE_OSX_DEPLOYMENT_TARGET for projects that use CMake internally
-         CIBW_ENVIRONMENT_MACOS: >
+          CIBW_ENVIRONMENT_MACOS: >
             MACOSX_DEPLOYMENT_TARGET=${{ matrix.macos_target }}
             CMAKE_OSX_DEPLOYMENT_TARGET=${{ matrix.macos_target }}
             CONDA_PREFIX=${{ env.CONDA_PREFIX }}
