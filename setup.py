@@ -83,28 +83,21 @@ class uedgeBuild(build):
         build.run(self)
 
 
-        # ---- Stage generated modules into the wheel build tree ----
+
+        # Sanity check: ensure generated modules are where we expect for packaging
         pkg_out = os.path.join(self.build_lib, "uedge")
-        os.makedirs(pkg_out, exist_ok=True)
+        need = ["compy*.so", "uedgeC*.so"]
+        missing = []
+        for pat in need:
+            if not glob.glob(os.path.join(pkg_out, pat)):
+                missing.append(pat)
 
-        # All the generated extension modules you listed live in builddir.
-        # We copy them into build_lib/uedge so they end up inside the wheel.
-        patterns = [
-            os.path.join(builddir, "*py*.so"),      # aphpy, apipy, bbbpy, flxpy, ...
-            os.path.join(builddir, "uedgeC.py"),    # if generated
-            os.path.join(builddir, "VERSION"),
-        ]
-
-        copied = 0
-        for pat in patterns:
-            for src in glob.glob(pat):
-                shutil.copy2(src, pkg_out)
-                copied += 1
-
-        if copied == 0:
+        if missing:
             raise SystemExit(
-                f"Build succeeded but no generated modules were found in build temp dir: {builddir}"
+                f"Expected generated modules missing from {pkg_out}: {missing}\n"
+                f"Found: {sorted(os.listdir(pkg_out))}"
             )
+
 
 
 
