@@ -72,7 +72,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, macos-15-intel]
+        include:
+          - os: ubuntu-latest
+          - os: macos-14
+            macos_target: "11.0"
+          - os: macos-latest
+            macos_target: "15.0"
+          - os: macos-15-intel
+             macos_target: "15.0"
 
     steps:
       - name: Check out repo (with tags)
@@ -113,13 +120,11 @@ jobs:
           CIBW_SKIP: "*-manylinux_i686 *-musllinux_i686"
           CIBW_ARCHS_LINUX: auto
           CIBW_BUILD_VERBOSITY: 1
+          CIBW_ENVIRONMENT_MACOS: ${{ matrix.macos_target && format('MACOSX_DEPLOYMENT_TARGET={0}', matrix.macos_target) || '' }}
           CIBW_BEFORE_BUILD: >
             python -m pip install --upgrade pip &&
             pip install numpy "forthon>=0.10.7" "build<0.10.0"
-          CIBW_TEST_COMMAND: 'python - <<EOF
-          import uedge
-          print("uedge imported OK:", uedge.__version__)
-          EOF'
+          CIBW_TEST_COMMAND: 'python -c "import uedge; print(\"uedge imported OK:\", uedge.__version__)"'
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -137,7 +142,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, macos-15-intel]
+        include:
+          - os: ubuntu-latest
+          - os: macos-14
+            macos_target: "11.0"
+          - os: macos-latest
+            macos_target: "15.0"
+          - os: macos-15-intel
+             macos_target: "15.0"
 
     steps:
       - name: Check out repo (with tags)
@@ -177,14 +189,12 @@ jobs:
           CIBW_BUILD: "pp*"
           CIBW_SKIP: "*-manylinux_i686 *-musllinux_i686"
           CIBW_ARCHS_LINUX: auto
+          CIBW_ENVIRONMENT_MACOS: ${{ matrix.macos_target && format('MACOSX_DEPLOYMENT_TARGET={0}', matrix.macos_target) || '' }}
           CIBW_BUILD_VERBOSITY: 1
           CIBW_BEFORE_BUILD: >
             python -m pip install --upgrade pip &&
             pip install numpy "forthon>=0.10.7" "build<0.10.0"
-          CIBW_TEST_COMMAND: 'python - <<EOF
-          import uedge
-          print("uedge imported OK:", uedge.__version__)
-          EOF'
+          CIBW_TEST_COMMAND: 'python -c "import uedge; print(\"uedge imported OK:\", uedge.__version__)"'
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
