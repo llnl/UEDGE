@@ -119,7 +119,7 @@ jobs:
           # Build all supported CPython wheels in one run.
           CIBW_BUILD: "cp3?-*"
           # Clean skip list: no 32-bit builds; no Linux i686. (We are *not* skipping musllinux.)
-          CIBW_SKIP: "*-manylinux_i686 *-musllinux_i686"
+          CIBW_SKIP: "*-manylinux_i686 *-musllinux_*"
           CIBW_ARCHS_LINUX: auto
           CIBW_BUILD_VERBOSITY: 1
           CIBW_ENVIRONMENT_MACOS: ${{ matrix.macos_target && format('MACOSX_DEPLOYMENT_TARGET={0}', matrix.macos_target) || '' }}
