@@ -79,17 +79,9 @@ class uedgeBuild(build):
 
         if os.environ.get("UEDGE_CLEAN_BUILD", "") == "1":
             print("UEDGE_CLEAN_BUILD=1: cleaning build directory")
-            shutil.rmtree(builddir, ignore_errors=True)
+            shutil.rmtree("build", ignore_errors=True)
 
-        # ABI-specific build dir so stamps don't collide between cp38/cp39/etc
-        py_tag = sys.implementation.cache_tag  # e.g. "cpython-39", "pypy39"
-        builddir = f"build-{py_tag}"
-
-        status = call([
-            "make", "-f", "Makefile.Forthon",
-            f"BUILDDIR={builddir}",
-            f"MYPYTHON={sys.executable}",
-        ])
+        status = call(['make', '-f','Makefile.Forthon'])
         if status != 0: 
             raise SystemExit("Build failure")
         # Run the normal setuptools build (creates build_lib, builds ext_modules, etc.)

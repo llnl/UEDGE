@@ -2,9 +2,9 @@ DEBUG = -v --fargs "-Ofast -DFORTHON -cpp" # -g #--fargs "-C=array" #--fargs "-C
 
 SO = so
 PUBLICHOME = 
-BUILDDIR ?= build
+BUILDDIR = build
 DIRLIST = com aph api bbb flx grd svr wdf ncl
-MYPYTHON ?= python3
+MYPYTHON = python3
 FORTHON = Forthon3
 BUILDBASE = -v --build-base $(BUILDDIR)
 INSTALLARGS = --pkgbase uedge $(BUILDBASE) 
@@ -61,7 +61,7 @@ update:
 	done
 
 clean:
-	find . -depth -name 'build*' -type d -exec rm -rf {} \;
+	find . -depth -name build -exec rm -rf {} \;
 	find . -depth -name __pycache__ -exec rm -rf {} \;
 	find . -name \*.pyc -exec rm {} \;
 	find . -name \*.F -exec rm {} \;
