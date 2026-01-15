@@ -42,6 +42,21 @@ The easiest way to try out UEDGE is to download a static executable that should 
 the link to the executable [see uedge_executable file].  The second method is to download the UEDGE source files, and then build a Python
 version or a Basis version [see uedge_source directory].
 
+
+## UEDGE flags and option
+
+### Compile-time options
+[TBD]
+
+### Run-time options
+UEDGE default output can be supressed using environment variables, according to your needs. The following 
+options are available:
+
+UEDGE_BANNER=0     # disable everything
+UEDGE_LOGO=0       # suppress ASCII logo only
+UEDGE_VERSION=0    # suppress version line only
+UEDGE_MESSAGES=0   # suppress extra messages only
+
 ## How to get involved and contribute
 Sent email to one of the developers listed below expressing your interest in modifying or developing packages 
 for UEDGE.  Either new or improved physics models or numerical algorithms are most welcome.
