@@ -572,6 +572,9 @@ slpxffd2	real
 nxdff2		integer		/0/
 	# number of cells between flame front and divertor plate
 	# on outer leg (region 2)
+mincorecellwidth integer /0/    # Switch to set min cell width in core around X-point
+mindist(1:2)  _real   /0.005/   # Minimum cell width at X-point core cut
+maxdist(1:2)  _real  /0.01/     # Minimum cell width at X-point sep. cut
 
 ***** Refinex:
 # data used for mesh refinement near the x-point
