@@ -8,6 +8,19 @@ from datetime import datetime
 from pathlib import Path
 
 
+def _read_build_info(pkg_root: Path) -> dict | None:
+    """
+    Read metadata baked into the wheel/sdist at build time.
+    Expected path: src/uedge/_build_info.json (installed into package).
+    """
+    p = pkg_root / "_build_info.json"
+    if not p.exists():
+        return None
+    try:
+        return json.loads(p.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
 @dataclass(frozen=True)
 class UEDGEProvenance:
     name: str
@@ -234,21 +247,22 @@ def _read_version(pkg_root: Path) -> str:
     except Exception:
         return "unknown"
 
-
 def get_uedge_provenance(*, repo_url: str | None = "https://github.com/LLNL/UEDGE") -> UEDGEProvenance:
-    """
-    Return provenance information suitable for citation. Never raises.
-
-    Parameters
-    ----------
-    repo_url:
-        Canonical repository URL to include in citation outputs. Override if needed.
-    """
     pkg_root = Path(__file__).resolve().parent
 
     version = _read_version(pkg_root)
-    build_type = _detect_build_type(pkg_root)
-    branch, commit, commit_date_iso, dirty = _detect_git_info(pkg_root)
+
+    build_info = _read_build_info(pkg_root)
+    if build_info:
+        branch = build_info.get("git_branch")
+        commit = build_info.get("git_sha")
+        commit_date_iso = build_info.get("git_commit_date_iso") or None
+        dirty = build_info.get("git_dirty")  # optional; usually omitted for wheels
+        build_type = build_info.get("source") or "wheel"
+        repo_url = build_info.get("repo_url") or repo_url
+    else:
+        build_type = _detect_build_type(pkg_root)
+        branch, commit, commit_date_iso, dirty = _detect_git_info(pkg_root)
 
     return UEDGEProvenance(
         name="UEDGE",
