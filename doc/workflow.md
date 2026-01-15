@@ -67,6 +67,91 @@ Feature branches:
 
 ---
 
+### Stale Branch Management
+
+This section defines how **inactive branches** are archived and eventually removed, while
+preserving scientific history and ensuring repository hygiene.
+
+#### Definition of a Stale Branch
+
+A branch is considered **stale** if **all** of the following are true:
+
+- No commits for **12 months**
+- No open or merged pull requests for **12 months**
+- Not referenced by:
+  - an active release
+  - an open issue or milestone
+  - current development plans
+
+#### Stale Branch Lifecycle
+
+Stale branch handling follows a **two-stage lifecycle**: archive, then delete.
+
+##### 1. Archive (Rename to `stale/*`)
+
+When a branch meets the stale criteria:
+
+- The branch is renamed to:
+  ```
+  stale/<original-branch-name>
+  ```
+- Renaming preserves the full commit history.
+- Archived branches are **read-only** and **not valid PR targets**.
+
+Branch protection is **automatically applied** to all `stale/*` branches via
+GitHub Actions, enforcing:
+- no direct pushes
+- no force-pushes
+- no deletions
+- PRs blocked or restricted to maintainers
+
+##### 2. Documentation and Notification
+
+Every archived branch must be documented:
+
+- A tracking issue is opened noting:
+  - branch name
+  - last activity date
+  - reason for archival
+  - planned deletion date (archive + 12 months)
+- An entry is added to the stale branch log:
+  - `docs/stale-branches-log.md`
+
+This ensures transparency and auditability.
+
+##### 3. Deletion (After Archive Period)
+
+After **12 additional months** in the archived (`stale/*`) state:
+
+- The branch may be deleted if no renewed development need exists.
+- A final notice is added to the tracking issue.
+- The deletion date is recorded in the stale branch log.
+
+##### 4. Revival (If Needed)
+
+If development must resume:
+
+- Create a new active branch from the stale branch tip:
+  ```
+  feature/v8-<topic>
+  feature/v9-<topic>
+  ```
+- Development must **not** occur directly on `stale/*` branches.
+- The new work should reference the original stale branch and tracking issue.
+
+#### Maintainer Responsibility
+
+- Only maintainers may archive or delete branches.
+- Maintainers must follow the documented checklist:
+  - `docs/maintainers/stale-branches.md`
+- Deviations require explicit maintainer approval.
+
+---
+
+This policy ensures inactive work is preserved responsibly while keeping the active
+development surface clean and understandable.
+
+
 ## 4. Pull Requests
 
 - PRs target **feature branches only**
