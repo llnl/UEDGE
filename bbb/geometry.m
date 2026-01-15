@@ -1114,7 +1114,7 @@ c...  Set dxnog for orthog mesh; if isnonog=1, call to nonorthg above sets
 
 c...  Calculate a normalization constant for the iy=0 cells
 c...  of the core boundary region
-      if ((geometry(1:9)=="snowflake" .and. geometry(10:11).ne."15")
+      if ((geometry(1:9)=="snowflake" .and. ((geometry(10:11).ne."15") .and. (geometry(10:12).ne."165")))
      &       .or. geometry=="dnXtarget") then
         ix_last_core_cell = ixpt2(1)
       else
@@ -1124,14 +1124,21 @@ c...  of the core boundary region
       ix = min(ix, nx+ixmxbcl)
       sygytotc = sy(ix,0)*gyf(ix,0)
       do ix = ixpt1(1)+1, ix_last_core_cell
+         !TODO: Should this block move below definition of isixcore below, and then this loop should only be over cells where isixcore(ix) == 1?
          if ( .not. (isudsym==1 .and. ((ix==nxc) .or. (ix==nxc+1))) ) then
-           sygytotc = sygytotc + sy(ix,0)*gyf(ix,0)
+         sygytotc = sygytotc + sy(ix,0)*gyf(ix,0)
          endif
       enddo
 
 c...  Setup the isixcore(ix) array: =1 if ix on iy=0 core bdry; =0 if not
       do ix = 0, nx+1
-        if ((geometry(1:9)=="snowflake" .and. geometry(10:11).ne."15")
+        if (geometry(1:9)=="snowflake" .and. (geometry(10:12)=="135" .or. geometry(10:12)=="105")) then 
+          if( ix > ixpt2(1) .and. ix <= ixpt1(2)) then
+            isixcore(ix) = 1
+          else
+            isixcore(ix) = 0
+          endif
+        else if ((geometry(1:9)=="snowflake" .and. ((geometry(10:11).ne."15") .and. (geometry(10:12).ne."165")))
      &       .or. geometry=="dnXtarget") then
           if( ix > ixpt1(1) .and. ix <= ixpt2(1)) then
             isixcore(ix) = 1
@@ -1149,7 +1156,6 @@ c...  Setup the isixcore(ix) array: =1 if ix on iy=0 core bdry; =0 if not
           endif
         endif
       enddo
-          
 *----------------------------------------------------------------------
 *  -- Calculate geometrical factors needed for curvature and grad_B drifts
 
@@ -1322,12 +1328,21 @@ c ... Fix the core boundary; just a convention
 *  -- define y on density faces -- at outboard midplane (?)
       if (ixpt2(1) > 0 .and. (isudsym.ne.1) .and.isddcon==0) then
          rmmax = rm(nxleg(1,1)+nxcore(1,1)+1,ny,0)
-         do ix = nxleg(1,1)+nxcore(1,1)+1, ixpt2(1)
-           if (rm(ix,ny,0) >= rmmax) then
-              rmmax = rm(ix,ny,0)
-              ixmp = ix
-           endif
-         enddo
+         if (geometry=='snowflake135') then 
+            do ix = nxleg(1,1)+nxcore(1,1)+1, ixpt1(2)
+               if (rm(ix,ny,0) >= rmmax) then
+                  rmmax = rm(ix,ny,0)
+                  ixmp = ix
+               endif
+            enddo
+         else 
+            do ix = nxleg(1,1)+nxcore(1,1)+1, ixpt2(1)
+            if (rm(ix,ny,0) >= rmmax) then
+               rmmax = rm(ix,ny,0)
+               ixmp = ix
+            endif
+            enddo
+         end if
       endif
       if (geometry.eq.'dnbot') ixmp = nxc+1
       if (geometry.eq.'dnull' .or. geometry=='snowflake15' .or.
