@@ -1,263 +1,324 @@
 name: Build and test UEDGE - write wheel files if tests pass
+permissions:
+  contents: read
 
-
-on: [push, pull_request]
+on:
+  push:
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
 
 jobs:
-
-  check-requests:
-    name: Checks whether tests and/or wheels are requested
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Set UBUNTU tags env variables.
-      if: runner.os == 'Linux'
-      run: |
-          # Set "checking" variable to false by default.
-          # Get your last commit message, not the merge commit.
-          text=$(git log -1 --no-merges --pretty=%B)
-          # Read the commit message into an array split by "#".
-          readarray -d "#" -t commit_message <<< "$text"
-          # Sanity check.
-          echo "Tags are: ${commit_message[1]}"
-          # Add tags and overwrite "checking" variable to true if there are tags.
-          if [[ "${commit_message[1]}" == *"@notest"*  ]]; then
-              echo "Seting test flags to FALSE"
-              echo "test=FALSE" >> $GITHUB_OUTPUT
-          else
-              echo "Seting test flags to TRUE"
-              echo "test=TRUE" >> $GITHUB_OUTPUT
-          fi
-          if [[ "${commit_message[1]}" == *"@nowheel"*  ]]; then
-              echo "Seting wheel flags to FALSE"
-              echo "wheel=FALSE" >> $GITHUB_OUTPUT
-          else
-              echo "Seting wheel flags to TRUE"
-              echo "wheel=TRUE" >> $GITHUB_OUTPUT
-          fi
-
-
-
   run-all-tests:
     name: Runs test ${{ matrix.tests }}
     runs-on: ubuntu-latest
-    needs: check-requests
-    if: needs.check-requests.outputs.test != 'TRUE'
     strategy:
       fail-fast: false
       matrix:
-        python-version: [3.11]
-        tests: [fulltests, unittests/D+C, unittests/D_mols, unittests/D_only, unittests/slab_D_only]
+        python-version: ["3.9"]
+        tests:
+          - fulltests
+          - unittests/D+C
+          - unittests/D_mols
+          - unittests/D_only
+          - unittests/slab_D_only
     steps:
-    - uses: actions/checkout@v4
+      - name: Check out repo (with tags)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # needed so tags exist locally
 
-    - name: Check branch and define test branch
-      env:
-        BRANCH_NAME: ${{ github.head_ref || github.ref_name }} 
-      run: |
-        echo "Branch is:", $BRANCH_NAME
-        if [[ ${BRANCH_NAME} == *"master"* ]]; then
-            echo "testbranch=pytests" >> $GITHUB_ENV
-            echo "Using pytests test branch"
-        else
-            echo "testbranch=pytests-develop" >> $GITHUB_ENV
-            echo "Using pytests-develop test branch"
-        fi
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
 
-    - name: Echo test branch name
-      run: |
-        echo ${{ env.testbranch }}
+      - name: Set up Fortran (gfortran)
+        uses: fortran-lang/setup-fortran@v1
+        with:
+          compiler: gcc
 
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
-      with:
-        python-version: ${{ matrix.python-version }}
+      - name: Install pip dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "forthon>=0.10.7" "numpy==1.26.4" h5py
+          python -m pip install flake8
+          python -m pip install pytest-isolate pytest-xdist
 
-    - name: Install pip dependencies
-      run: |
-        python -m pip install --upgrade pip
-        python -m pip install forthon>=0.10.7 numpy==1.26.4 h5py
-        python -m pip install flake8
-        python -m pip install pytest-isolate pytest-xdist
+      - name: Build UEDGE
+        run: |
+          python -m pip install .
 
-    - name: Build UEDGE
-      run: |
-        python -m pip install . -C "--build-option=--serial"
+      - name: Check out pytests branch into subdir
+        uses: actions/checkout@v4
+        with:
+          ref: pytests
+          repository: LLNL/UEDGE
+          path: pytests-src
 
-    - name: Switch to pytests branch
-      uses: actions/checkout@v4
-      with:
-        ref: ${{ env.testbranch }}
-        repository: LLNL/UEDGE 
-
-    - name: Test with pytest
-      run: |
-        # Create a clean UEDGE instance for every test
-        pytest --isolate --tb=long pytests/${{ matrix.tests }} -s
-
+      - name: Test with pytest
+        run: |
+          # Run tests from the checked-out pytests tree; UEDGE is already installed above.
+          pytest --isolate --tb=native "pytests-src/pytests/${{ matrix.tests }}"
 
   build_wheels:
-    name: Build wheels on ${{ matrix.os }} for Python ${{ matrix.pyver }}
-    needs: [run-all-tests, check-requests]
-    if: needs.check-requests.outputs.wheels != 'TRUE'
-    runs-on: ${{ matrix.os }}
-    continue-on-error: true
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-13, macos-14] 
-        pyver: [cp38, cp39, cp310, cp311, cp312]
-
-    steps:
-      - name: Checks out repo
-        uses: actions/checkout@v4
-
-      - name: Set up macOS-specific paths and libraries
-        if: runner.os == 'macOS'
-        run: |
-            # Symlink the correct gfortran compiler 
-            ln -s $(brew --prefix)/bin/gfortran-13 $(brew --prefix)/bin/gfortran
-            # Install OMP libraries
-            brew install libomp
-            # Link environments to env for later us with cibuildwheel
-            echo "LIBOMPPATH=$(brew --prefix libomp)" >> $GITHUB_ENV
-            echo "LLVMCLANG=$(brew --prefix llvm@15)" >> $GITHUB_ENV
-
-      - name: Build wheels
-        uses: pypa/cibuildwheel@v2.17.0
-        env:
-            CIBW_BUILD: ${{matrix.pyver}}-*
-            CIBW_SKIP: "pp37-* cp37-* *-win32 *-manylinux_i686"
-            CIBW_ARCHS_LINUX: auto
-            CIBW_BEFORE_BUILD: pip install numpy 'forthon>=0.10.7' 'build<0.10.0'
-            CC: ${{ env.LLVMCLANG }}/bin/clang
-            LDFLAGS: "-L${{env.LIBOMPPATH }}/lib"
-
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: cibw-wheels-${{ matrix.os }}-${{ matrix.pyver }}-${{ strategy.job-index }}
-          path: ./wheelhouse/*.whl
-
-  build_wheels_pypy:
-    name: Build PyPy wheels on ${{ matrix.os }} 
-    if: false
-#    if: github.event_name == 'pull_request'
+    name: Build CPython wheels on ${{ matrix.os }}
+    # Only build wheels for tags (push) and published releases; never on PRs.
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     needs: run-all-tests
     runs-on: ${{ matrix.os }}
-    continue-on-error: true
+#    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-13, macos-14] 
+        include:
+          - os: ubuntu-latest
+          - os: macos-14
+            macos_target: "14.0"
+          - os: macos-latest
+            macos_target: "15.0"
+          - os: macos-15-intel
+            macos_target: "15.0"
 
     steps:
-      - name: Checks out repo
+      - name: Check out repo (with tags)
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # needed so tags exist locally
 
-      - name: Set up macOS-specific paths and libraries
-        if: runner.os == 'macOS'
+      - name: Set up Fortran (gfortran)
+        uses: fortran-lang/setup-fortran@v1
+        with:
+          compiler: gcc
+
+      - name: Determine latest tag
+        id: latest_tag
+        shell: bash
         run: |
-            # Symlink the correct gfortran compiler 
-            ln -s $(brew --prefix)/bin/gfortran-13 $(brew --prefix)/bin/gfortran
-            # Install OMP libraries
-            brew install libomp
-            # Link environments to env for later us with cibuildwheel
-            echo "LIBOMPPATH=$(brew --prefix libomp)" >> $GITHUB_ENV
-            echo "LLVMCLANG=$(brew --prefix llvm@15)" >> $GITHUB_ENV
+          git fetch --tags --force
+          tag=$(git tag -l 'v*' --sort=-v:refname | head -n 1)
+          if [[ -z "$tag" ]]; then
+            echo "No v* tags found." >&2
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "Latest v* tag is: $tag"
 
-      - name: Build wheels
-        uses: pypa/cibuildwheel@v2.17.0
+      - name: Write build metadata for wheel provenance
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, os
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          sha = os.getenv("GITHUB_SHA", "")
+          ref_name = os.getenv("GITHUB_REF_NAME", "")
+          repo = os.getenv("GITHUB_REPOSITORY", "LLNL/UEDGE")
+          url = f"https://github.com/{repo}"
+
+          info = {
+              "git_sha": sha or None,
+              "git_branch": ref_name or None,        # tag name on tag builds; branch on branch builds
+              "source": "wheel",
+              "build_time_utc": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+              "repo_url": url,
+          }
+
+          out = Path("src/uedge/_build_info.json")
+          out.write_text(json.dumps(info, indent=2) + "\n", encoding="utf-8")
+          print(f"Wrote {out}:", out.read_text(encoding="utf-8"))
+          PY
+
+      - name: Check out latest tag (manual runs only)
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          git checkout "refs/tags/${{ steps.latest_tag.outputs.tag }}"
+
+      - name: Build wheels (CPython)
+        uses: pypa/cibuildwheel@v2.23.3
         env:
-            CIBW_BUILD: pp*
-            CIBW_SKIP: "pp37-* cp37-* *-win32 *-manylinux_i686"
-            CIBW_BEFORE_BUILD: pip install numpy 'forthon>=0.10.7' 'build<0.10.0'
-            CC: ${{ env.LLVMCLANG }}/bin/clang
-            LDFLAGS: "-L${{env.LIBOMPPATH }}/lib"
+          # Clean old UEDGE builds
+          UEDGE_CLEAN_BUILD: "1" 
+          # Build all supported CPython wheels in one run.
+          CIBW_BUILD: "cp38-* cp39-* cp310-* cp311-* cp312-* cp313-*"
+          # Clean skip list: no 32-bit builds; no Linux i686. (We are *not* skipping musllinux.)
+          CIBW_SKIP: "*-manylinux_i686 *-musllinux_*"
+          CIBW_ARCHS_LINUX: auto
+          CIBW_BUILD_VERBOSITY: 1
+          CIBW_ENVIRONMENT_MACOS: ${{ matrix.macos_target && format('MACOSX_DEPLOYMENT_TARGET={0}', matrix.macos_target) || '' }}
+          CIBW_BEFORE_BUILD: >
+            python -m pip install --upgrade pip &&
+            pip install numpy "forthon>=0.10.7" "build<0.10.0"
+          CIBW_TEST_COMMAND: 'python -c "import uedge; print(\"uedge imported OK:\", uedge.__version__)"'
 
-      - name: Upload Artifacts
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: cibw-wheels-pyp-${{ matrix.os }}-${{ strategy.job-index }}
+          name: cibw-wheels-cpython-${{ matrix.os }}-${{ github.event_name == 'workflow_dispatch' && steps.latest_tag.outputs.tag || github.ref_name }}
           path: ./wheelhouse/*.whl
 
-  build_wheels_cross:
-    name: Build Linux cross-wheels
-    if: false
+  build_wheels_legacy_os:
+    name: Build cibuildwheel legacy macOS wheels (${{ matrix.arch }} macOS>=${{ matrix.macos_target }})
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'release' || github.event_name == 'workflow_dispatch'
     needs: run-all-tests
-    runs-on: ubuntu-latest
-    continue-on-error: true
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
-        pyver: [cp38, cp39, cp310, cp311, cp312]
-        arch: [aarch64, ppc64le]
+        include:
+          # Intel / x86_64 wheels (target macOS 10.x+)
+          - runner: macos-15-intel
+            arch: x86_64
+            macos_target: "10.9"
+          # Apple Silicon / arm64 wheels (target macOS 11+)
+          - runner: macos-latest
+            arch: arm64
+            macos_target: "11.0"
 
     steps:
-      - name: Checks out repo
+      - name: Check out repo (with tags)
         uses: actions/checkout@v4
-    
-      - name: Set up QEMU for multi-arch build
-        uses: docker/setup-qemu-action@v2
+        with:
+          fetch-depth: 0
 
-      - name: Build wheels
+      # Install Miniforge (conda-forge) and create an env with compilers
+      - name: Set up Miniforge + conda-forge compilers
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniforge-variant: Miniforge3
+          miniforge-version: latest
+          activate-environment: cibw
+          auto-update-conda: true
+          use-mamba: true
+          channels: conda-forge
+          channel-priority: strict
+
+      - name: Install compilers (conda-forge)
+        shell: bash -l {0}
+        run: |
+          mamba install -y compilers make pkg-config
+          python -V
+          which cc || true
+          which clang || true
+          which gfortran || true
+          gfortran --version || true
+
+      # Ensure conda env is on PATH for subsequent steps (including cibuildwheel action)
+      - name: Put conda env on PATH
+        shell: bash -l {0}
+        run: |
+          echo "$CONDA_PREFIX/bin" >> "$GITHUB_PATH"
+          echo "CONDA_PREFIX=$CONDA_PREFIX" >> "$GITHUB_ENV"
+
+      - name: Write build metadata for wheel provenance
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, os
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          sha = os.getenv("GITHUB_SHA", "")
+          ref_name = os.getenv("GITHUB_REF_NAME", "")
+          repo = os.getenv("GITHUB_REPOSITORY", "LLNL/UEDGE")
+          url = f"https://github.com/{repo}"
+
+          info = {
+              "git_sha": sha or None,
+              "git_branch": ref_name or None,        # tag name on tag builds; branch on branch builds
+              "source": "wheel",
+              "build_time_utc": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+              "repo_url": url,
+          }
+
+          out = Path("src/uedge/_build_info.json")
+          out.write_text(json.dumps(info, indent=2) + "\n", encoding="utf-8")
+          print(f"Wrote {out}:", out.read_text(encoding="utf-8"))
+          PY
+
+      - name: Build wheels (legacy macOS targets via conda-forge toolchain)
         uses: pypa/cibuildwheel@v2.17.0
         env:
-            CIBW_BUILD: ${{matrix.pyver}}-*
-            IBW_SKIP: cp37-*
-            CIBW_ARCHS: ${{matrix.arch}}
-            CIBW_BEFORE_BUILD: pip install numpy 'forthon>=0.10.7' 'build<0.10.0'
+          # Clean old UEDGE builds
+          UEDGE_CLEAN_BUILD: "1" 
+          # Build CPython 3.8–3.13
+          CIBW_BUILD: "cp38-* cp39-* cp310-* cp311-* cp312-* cp313-*"
 
-      - name: Upload Artifacts
+          # Limit builds to the runner arch
+          CIBW_ARCHS_MACOS: ${{ matrix.arch }}
+
+          # Your existing skips; keep i686 skips, keep Windows out
+          CIBW_SKIP: "*-manylinux_i686 *-musllinux_*"
+
+          # Pin the minimum supported macOS for THIS matrix entry
+          # Also set CMAKE_OSX_DEPLOYMENT_TARGET for projects that use CMake internally
+          CIBW_ENVIRONMENT_MACOS: >
+            MACOSX_DEPLOYMENT_TARGET=${{ matrix.macos_target }}
+            CMAKE_OSX_DEPLOYMENT_TARGET=${{ matrix.macos_target }}
+            CONDA_PREFIX=${{ env.CONDA_PREFIX }}
+            DYLD_LIBRARY_PATH=${{ env.CONDA_PREFIX }}/lib
+            LIBRARY_PATH=${{ env.CONDA_PREFIX }}/lib
+            CC=cc
+            CXX=c++
+            FC=gfortran
+            F77=gfortran
+            F90=gfortran
+            LDFLAGS=-Wl,-rpath,${{ env.CONDA_PREFIX }}/lib
+            CPPFLAGS=-I${{ env.CONDA_PREFIX }}/include
+
+          # If you still need your usual build deps
+          CIBW_BEFORE_BUILD: >
+            python -m pip install --upgrade pip &&
+            pip install numpy "forthon>=0.10.7" "build<0.10.0"
+          CIBW_TEST_COMMAND: 'python -c "import uedge; print(\"uedge imported OK:\", uedge.__version__)"'
+
+
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: cibw-cross-wheels-${{ matrix.arch }}-${{ matrix.pyver }}-${{ strategy.job-index }}
+          name: cibw-wheels-legacy-maxos-${{ matrix.arch }}-macosx_${{ matrix.macos_target }}-cpython-${{ github.event_name == 'workflow_dispatch' && steps.latest_tag.outputs.tag || github.ref_name }}
           path: ./wheelhouse/*.whl
 
-  build_wheels_cross_pypy:
-    name: Build Linux PyPy cross-wheels
-    if: false
-    needs: run-all-tests
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    strategy:
-      fail-fast: false
-
-    steps:
-      - name: Checks out repo
-        uses: actions/checkout@v4
-    
-      - name: Set up QEMU for multi-arch build
-        uses: docker/setup-qemu-action@v2
-
-      - name: Build wheels
-        uses: pypa/cibuildwheel@v2.17.0
-        env:
-            CIBW_BUILD: pp*
-            CIBW_SKIP: "pp37-* cp37-* *-win32 *-manylinux_i686"
-            CIBW_BEFORE_BUILD: pip install numpy 'forthon>=0.10.7' 'build<0.10.0'
-
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: cibw-cross-wheels-pypy-${{ strategy.job-index }}
-          path: ./wheelhouse/*.whl
 
   gather_wheels:
     name: Gather built wheels
-    needs: [build_wheels] #, build_wheels_pypy]
-#    if: github.event_name == 'pull_request'
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    needs: [build_wheels, build_wheels_legacy_os]
     runs-on: ubuntu-latest
+
     steps:
-      - name: Download all Artifacts and merges them
+      - name: Check out repo (with tags)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine latest v* tag (manual runs)
+        id: latest_tag
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          git fetch --tags --force
+          tag=$(git tag -l 'v*' --sort=-v:refname | head -n 1)
+          if [[ -z "$tag" ]]; then
+            echo "No v* tags found." >&2
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "Latest v* tag is: $tag"
+
+      - name: Download all wheel artifacts
         uses: actions/download-artifact@v4
-        with: 
+        with:
           path: wheels
           merge-multiple: true
 
-      - name: Upload all Artifacts in a single Archive
+      - name: Upload combined wheel archive
         uses: actions/upload-artifact@v4
         with:
-          name: all_wheels
+          name: all_wheels-${{ github.event_name == 'workflow_dispatch' && steps.latest_tag.outputs.tag || github.ref_name }}
           path: wheels
+
+
