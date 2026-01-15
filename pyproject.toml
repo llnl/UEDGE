@@ -76,6 +76,8 @@ script-files = [
 #packages = ["uedge"]
 #package-dir = {"" = "pyscripts"}
 
+[tool.setuptools.package-data]
+uedge = ["VERSION", "_build_info.json"]
 
 
 [tool.setuptools.dynamic]
