@@ -9,6 +9,8 @@ import string
 import site
 from Forthon.compilers import FCompiler
 import getopt
+import glob
+import shutil
 import logging
 from subprocess import call
 from sys import hexversion, argv, platform
@@ -100,6 +102,81 @@ fcompiler = FCompiler(machine=machine,
                       fcompname=fcomp)
 
 
+
+
+class uedgeBuild(build):
+    def run(self):
+        print("Building UEDGE...")
+        # with python2 everything is put into a single uedgeC.so file
+        if sys.hexversion < 0x03000000:
+            raise SystemExit("Python versions < 3 not supported")
+
+        if os.environ.get("UEDGE_CLEAN_BUILD", "") == "1":
+            print("UEDGE_CLEAN_BUILD=1: cleaning build directory")
+            shutil.rmtree("build", ignore_errors=True)
+
+        py_tag = sys.implementation.cache_tag  # cpython-39, pypy39, etc.
+        status = call(['make', '-f','Makefile.Forthon', f"PYTAG={py_tag}", f"MYPYTHON={sys.executable}"])
+        if status != 0: 
+            raise SystemExit("Build failure")
+        # Run the normal setuptools build (creates build_lib, builds ext_modules, etc.)
+        build.run(self)
+
+
+
+        # Sanity check: ensure generated modules are where we expect for packaging
+        pkg_out = os.path.join(self.build_lib, "uedge")
+        need = ["compy*.so", "uedgeC*.so"]
+        missing = []
+        for pat in need:
+            if not glob.glob(os.path.join(pkg_out, pat)):
+                missing.append(pat)
+
+        if missing:
+            raise SystemExit(
+                f"Expected generated modules missing from {pkg_out}: {missing}\n"
+                f"Found: {sorted(os.listdir(pkg_out))}"
+            )
+
+
+
+
+class uedgeClean(build):
+    def run(self):
+        print("Cleaning UEDGE")
+        if sys.hexversion < 0x03000000:
+            raise SystemExit("Python versions < 3 not supported")
+        else:
+#            if petsc == 0:
+            status = call(['make', '-f', 'Makefile.Forthon', 'clean'])
+#            else:
+#                status = call(['make', '-f', 'Makefile.PETSc', 'clean'])
+            if status != 0: 
+                raise SystemExit("Clean failure")
+
+
+#class CustomDevelopCommand(develop):
+#    def run(self):
+#        print("Develop called")
+#        develop.run(self)
+
+
+#class CustomEggInfoCommand(egg_info):
+#    def run(self):
+#        print("EggInfo called")
+#        egg_info.run(self)
+
+uedgepkgs = ['aph', 'api', 'bbb', 'com', 'flx', 'grd', 'svr', 'wdf', 'ncl']
+
+
+def makeobjects(pkg):
+    return [pkg+'_p.o', pkg+'pymodule.o']
+
+
+uedgeobjects = []
+
+# add here any extra dot o files other than pkg.o, pkg_p.o
+
 dummydist = Distribution()
 dummydist.parse_command_line()
 dummybuild = dummydist.get_command_obj('build')
@@ -133,8 +210,6 @@ if rln == 0:
    define_macros = define_macros + [("HAS_READLINE","1")]
    os.environ["READLINE"] = "-l readline"
    libraries = ['readline'] + libraries
-
-
 
 
 """ ==========================================================================
@@ -682,8 +757,6 @@ def mppl2f90(
 
 
 
-
-
 class uedgeWheel(bdist_wheel):
     from os import environ
     if arglist['noclean']:
@@ -778,29 +851,26 @@ class uedgeClean(build):
         if call(['make', '-f', 'Makefile.Forthon', 'cleanbuild']) != 0:
             raise SystemExit("Clean failure")
 
-setup(  name="uedge",
-        ext_modules= [
-            Extension(
-                'uedge.uedgeC',
-                [   'uedgeC_Forthon.c',
-                    os.path.join(builddir, 'Forthon.c'),
-                    'com/handlers.c', 
-                    'com/vector.c',
-                    'bbb/exmain.c'
-                ],
-                include_dirs = [
-                    builddir, 
-                    numpy.get_include()
-                ],
-                library_dirs=library_dirs,
-                libraries=libraries,
-                define_macros=define_macros,
-                extra_objects=uedgeobjects,
-                extra_link_args=FLAGS['CARGS']+['-g','-DFORTHON'] +
-                fcompiler.extra_link_args,
-                extra_compile_args=fcompiler.extra_compile_args
-            )
-        ],
+
+setup(
+        packages=find_packages(),
+        include_package_data=True,
+        package_data={
+             "uedge": ["*.so", "*.dylib", "*.pyd", "VERSION", "uedgeC.py"],
+        },
+        ext_modules=[Extension('uedge.uedgeC',
+                            ['uedgeC_Forthon.c',
+                            os.path.join(builddir, 'Forthon.c'),
+                            'com/handlers.c', 'com/vector.c','bbb/exmain.c'],
+                            include_dirs=[builddir, numpy.get_include()],
+                            library_dirs=library_dirs,
+                            libraries=libraries,
+                            define_macros=define_macros,
+                            extra_objects=uedgeobjects,
+                            extra_link_args=['-g','-DFORTHON'] +
+                            fcompiler.extra_link_args,
+                            extra_compile_args=fcompiler.extra_compile_args
+                    )],
         cmdclass={
             'build': uedgeBuild,
             'clean': uedgeClean,

@@ -3,52 +3,54 @@ DEBUG = -v --fargs "-Ofast -DFORTHON -cpp" -g --fargs #"-C=array" #--fargs "-CB 
 SO = so
 PUBLICHOME = 
 BUILDDIR = build
+PYTAG ?= default
 DIRLIST = com aph bbb api flx grd svr wdf ppp ncl
-MYPYTHON = python3
+DIRLIST = com aph api bbb flx grd svr wdf ncl
+MYPYTHON ?= python3
 FORTHON = Forthon3
 BUILDBASE = -v --build-base $(BUILDDIR)
 INSTALLARGS = --pkgbase uedge $(BUILDBASE) $(OMPFLAGS)
 
-all: $(BUILDDIR)/compydep $(BUILDDIR)/bbbpydep $(BUILDDIR)/aphpydep  $(BUILDDIR)/apipydep $(BUILDDIR)/ppppydep $(BUILDDIR)/flxpydep $(BUILDDIR)/grdpydep $(BUILDDIR)/svrpydep $(BUILDDIR)/wdfpydep $(BUILDDIR)/nclpydep
+all: $(BUILDDIR)/compydep.$(PYTAG) $(BUILDDIR)/bbbpydep.$(PYTAG) $(BUILDDIR)/aphpydep.$(PYTAG)  $(BUILDDIR)/apipydep.$(PYTAG) $(BUILDDIR)/ppppydep.$(PYTAG) $(BUILDDIR)/flxpydep.$(PYTAG) $(BUILDDIR)/grdpydep.$(PYTAG) $(BUILDDIR)/svrpydep.$(PYTAG) $(BUILDDIR)/wdfpydep.$(PYTAG) $(BUILDDIR)/nclpydep.$(PYTAG)
 	rm -f uedgeC.so
 
-$(BUILDDIR)/compydep: com/blasext.F com/brent.F com/comutil.F com/misc.F com/mnbrak.F com/dsum.f com/dummy_py.f com/error.f com/getmsg.f com/ssum.f com/$(PETSC-COM) com/com.v
+$(BUILDDIR)/compydep.$(PYTAG): com/blasext.F com/brent.F com/comutil.F com/misc.F com/mnbrak.F com/dsum.f com/dummy_py.f com/error.f com/getmsg.f com/ssum.f com/$(PETSC-COM) com/com.v
 	$(FORTHON) -a $(INSTALLARGS) -a $(FCOMP) $(DEBUG) --interfacefile com/com.v -f com/blasext.F com com/brent.F com/comutil.F com/misc.F com/mnbrak.F com/dsum.f com/dummy_py.f com/error.f com/getmsg.f com/ssum.f $(PETSC-COM)
 	touch $@
 
-$(BUILDDIR)/aphpydep: $(BUILDDIR)/compydep aph/aphrates.F aph/aphread.F aph/aph.v
+$(BUILDDIR)/aphpydep.$(PYTAG): $(BUILDDIR)/compydep.$(PYTAG) aph/aphrates.F aph/aphread.F aph/aph.v
 	$(FORTHON) -a $(INSTALLARGS)  -a $(FCOMP) $(DEBUG) --interfacefile aph/aph.v -f aph/aphrates.F aph aph/aphread.F
 	touch $@
 
-$(BUILDDIR)/apipydep: $(BUILDDIR)/compydep api/apifcn.F api/apip93.F api/apisorc.F api/fimp.F api/fmombal.F api/inelrates.F api/sputt.F api/api.v com/com.v
+$(BUILDDIR)/apipydep.$(PYTAG): $(BUILDDIR)/compydep.$(PYTAG) api/apifcn.F api/apip93.F api/apisorc.F api/fimp.F api/fmombal.F api/inelrates.F api/sputt.F api/api.v com/com.v
 	$(FORTHON) -a $(INSTALLARGS)  -a $(FCOMP) $(DEBUG) --interfacefile api/api.v -d com -f api/apifcn.F api api/apip93.F api/apisorc.F api/fimp.F api/fmombal.F api/inelrates.F api/sputt.F
 	touch $@
 
-$(BUILDDIR)/bbbpydep: $(BUILDDIR)/compydep bbb/pandf_boundary.F bbb/convert.F bbb/geometry.F bbb/griddubl.F bbb/oderhs.F bbb/pandf.F bbb/pandf_gas_energy.F	bbb/pandf_jacobian.F bbb/pandf_plasma_continuity.F bbb/pandf_gas_continuity.F bbb/pandf_plasma_momentum.F bbb/pandf_plasma_energy.F bbb/odesetup.F bbb/odesolve.F bbb/pandf_potencur.F bbb/turbulence.F bbb/ext_neutrals.F bbb/bbb.v com/com.v
+$(BUILDDIR)/bbbpydep.$(PYTAG): $(BUILDDIR)/compydep.$(PYTAG) bbb/pandf_boundary.F bbb/convert.F bbb/geometry.F bbb/griddubl.F bbb/oderhs.F bbb/pandf.F bbb/pandf_gas_energy.F	bbb/pandf_jacobian.F bbb/pandf_plasma_continuity.F bbb/pandf_gas_continuity.F bbb/pandf_plasma_momentum.F bbb/pandf_plasma_energy.F bbb/odesetup.F bbb/odesolve.F bbb/pandf_potencur.F bbb/turbulence.F bbb/ext_neutrals.F bbb/bbb.v com/com.v
 	$(FORTHON) -a $(INSTALLARGS)  -a $(FCOMP) $(DEBUG) --interfacefile bbb/bbb.v --macros com/com.v $(READLINE) -d com -f bbb/pandf_boundary.F bbb bbb/convert.F bbb/geometry.F bbb/griddubl.F bbb/pandf.F bbb/pandf_gas_energy.F	bbb/pandf_jacobian.F bbb/pandf_plasma_continuity.F bbb/pandf_gas_continuity.F bbb/pandf_plasma_momentum.F bbb/pandf_plasma_energy.F bbb/oderhs.F bbb/odesetup.F bbb/odesolve.F bbb/pandf_potencur.F bbb/turbulence.F bbb/ext_neutrals.F
 	touch $@
 
-$(BUILDDIR)/ppppydep: $(BUILDDIR)/compydep $(BUILDDIR)/bbbpydep ppp/parallel.F90 ppp/omp_parallel.F90 ppp/debug_parallel.F90 ppp/ppp.v com/com.v bbb/bbb.v
+$(BUILDDIR)/ppppydep.$(PYTAG): $(BUILDDIR)/compydep.$(PYTAG) $(BUILDDIR)/bbbpydep.$(PYTAG) ppp/parallel.F90 ppp/omp_parallel.F90 ppp/debug_parallel.F90 ppp/ppp.v com/com.v bbb/bbb.v
 	$(FORTHON) -a $(INSTALLARGS)  -a $(FCOMP) $(DEBUG) --interfacefile ppp/ppp.v --macros com/com.v --macros bbb/bbb.v -d com -d bbb -f ppp/parallel.F90 ppp ppp/omp_parallel.F90 ppp/debug_parallel.F90 
 	touch $@
 
-$(BUILDDIR)/flxpydep: $(BUILDDIR)/compydep flx/flxcomp.F flx/flxdriv.F flx/flxread.F flx/flxwrit.F flx/flx.v com/com.v
+$(BUILDDIR)/flxpydep.$(PYTAG): $(BUILDDIR)/compydep.$(PYTAG) flx/flxcomp.F flx/flxdriv.F flx/flxread.F flx/flxwrit.F flx/flx.v com/com.v
 	$(FORTHON) -a $(INSTALLARGS)  -a $(FCOMP) $(DEBUG) --interfacefile flx/flx.v -d com -f flx/flxcomp.F flx flx/flxdriv.F flx/flxread.F flx/flxwrit.F
 	touch $@
 
-$(BUILDDIR)/grdpydep: $(BUILDDIR)/compydep grd/grdcomp.F grd/grddriv.F grd/grdinit.F grd/grdread.F grd/grdwrit.F grd/grd.v com/com.v
+$(BUILDDIR)/grdpydep.$(PYTAG): $(BUILDDIR)/compydep.$(PYTAG) grd/grdcomp.F grd/grddriv.F grd/grdinit.F grd/grdread.F grd/grdwrit.F grd/grd.v com/com.v
 	$(FORTHON) -a $(INSTALLARGS)  -a $(FCOMP) $(DEBUG) --interfacefile grd/grd.v -d com -f grd/grdcomp.F grd grd/grddriv.F grd/grdinit.F grd/grdread.F grd/grdwrit.F
 	touch $@
 
-$(BUILDDIR)/svrpydep: $(BUILDDIR)/bbbpydep svr/daspk.F svr/nksol.F svr/svrut1.F svr/svrut2.F svr/svrut3.F svr/svrut4.F svr/vodpk.F svr/uoa.F svr/daux1.f svr/$(PETSC-UEDGE) svr/svr.v
+$(BUILDDIR)/svrpydep.$(PYTAG): $(BUILDDIR)/bbbpydep.$(PYTAG) svr/daspk.F svr/nksol.F svr/svrut1.F svr/svrut2.F svr/svrut3.F svr/svrut4.F svr/vodpk.F svr/uoa.F svr/daux1.f svr/$(PETSC-UEDGE) svr/svr.v
 	$(FORTHON) -a $(INSTALLARGS)  -a $(FCOMP) $(DEBUG) --interfacefile svr/svr.v --macros bbb/bbb.v -d bbb -f svr/daspk.F svr svr/nksol.F svr/svrut1.F svr/svrut2.F svr/svrut3.F svr/svrut4.F svr/vodpk.F svr/uoa.F svr/daux1.f $(PETSC-UEDGE)
 	touch $@
 
-$(BUILDDIR)/wdfpydep: wdf/wdf.F wdf/wdf.v
+$(BUILDDIR)/wdfpydep.$(PYTAG): wdf/wdf.F wdf/wdf.v
 	$(FORTHON) -a $(INSTALLARGS)  -a $(FCOMP) $(DEBUG) --interfacefile wdf/wdf.v -f wdf/wdf.F wdf
 	touch $@
 
-$(BUILDDIR)/nclpydep: ncl/ncl_driver.m ncl/ncl.v ncl/nclass_mod.f ncl/rarray_copy.f ncl/rarray_sum.f ncl/rarray_zero.f  ncl/u_erf.f ncl/u_lu_backsub.f ncl/u_lu_decomp.f ncl/write_mod.f
+$(BUILDDIR)/nclpydep.$(PYTAG): ncl/ncl_driver.m ncl/ncl.v ncl/nclass_mod.f ncl/rarray_copy.f ncl/rarray_sum.f ncl/rarray_zero.f  ncl/u_erf.f ncl/u_lu_backsub.f ncl/u_lu_decomp.f ncl/write_mod.f
 	$(FORTHON) -a $(INSTALLARGS)  -a $(FCOMP) $(DEBUG) --interfacefile ncl/ncl.v -f ncl/ncl_driver.F ncl ncl/nclass_mod.f ncl/rarray_copy.f ncl/rarray_sum.f ncl/rarray_zero.f  ncl/u_erf.f ncl/u_lu_backsub.f ncl/u_lu_decomp.f ncl/write_mod.f
 
 

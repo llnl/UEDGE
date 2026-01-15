@@ -80,6 +80,8 @@ script-files = [
     "pyscripts/hdf52pdb",
 ]
 
+[tool.setuptools.package-data]
+uedge = ["VERSION", "_build_info.json"]
 
 [tool.setuptools.package-dir]
 uedge = "src/uedge"
