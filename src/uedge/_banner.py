@@ -4,6 +4,7 @@ import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from uedge._checkver import _check_newer_uedge_ver
 
 # Sentinel: ensures banner prints only once per interpreter session
 _ALREADY_SHOWN = False
@@ -83,6 +84,8 @@ def maybe_print_banner(*, config: BannerConfig | None = None) -> None:
 
     if cfg.show_version:
         parts.append(f"v{read_version_from_file()}".rjust(31))
+        parts.append(f"{_check_newer_uedge_ver()}")
+
 
     if cfg.show_messages:
         parts.append(

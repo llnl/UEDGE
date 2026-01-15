@@ -1,10 +1,10 @@
 from __future__ import annotations
 from .uedge import *
 from os import path
-import uedge.checkver
 from uedge import __path__
 from ._banner import maybe_print_banner, set_banner_config
 from ._provenance import get_uedge_provenance
+from ._checkver import _check_newer_uedge_ver
 
 with open(path.join(__path__[0],"VERSION")) as f:
     __version__ = f.read().replace('\n', '').strip()
