@@ -846,7 +846,7 @@ c ... Jump to here for domain decomposition
 *  -- of a cell, vtag; in radians (0 is orthogonal); angfx is angle on x-face
          call s2fill (nx+2, ny+2, 0., vtag, 1, nx+2)
          call s2fill (nx+2, ny+2, 0., angfx, 1, nx+2)
-         call s2fill (nx+2, ny+2, 0., cosangfx, 1, nx+2)
+         call s2fill (nx+2, ny+2, 1., cosangfx, 1, nx+2)
          do iu = 0, 1
             call s2fill (nx+2, ny+2, 1., fx0(0:nx+1,0:ny+1,iu), 1, nx+2)
             call s2fill (nx+2, ny+2, 0., fxm(0:nx+1,0:ny+1,iu), 1, nx+2)
@@ -943,7 +943,6 @@ c              Effectively, use angfx(ix-1,iy)=angfx(ix,iy) at left boundaries
             rbfbt2(ix,iy) = rbfbt(ix,iy)/btot(ix,iy)
 *     -- define sx at density faces in x, density centers in y --
 *     -- 1/gyc is length*cos(angfx) between vertex (ix,iy) and (ix,iy-1)
-            if (mhdgeo == -1) cosangfx(ix,iy) = 1.
             dyc = sqrt((rm(ix+nj,iy,4)-rm(ix+nj,iy,2))**2
      .              + (zm(ix+nj,iy,4)-zm(ix+nj,iy,2))**2) *
      .               cosangfx(ix,iy)
