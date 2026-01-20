@@ -55,7 +55,7 @@ jobs:
       - name: Test with pytest
         run: |
           # Run tests from the checked-out pytests tree; UEDGE is already installed above.
-          pytest --isolate --tb=native "pytests-src/pytests/"
+          OMP_NUM_THREADS=1 pytest --isolate --tb=native "pytests-src/pytests/"
 
   build_wheels:
     name: Build CPython wheels on ${{ matrix.os }}
