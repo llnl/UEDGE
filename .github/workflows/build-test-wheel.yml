@@ -43,7 +43,7 @@ jobs:
 
       - name: Build UEDGE
         run: |
-          python -m pip install .
+          python -m pip install .  -C "--global-option=--serial"
 
       - name: Check out pytests branch into subdir
         uses: actions/checkout@v4
