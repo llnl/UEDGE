@@ -68,8 +68,7 @@ elif path.exists(_homefile):
 bbb.uedge_ver = __version__
 
 # Set up crmpath to point to the included 
-aph.crmdir = __path__[0]
-
+aph.crmdir = f"{__path__[0]}/rates/aph"
 #
 # Check version: included from checkver
 # 

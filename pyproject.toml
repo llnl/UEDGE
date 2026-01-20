@@ -82,11 +82,11 @@ script-files = [
 
 [tool.setuptools.package-data]
 uedge = ["VERSION", "_build_info.json"]
-"*" = ['*.dat']
+"uedge.rates" = ["aph/*.dat"]
+
 
 [tool.setuptools.package-dir]
-uedge = "src/uedge"
-"uedge.rates" = "rates"
+"" = "src"
 
 [tool.setuptools.dynamic]
 version = {file = ["src/uedge/VERSION"]}
