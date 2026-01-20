@@ -15,22 +15,10 @@ from subprocess import call
 from sys import hexversion, argv, platform
 import sys, subprocess
 import numpy
-try:
-    from setuptools import Extension, setup, Distribution, find_packages
-    from setuptools.command.build import build
-    from setuptools.command.bdist_wheel import bdist_wheel
-except:
-    from distutils.core import Extension, setup
-    from distutils.dist import Distribution
-    from distutils.command.build import build
-    from distutils.command.bdist_wheel import bdist_wheel
-
-try:
-    # setuptools vendored distutils (what you have in the traceback)
-    from setuptools._distutils.ccompiler import CCompiler
-except Exception:
-    # fallback (older environments)
-    from distutils.ccompiler import CCompiler
+from setuptools import Extension, setup, Distribution, find_packages
+from setuptools.command.build import build
+from setuptools.command.bdist_wheel import bdist_wheel
+from setuptools._distutils.ccompiler import CCompiler
 # Check Python version
 if hexversion < 0x03000000:
     raise SystemExit("Python versions < 3 not supported")
@@ -690,50 +678,6 @@ def mppl2f90(
                     END CONVERSION OF MPPL FILES TO FORTRAN
 ========================================================================== """
 
-def _libgomp_postargs():
-    fc = os.environ.get("FC", "gfortran")
-    if sys.platform == "darwin":
-        lib = subprocess.check_output([fc, "-print-file-name=libgomp.1.dylib"], text=True).strip()
-    else:
-        lib = subprocess.check_output([fc, "-print-file-name=libgomp.so.1"], text=True).strip()
-
-    if os.sep not in lib:
-        return ["-lgomp"]
-
-    libdir = os.path.dirname(lib)
-    return [f"-L{libdir}", "-lgomp", f"-Wl,-rpath,{libdir}"]
-
-
-def enable_libgomp_for_fortran_link():
-    try:
-        from numpy.distutils.fcompiler import FCompiler
-    except Exception:
-        return  # numpy not present / not using numpy.distutils
-
-    orig = FCompiler.link_shared_object
-    extra = _libgomp_postargs()
-
-    def patched(self, objects, output_libname, output_dir=None,
-                libraries=None, library_dirs=None, runtime_library_dirs=None,
-                export_symbols=None, debug=0, extra_preargs=None,
-                extra_postargs=None, build_temp=None, target_lang=None):
-        if extra_postargs is None:
-            extra_postargs = []
-        # Append if missing
-        for e in extra:
-            if e not in extra_postargs:
-                extra_postargs.append(e)
-
-        return orig(self, objects, output_libname, output_dir=output_dir,
-                    libraries=libraries, library_dirs=library_dirs,
-                    runtime_library_dirs=runtime_library_dirs,
-                    export_symbols=export_symbols, debug=debug,
-                    extra_preargs=extra_preargs, extra_postargs=extra_postargs,
-                    build_temp=build_temp, target_lang=target_lang)
-
-    FCompiler.link_shared_object = patched
-
-
 
 class uedgeWheel(bdist_wheel):
     from os import environ
@@ -822,9 +766,6 @@ class uedgeBuild(build):
         COMPILEFLAGS ='DEBUG = -v --fargs "{}"'.format(' '.join(FLAGS['FARGS']))
         if FLAGS['CARGS']!=[]:
             COMPILEFLAGS = COMPILEFLAGS+' --cargs="{}"'.format(' '.join(FLAGS['CARGS']))
-        # Fix libraries
-        if not arglist['serial']:
-            enable_libgomp_for_fortran_link()
 
         py_tag = sys.implementation.cache_tag  # cpython-39, pypy39, etc.
         #NOTE: removing flags causes crash: unclear why
