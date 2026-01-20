@@ -218,7 +218,8 @@ class Petsc:
 class Omp:
     def parse(self, s):
         from os import getenv
-        if getenv("OMP", 'False').lower() in ('true', '1', 't'):
+#        if getenv("OMP", 'False').lower() in ('true', '1', 't'):
+        if True:
             if s.startswith("c!omp"):
                 s=s.replace("c!omp","     ")
         return s
