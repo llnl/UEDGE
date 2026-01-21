@@ -133,6 +133,13 @@ jobs:
         run: |
           git checkout "refs/tags/${{ steps.latest_tag.outputs.tag }}"
 
+
+      - name: Install HDF5 system dependencies (Ubuntu only)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libhdf5-dev pkg-config
+
       - name: Build wheels (CPython)
         uses: pypa/cibuildwheel@v2.23.3
         env:
