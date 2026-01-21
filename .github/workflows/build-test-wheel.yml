@@ -48,7 +48,6 @@ jobs:
       - name: Check out pytests branch into subdir
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
           ref: pytests
           repository: LLNL/UEDGE
           path: pytests-src

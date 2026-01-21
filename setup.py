@@ -12,6 +12,7 @@ from Forthon.compilers import FCompiler
 import getopt
 import logging
 from subprocess import call
+from shutil import rmtree
 from sys import hexversion, argv, platform
 import sys, subprocess
 import numpy
@@ -754,7 +755,7 @@ class uedgeBuild(build):
     
         if os.environ.get("UEDGE_CLEAN_BUILD", "") == "1":
             print("UEDGE_CLEAN_BUILD=1: cleaning build directory (env)")
-            shutil.rmtree("build", ignore_errors=True)
+            rmtree("build", ignore_errors=True)
 
 
         print("Converting MPPL files to Fortran in build")
