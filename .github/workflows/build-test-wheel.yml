@@ -160,13 +160,11 @@ jobs:
             ${{ matrix.macos_target && format('MACOSX_DEPLOYMENT_TARGET={0}', matrix.macos_target) || '' }}
           CIBW_BEFORE_BUILD: >
             python -m pip install --upgrade pip &&
-            pip download --only-binary=:all: h5py &&
             pip install numpy "forthon>=0.10.7" "build<0.10.0"
           CIBW_BEFORE_BUILD_LINUX: "python -m pip install -U pip && pip download --only-binary=:all: h5py"
           CIBW_BUILD_FRONTEND: "pip"
           CIBW_TEST_COMMAND: >
             python -m pip install -U pip &&
-            python -m pip install --only-binary=h5py {wheel} &&
             python -c "import uedge; print('uedge imported OK:', uedge.__version__)"
 
       - name: Upload artifacts
