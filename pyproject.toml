@@ -43,8 +43,9 @@ classifiers = [
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
     "Topic :: Scientific/Engineering :: Physics",
+    "License :: OSI Approved :: GNU Lesser General Public License v2 or later (LGPLv2+)"
 ]
-license = "LGPL-2.1-or-later"
+license = {file = "LICENSE"}
 
 [project.urls]
 Homepage = "https://github.com/LLNL/UEDGE/"
