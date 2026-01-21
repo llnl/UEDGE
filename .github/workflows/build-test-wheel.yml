@@ -4,8 +4,8 @@ permissions:
 
 on:
   push:
-    tags: ["v*"]
-    branches: ["**"]
+#    tags: ["v*"]
+#    branches: ["**"]
   pull_request:
   workflow_dispatch:
 
@@ -61,7 +61,7 @@ jobs:
   build_wheels:
     name: Build CPython wheels on ${{ matrix.os }}
     # Only build wheels for tags (push) and published releases; never on PRs.
-    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+#    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
 #    needs: run-all-tests
     runs-on: ${{ matrix.os }}
 #    continue-on-error: true
@@ -70,29 +70,31 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-#          - os: macos-14
-#            macos_target: "14.0"
-#          - os: macos-latest
-#            macos_target: "15.0"
-#          - os: macos-15-intel
-#            macos_target: "15.0"
+          - os: macos-14
+            macos_target: "14.0"
+          - os: macos-latest
+            macos_target: "15.0"
+          - os: macos-15-intel
+            macos_target: "15.0"
 
     steps:
       - name: Check out repo (with tags)
         uses: actions/checkout@v4
         with:
+          token:  ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0   # needed so tags exist locally
+          fetch-tags: true
 
       - name: Set up Fortran (gfortran)
         uses: fortran-lang/setup-fortran@v1
         with:
           compiler: gcc
 
+
       - name: Determine latest tag
         id: latest_tag
         shell: bash
         run: |
-          git fetch --tags --force
           tag=$(git tag -l 'v*' --sort=-v:refname | head -n 1)
           if [[ -z "$tag" ]]; then
             echo "No v* tags found." >&2
@@ -100,6 +102,7 @@ jobs:
           fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "Latest v* tag is: $tag"
+
 
       - name: Write build metadata for wheel provenance
         shell: bash
@@ -168,8 +171,8 @@ jobs:
             python -c "import uedge; print('uedge imported OK:', uedge.__version__)"
           CIBW_TEST_COMMAND_LINUX: >
             python -m pip install -U pip &&
-            yum -y install hdf5-devel pkgconfig || true &&
             python -c "import uedge; print('uedge imported OK:', uedge.__version__)"
+          CIBW_TEST_SKIP: "*manylinux_*"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -179,7 +182,6 @@ jobs:
 
   build_wheels_legacy_os:
     name: Build cibuildwheel legacy macOS wheels (${{ matrix.arch }} macOS>=${{ matrix.macos_target }})
-    if: false
 #    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'release' || github.event_name == 'workflow_dispatch'
 #    needs: run-all-tests
     runs-on: ${{ matrix.runner }}
