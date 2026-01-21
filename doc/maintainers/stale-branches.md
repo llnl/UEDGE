@@ -58,7 +58,6 @@ Once the notification period has passed:
       ```
       stale/<original-branch-name>
       ```
-- [ ] Confirm the **Protect stale branches** GitHub Action ran successfully
 - [ ] Verify branch protection is enabled:
   - no direct pushes
   - PRs blocked or restricted
@@ -86,7 +85,7 @@ Example entry:
 ```markdown
 | Original Branch | Stale Branch | Archived | Delete After | Issue |
 |-----------------|-------------|----------|--------------|-------|
-| feature/v8-old-x | stale/feature/v8-old-x | 2024-06-01 | 2025-06-01 | #123 |
+| feature/old-x | stale/feature/old-x | 2024-06-01 | 2025-06-01 | #123 |
 ```
 
 ---
@@ -109,7 +108,7 @@ If development must resume:
 
 - [ ] Create a new active branch from the stale branch tip:
       ```
-      feature/v8-<new-topic>
+      feature/<new-topic>
       feature/v9-<new-topic>
       ```
 - [ ] Do **not** develop directly on `stale/*`
