@@ -143,11 +143,19 @@ jobs:
           CIBW_SKIP: "*-manylinux_i686 *-musllinux_*"
           CIBW_ARCHS_LINUX: auto
           CIBW_BUILD_VERBOSITY: 1
-          CIBW_ENVIRONMENT_MACOS: ${{ matrix.macos_target && format('MACOSX_DEPLOYMENT_TARGET={0}', matrix.macos_target) || '' }}
+          CIBW_ENVIRONMENT_MACOS: >-
+            PATH=/opt/homebrew/bin:/opt/homebrew/sbin:$PATH
+            CC=clang
+            CXX=clang++
+            FC=gfortran
+            F77=gfortran 
+            ${{ matrix.macos_target && format('MACOSX_DEPLOYMENT_TARGET={0}', matrix.macos_target) || '' }}
           CIBW_BEFORE_BUILD: >
             python -m pip install --upgrade pip &&
             pip install numpy "forthon>=0.10.7" "build<0.10.0"
-          CIBW_BEFORE_BUILD_LINUX: "yum -y install hdf5 hdf5-devel"
+          CIBW_BEFORE_BUILD_LINUX: "python -m pip install -U pip"
+          CIBW_BUILD_FRONTEND: "pip"
+          CIBW_PIP_ARGS: "--only-binary=:all:"
           CIBW_TEST_COMMAND: 'python -c "import uedge; print(\"uedge imported OK:\", uedge.__version__)"'
 
       - name: Upload artifacts
@@ -257,8 +265,8 @@ jobs:
             CONDA_PREFIX=${{ env.CONDA_PREFIX }}
             DYLD_LIBRARY_PATH=${{ env.CONDA_PREFIX }}/lib
             LIBRARY_PATH=${{ env.CONDA_PREFIX }}/lib
-            CC=cc
-            CXX=c++
+            CC=clang
+            CXX=clang++
             FC=gfortran
             F77=gfortran
             F90=gfortran
