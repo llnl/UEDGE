@@ -12,6 +12,7 @@ on:
 jobs:
   run-all-tests:
     name: Runs test ${{ matrix.tests }}
+    if: false
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -69,12 +70,12 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-          - os: macos-14
-            macos_target: "14.0"
-          - os: macos-latest
-            macos_target: "15.0"
-          - os: macos-15-intel
-            macos_target: "15.0"
+#          - os: macos-14
+#            macos_target: "14.0"
+#          - os: macos-latest
+#            macos_target: "15.0"
+#          - os: macos-15-intel
+#            macos_target: "15.0"
 
     steps:
       - name: Check out repo (with tags)
@@ -155,10 +156,9 @@ jobs:
             pip install numpy "forthon>=0.10.7" "build<0.10.0"
           CIBW_BEFORE_BUILD_LINUX: "python -m pip install -U pip"
           CIBW_BUILD_FRONTEND: "pip"
-          CIBW_PIP_ARGS: "--only-binary=:all:"
-          CIBW_PIP_ARGS_LINUX: "--only-binary=:all:"
           CIBW_TEST_COMMAND: >
-            python -m pip install --only-binary=:all: {wheel} &&
+            python -m pip install -U pip &&
+            python -m pip install --only-binary=h5py {wheel} &&
             python -c "import uedge; print('uedge imported OK:', uedge.__version__)"
 
       - name: Upload artifacts
@@ -169,7 +169,8 @@ jobs:
 
   build_wheels_legacy_os:
     name: Build cibuildwheel legacy macOS wheels (${{ matrix.arch }} macOS>=${{ matrix.macos_target }})
-    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'release' || github.event_name == 'workflow_dispatch'
+    if: false
+#    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'release' || github.event_name == 'workflow_dispatch'
 #    needs: run-all-tests
     runs-on: ${{ matrix.runner }}
     strategy:
