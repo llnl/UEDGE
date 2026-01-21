@@ -19,11 +19,19 @@ UEDGE version X.Y.Z, Lawrence Livermore National Laboratory (LLNL), Git commit <
 
 ## Programmatic provenance (recommended)
 
-UEDGE provides a built-in mechanism to retrieve complete provenance information for the version you are using:
+UEDGE provides a built-in mechanism to retrieve complete provenance information in preferred citation form
+for the version you are using for the following kwargs:
+
+- 'version' - Lists build info available
+- 'APA' - APA citation
+- 'bibtex' - Bibtex citation
+- 'CSL' - CSL-JSON citation
+
+To invoke the automatic citation modules:
 
 ```python
 import uedge
-print(uedge.get_uedge_provenance().as_text())
+uedge.cite('version'|'apa'|'bibtex'|'csl')
 ```
 
 This reports (when available):
@@ -32,7 +40,10 @@ This reports (when available):
 - Git branch and commit
 - Whether local modifications were present
 
-You can copy the output verbatim into manuscripts, reports, or supplementary material.
+You can copy the output verbatim into manuscripts, reports, or supplementary material. 
+
+> **Note"** This is an automated best-effort to produce a citation for UEDGE. The author is responsible for amending and
+> correcting the automated citation as needded.
 
 ## BibTeX
 
