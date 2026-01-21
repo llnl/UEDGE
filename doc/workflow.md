@@ -9,6 +9,8 @@ It is written for:
 - Experienced developers
 - Release managers and maintainers
 
+Shorthand instructions found in [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ---
 
 ## 1. Supported Major Versions
@@ -17,21 +19,21 @@ It is written for:
 - Default development version
 - Receives **all active physics, bugfix, and feature work**
 - Branches:
-  - `main-v8` (released code)
-  - `develop-v8` (integration)
+  - `main` (released code)
+  - `develop` (integration)
 
-### v9 – Next‑Generation
+### v9 – Next Major Revision
 - Major restructuring and reformatting
 - Branches:
-  - `main-v9`
-  - `develop-v9`
+  - `v9-main`
+  - `v9-develop`
 - Receives **explicit backports** from v8 where applicable
 
 ---
 
 ## 2. Core Rules
 
-1. `main-v8` and `main-v9` are always releasable
+1. `main` and `v9-main` are always releasable
 2. All work happens on **feature branches**
 3. Feature branches target **exactly one major version**
 4. Rebase only short‑lived branches
@@ -46,10 +48,10 @@ It is written for:
 
 | Branch | Purpose |
 |------|--------|
-| main-v8 | Released v8 code |
-| develop-v8 | Active v8 development |
-| main-v9 | Released v9 code |
-| develop-v9 | Active v9 development |
+| main | Released v8 code |
+| develop | Active v8 development |
+| v9-main | Released v9 code |
+| v9-develop | Active v9 development |
 
 ### Short‑lived branches
 
@@ -67,10 +69,11 @@ Feature branches:
 
 ---
 
-### Stale Branch Management
+### Stale Branches
 
 This section defines how **inactive branches** are archived and eventually removed, while
-preserving scientific history and ensuring repository hygiene.
+preserving scientific history and ensuring repository hygiene. Maintainer instructions
+relating to stale branches located in [doc/maintainers/stale-branches.md](doc/maintainers/stale-branches.md).
 
 #### Definition of a Stale Branch
 
@@ -195,7 +198,7 @@ Exactly **one** required on every v8 PR:
 **Cherry‑pick only**:
 
 ```bash
-git checkout develop-v9
+git checkout v9-develop
 git cherry-pick <commit>
 git push
 ```
@@ -221,35 +224,19 @@ This workflow is **recommended best practice** for parallel major versions.
 
 ---
 
-## 8. Stale Branch Policy
 
-A branch is **stale** if:
-- No commits AND no PRs for 12 months
-
-### Lifecycle
-1. Renamed to `stale/<original-name>`
-2. Made read‑only
-3. Notification documented (issue or log)
-4. Deleted after 12 more months unless approved
-
-Stale branches:
-- Are not valid PR targets
-- Exist only for archival purposes
-
----
-
-## 9. Decision Table
+## 8. Decision Table
 
 | Change Type | Target |
 |------------|-------|
-| Bugfix to released code | develop-v8 |
-| Physics / features | develop-v8 |
-| Breaking / structural | develop-v9 |
+| Bugfix to released code | develop |
+| Physics / features | develop |
+| Breaking / structural | v9-develop |
 | Docs | Most relevant active branch |
 
 ---
 
-## 10. Breaking Changes & Deprecation
+## 9. Breaking Changes & Deprecation
 
 - Breaking changes allowed **only in v9**
 - Must be documented in release notes
