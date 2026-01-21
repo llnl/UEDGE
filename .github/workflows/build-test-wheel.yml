@@ -147,6 +147,7 @@ jobs:
           CIBW_BEFORE_BUILD: >
             python -m pip install --upgrade pip &&
             pip install numpy "forthon>=0.10.7" "build<0.10.0"
+          CIBW_BEFORE_BUILD_LINUX: "yum -y install hdf5 hdf5-devel"
           CIBW_TEST_COMMAND: 'python -c "import uedge; print(\"uedge imported OK:\", uedge.__version__)"'
 
       - name: Upload artifacts
