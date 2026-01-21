@@ -73,7 +73,7 @@ Once the notification period has passed:
 
 Maintain a persistent record of archived branches.
 
-- [ ] Add or update an entry in `docs/stale-branches-log.md` with:
+- [ ] Add or update an entry in [docs/stale-branches-log.md](docs/stale-branches-log.md) with:
   - original branch name
   - stale branch name
   - archive date
