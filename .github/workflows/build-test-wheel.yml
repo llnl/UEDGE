@@ -157,8 +157,7 @@ jobs:
           CIBW_BUILD_FRONTEND: "pip"
           CIBW_PIP_ARGS: "--only-binary=:all:"
           CIBW_PIP_ARGS_LINUX: "--only-binary=:all:"
-          CIBW_TEST_COMMAND: 'python -c "import uedge; print(\"uedge imported OK:\", uedge.__version__)"'
-          CIBW_TEST_COMMAND_LINUX: >
+          CIBW_TEST_COMMAND: >
             python -m pip install --only-binary=:all: {wheel} &&
             python -c "import uedge; print('uedge imported OK:', uedge.__version__)"
 
