@@ -156,6 +156,7 @@ jobs:
           CIBW_BEFORE_BUILD_LINUX: "python -m pip install -U pip"
           CIBW_BUILD_FRONTEND: "pip"
           CIBW_PIP_ARGS: "--only-binary=:all:"
+          CIBW_PIP_ARGS_LINUX: "--only-binary=:all:"
           CIBW_TEST_COMMAND: 'python -c "import uedge; print(\"uedge imported OK:\", uedge.__version__)"'
 
       - name: Upload artifacts
