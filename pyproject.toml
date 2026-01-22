@@ -92,5 +92,5 @@ uedge = ["VERSION", "_build_info.json"]
 version = {file = ["src/uedge/VERSION"]}
 
 [tool.cibuildwheel]
-repair-wheel-command-macos = "delocate-wheel -w {dest_dir} -v {wheel}"
+repair-wheel-command = "delocate-wheel -w {dest_dir} -v {wheel}"
 
