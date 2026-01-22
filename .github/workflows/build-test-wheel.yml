@@ -185,12 +185,7 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: >
-            cibw-wheels-cpython-${{ matrix.arch }}-
-            macosx_${{ matrix.macos_target }}-
-            cpython-${{ github.event_name == 'workflow_dispatch'
-              && steps.latest_tag.outputs.tag
-              || steps.sanitize.outputs.safe_ref }}
+          name: cibw-wheels-cpython-${{ matrix.arch }}-macosx_${{ matrix.os }}-${{ github.event_name == 'workflow_dispatch' && steps.latest_tag.outputs.tag || steps.sanitize.outputs.safe_ref }}
           path: ./wheelhouse/*.whl
 
   build_wheels_legacy_os:
@@ -318,12 +313,7 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: >
-            cibw-wheels-legacy-macos-${{ matrix.arch }}-
-            macosx_${{ matrix.macos_target }}-
-            cpython-${{ github.event_name == 'workflow_dispatch'
-              && steps.latest_tag.outputs.tag
-              || steps.sanitize.outputs.safe_ref }}
+          name: cibw-wheels-legacy-macos-${{ matrix.arch }}-macosx_${{ matrix.macos_target }}-cpython-${{ github.event_name == 'workflow_dispatch' && steps.latest_tag.outputs.tag || steps.sanitize.outputs.safe_ref }}
           path: ./wheelhouse/*.whl
 
 
