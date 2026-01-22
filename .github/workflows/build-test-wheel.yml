@@ -174,10 +174,23 @@ jobs:
             python -c "import uedge; print('uedge imported OK:', uedge.__version__)"
           CIBW_TEST_SKIP: "*manylinux_*"
 
+      - name: Sanitize ref name
+        id: sanitize
+        run: |
+          REF="${GITHUB_REF_NAME}"
+          SAFE_REF="${REF//\//-}"
+          echo "safe_ref=$SAFE_REF" >> "$GITHUB_OUTPUT"
+
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: cibw-wheels-cpython-${{ matrix.os }}-${{ github.event_name == 'workflow_dispatch' && steps.latest_tag.outputs.tag || github.ref_name }}
+          name: >
+            cibw-wheels-cpython-${{ matrix.arch }}-
+            macosx_${{ matrix.macos_target }}-
+            cpython-${{ github.event_name == 'workflow_dispatch'
+              && steps.latest_tag.outputs.tag
+              || steps.sanitize.outputs.safe_ref }}
           path: ./wheelhouse/*.whl
 
   build_wheels_legacy_os:
@@ -295,11 +308,22 @@ jobs:
             pip install numpy "forthon>=0.10.7" "build<0.10.0"
           CIBW_TEST_COMMAND: 'python -c "import uedge; print(\"uedge imported OK:\", uedge.__version__)"'
 
+      - name: Sanitize ref name
+        id: sanitize
+        run: |
+          REF="${GITHUB_REF_NAME}"
+          SAFE_REF="${REF//\//-}"
+          echo "safe_ref=$SAFE_REF" >> "$GITHUB_OUTPUT"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: cibw-wheels-legacy-maxos-${{ matrix.arch }}-macosx_${{ matrix.macos_target }}-cpython-${{ github.event_name == 'workflow_dispatch' && steps.latest_tag.outputs.tag || github.ref_name }}
+          name: >
+            cibw-wheels-legacy-macos-${{ matrix.arch }}-
+            macosx_${{ matrix.macos_target }}-
+            cpython-${{ github.event_name == 'workflow_dispatch'
+              && steps.latest_tag.outputs.tag
+              || steps.sanitize.outputs.safe_ref }}
           path: ./wheelhouse/*.whl
 
 
@@ -335,10 +359,23 @@ jobs:
           path: wheels
           merge-multiple: true
 
+      - name: Sanitize ref name
+        id: sanitize
+        run: |
+          REF="${GITHUB_REF_NAME}"
+          SAFE_REF="${REF//\//-}"
+          echo "safe_ref=$SAFE_REF" >> "$GITHUB_OUTPUT"
+
       - name: Upload combined wheel archive
         uses: actions/upload-artifact@v4
         with:
           name: all_wheels-${{ github.event_name == 'workflow_dispatch' && steps.latest_tag.outputs.tag || github.ref_name }}
+          name: >
+            all_wheels-${{ matrix.arch }}-
+            macosx_${{ matrix.macos_target }}-
+            cpython-${{ github.event_name == 'workflow_dispatch'
+              && steps.latest_tag.outputs.tag
+              || steps.sanitize.outputs.safe_ref }}
           path: wheels
 
 
