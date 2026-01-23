@@ -346,77 +346,27 @@ $(BUILDDIR)/bbbpydep.$(PYTAG): LDFLAGS += -Wl,-map,$(LINKMAPDIR)/bbbpy.$(PYTAG).
 
 $(BUILDDIR)/apipydep.$(PYTAG): | $(LINKMAPDIR)
 $(BUILDDIR)/apipydep.$(PYTAG): LDFLAGS += -Wl,-map,$(LINKMAPDIR)/apipy.$(PYTAG).map
-# NOTE: tls-audit target added at end. Run 'make tls-audit' after build.
-
-# --- TLS-audit helper for Makefile.Forthon -------------------------------
-# call with: make tls-audit BUILD_DIR=build
-TLS_AUDIT_DIR ?= build
-TLS_LINKMAP_DIR := $(TLS_AUDIT_DIR)/linkmaps
-
-# ------------------------------------------------------------------------
-
 .PHONY: tls-audit
 tls-audit:
+	@echo "== TLS audit in $(BUILDDIR) (*.$(PYTAG))"
 	@set -e; \
-	# Allow opting out (useful for CI experiments): make SKIP_TLS_AUDIT=1 wheel
-	if [ "x$${SKIP_TLS_AUDIT:-}" = "x1" ]; then \
-	  echo "  == TLS audit skipped (SKIP_TLS_AUDIT=1)"; \
-	  exit 0; \
+	sofiles=$$(ls -1 $(BUILDDIR)/*.$(PYTAG) 2>/dev/null || true); \
+	if [ -z "$$sofiles" ]; then \
+	  echo "No built extensions found in $(BUILDDIR)"; exit 0; \
 	fi; \
-	# build/lib.* is where setuptools puts built extensions during `pip wheel` / `pip install`.
-	# Allow override via BUILD_LIB in case the build backend chooses a different path.
-	buildlib="$${BUILD_LIB:-$$(ls -d "$(TLS_AUDIT_DIR)"/lib.* 2>/dev/null | head -n 1)}"; \
-	if [ -z "$$buildlib" ] || [ ! -d "$$buildlib" ]; then \
-	  echo "  No built extensions found (no build/lib.* directory)."; \
-	  exit 0; \
-	fi; \
-	# Prefer scanning only this package's artifacts to avoid false positives from other builds.
-	pkgroot="$$buildlib/uedge"; \
-	if [ -d "$$pkgroot" ]; then \
-	  scanroot="$$pkgroot"; \
-	else \
-	  scanroot="$$buildlib"; \
-	fi; \
-	echo "  == TLS audit: scanning $$scanroot (build root: $$buildlib)"; \
-	sos="$$(find "$$scanroot" -type f \( -name '*.so' -o -path '*/.dylibs/*.dylib' \) 2>/dev/null | sort)"; \
-	if [ -z "$$sos" ]; then \
-	  echo "  No extension artifacts found under $$buildlib"; \
-	  exit 0; \
-	fi; \
-	# Aggregate checks
-	has_gomp=0; has_omp=0; tls_defs=""; abs_hits=""; \
-	for f in $$sos; do \
-	  rel="$${f#$$buildlib/}"; \
-	  echo "    -> $$rel"; \
-	  deps="$$(otool -L "$$f" 2>/dev/null || true)"; \
-	  echo "$$deps" | egrep 'libgomp|libomp|libgfortran|libgcc_s|libquadmath' || true; \
-	  echo "$$deps" | grep -q 'libgomp' && has_gomp=1 || true; \
-	  echo "$$deps" | grep -q 'libomp' && has_omp=1 || true; \
-	  # Flag absolute paths that will not be portable in wheels (Homebrew / user paths)
-	  bad="$$(echo "$$deps" | awk 'NR>1 {print $$1}' | egrep '^(\/opt\/homebrew|\/usr\/local|\/Users\/)' || true)"; \
-	  if [ -n "$$bad" ]; then \
-	    abs_hits="$$abs_hits\n  $$rel:\n$$(echo "$$bad" | sed 's/^/    /')"; \
-	  fi; \
-	  if echo "$$rel" | grep -q '\\.so$$'; then \
-	    if nm -m "$$f" 2>/dev/null | egrep '___emutls_v\.' | grep -vq '(undefined)'; then \
-	      tls_defs="$$tls_defs $$rel"; \
-	      echo "      [TLS] emutls_v definitions present"; \
+	for f in $$sofiles; do \
+	  if nm -m $$f 2>/dev/null | egrep -q '___emutls_v\.'; then \
+	    if nm -m $$f 2>/dev/null | egrep '___emutls_v\.' | grep -vq '(undefined)'; then \
+	      echo "TLS DESCRIPTORS DEFINED in $$(basename $$f)"; \
 	    fi; \
 	  fi; \
-	done; \
-	# Summary + warnings
-	if [ $$has_gomp -eq 1 ] && [ $$has_omp -eq 1 ]; then \
-	  echo "  !! WARNING: both libgomp and libomp are referenced in the build tree."; \
-	  echo "     This is a common source of OpenMP/TLS runtime collisions on macOS."; \
+	done | tee $(BUILDDIR)/tls-audit.$(PYTAG).txt; \
+	ndef=$$(grep -c 'TLS DESCRIPTORS DEFINED' $(BUILDDIR)/tls-audit.$(PYTAG).txt || true); \
+	if [ "$$ndef" -gt 1 ]; then \
+	  echo "ERROR: more than one extension defines ___emutls_v.* (likely TLS collision)"; \
+	  echo "See: $(BUILDDIR)/tls-audit.$(PYTAG).txt"; \
+	  exit 2; \
 	fi; \
-	# Multiple emutls_v definers in one process can be OK, but increases collision risk.
-	set -- $$tls_defs; tls_count=$$#; \
-	if [ $$tls_count -ge 2 ]; then \
-	  echo "  !! NOTE: emutls_v definitions found in multiple extensions ($$tls_count): $$tls_defs"; \
-	fi; \
-	if [ -n "$$abs_hits" ]; then \
-	  echo "  !! WARNING: absolute library paths detected (non-portable for wheels):"; \
-	  printf "%b\n" "$$abs_hits"; \
-	  echo "     Consider vendoring these dylibs into package/.dylibs and rewriting load paths to @loader_path/.dylibs/..."; \
-	fi; \
-	echo "  == TLS audit done"
+	echo "TLS audit OK (<=1 defining extension)."
+
+
