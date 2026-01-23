@@ -792,6 +792,9 @@ class uedgeBuild(build):
                 f"Found: {sorted(os.listdir(pkg_out))}"
             )
 
+        status = call(['make','-f','Makefile.Forthon', 'tls-audit'])
+        if status != 0:
+            raise SystemExit("TLS audit failure")
 
 # Modify clean to use make clean
 class uedgeClean(build):

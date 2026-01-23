@@ -19,11 +19,15 @@ ifneq (,$(findstring --omp,$(OMPFLAGS)))
   OMP_LDFLAGS   = -L$(LIBGOMP_DIR) -lgomp -Wl,-rpath,$(LIBGOMP_DIR)
 endif
 
+LDFLAGS += -Wl,-map,ppppy.linkmap
 ifneq (,$(findstring --omp,$(OMPFLAGS)))
   FORTHON_ENV = LDFLAGS="$(LDFLAGS) $(OMP_LDFLAGS)"
 else
   FORTHON_ENV =
 endif
+
+
+LINKMAPDIR ?= $(BUILDDIR)/linkmaps
 
 all:    $(BUILDDIR)/compydep.$(PYTAG) \
         $(BUILDDIR)/bbbpydep.$(PYTAG) \
@@ -324,5 +328,45 @@ DX: pyDXObject.c
 	$(MYPYTHON) DXsetup.py build --build-platlib .
 
 #----------------------------------------------------------------------------
+
+
+
+
+# ensure linkmap dir exists
+$(LINKMAPDIR):
+	@mkdir -p $@
+
+# Add link maps for the modules most implicated in TLS descriptor collisions
+# (you can extend this list later)
+$(BUILDDIR)/ppppydep.$(PYTAG): | $(LINKMAPDIR)
+$(BUILDDIR)/ppppydep.$(PYTAG): LDFLAGS += -Wl,-map,$(LINKMAPDIR)/ppppy.$(PYTAG).map
+
+$(BUILDDIR)/bbbpydep.$(PYTAG): | $(LINKMAPDIR)
+$(BUILDDIR)/bbbpydep.$(PYTAG): LDFLAGS += -Wl,-map,$(LINKMAPDIR)/bbbpy.$(PYTAG).map
+
+$(BUILDDIR)/apipydep.$(PYTAG): | $(LINKMAPDIR)
+$(BUILDDIR)/apipydep.$(PYTAG): LDFLAGS += -Wl,-map,$(LINKMAPDIR)/apipy.$(PYTAG).map
+.PHONY: tls-audit
+tls-audit:
+	@echo "== TLS audit in $(BUILDDIR) (*.$(PYTAG))"
+	@set -e; \
+	sofiles=$$(ls -1 $(BUILDDIR)/*.$(PYTAG) 2>/dev/null || true); \
+	if [ -z "$$sofiles" ]; then \
+	  echo "No built extensions found in $(BUILDDIR)"; exit 0; \
+	fi; \
+	for f in $$sofiles; do \
+	  if nm -m $$f 2>/dev/null | egrep -q '___emutls_v\.'; then \
+	    if nm -m $$f 2>/dev/null | egrep '___emutls_v\.' | grep -vq '(undefined)'; then \
+	      echo "TLS DESCRIPTORS DEFINED in $$(basename $$f)"; \
+	    fi; \
+	  fi; \
+	done | tee $(BUILDDIR)/tls-audit.$(PYTAG).txt; \
+	ndef=$$(grep -c 'TLS DESCRIPTORS DEFINED' $(BUILDDIR)/tls-audit.$(PYTAG).txt || true); \
+	if [ "$$ndef" -gt 1 ]; then \
+	  echo "ERROR: more than one extension defines ___emutls_v.* (likely TLS collision)"; \
+	  echo "See: $(BUILDDIR)/tls-audit.$(PYTAG).txt"; \
+	  exit 2; \
+	fi; \
+	echo "TLS audit OK (<=1 defining extension)."
 
 
