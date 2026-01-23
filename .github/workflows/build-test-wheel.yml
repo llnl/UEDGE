@@ -169,6 +169,8 @@ jobs:
           is_external_path() {
             local p="$1"
             # treat absolute references under /usr, /System, /Library as system and ignore
+            [[ "${p}" = @rpath/* ]] && return 0
+            [[ "${p}" = @executable_path/* ]] && return 0
             [[ "${p}" = @* ]] && return 1
             [[ "${p}" = /usr/* ]] && return 1
             [[ "${p}" = /System/* ]] && return 1
@@ -232,6 +234,78 @@ jobs:
               fi
             done
           done
+
+  
+          echo "=== Post-repair validation ==="
+  
+          fail=0
+  
+          # Helper: print deps for a file (paths only)
+          deps_of() {
+            otool -L "$1" 2>/dev/null | tail -n +2 | awk '{print $1}'
+          }
+  
+          # 1) Validate LC_ID_DYLIB for everything in uedge/.dylibs
+          if [ -d "${DYLIBS_DIR}" ]; then
+            while IFS= read -r -d '' dyl; do
+              # otool -D prints: filename + id on next line
+              id="$(otool -D "$dyl" 2>/dev/null | tail -n 1 | tr -d '\r')"
+  
+              if [[ -z "$id" ]]; then
+                echo "ERROR: could not read LC_ID_DYLIB for $dyl" >&2
+                fail=1
+                continue
+              fi
+  
+              if [[ "$id" == /* ]]; then
+                echo "ERROR: absolute LC_ID_DYLIB remains: $dyl -> $id" >&2
+                fail=1
+              fi
+  
+              if [[ "$id" == @rpath/* ]]; then
+                echo "ERROR: @rpath LC_ID_DYLIB remains: $dyl -> $id" >&2
+                fail=1
+              fi
+            done < <(find "${DYLIBS_DIR}" -type f -name '*.dylib' -print0)
+          fi
+  
+          # 2) Validate dependencies of all shipped Mach-O binaries
+          #    - reject /DLC/* (your known build path leak)
+          #    - reject any non-system absolute path (not /usr /System /Library)
+          #    - reject @rpath/*
+          while IFS= read -r -d '' bin; do
+            while IFS= read -r dep; do
+              # skip empty lines
+              [[ -z "$dep" ]] && continue
+  
+              # Reject @rpath (you want loader_path-based wheel self-containment)
+              if [[ "$dep" == @rpath/* ]]; then
+                echo "ERROR: @rpath dependency remains: $bin -> $dep" >&2
+                fail=1
+              fi
+  
+              # Reject known build machine prefix
+              if [[ "$dep" == /DLC/* ]]; then
+                echo "ERROR: build-path dependency remains: $bin -> $dep" >&2
+                fail=1
+              fi
+  
+              # Reject other non-system absolute deps (these are usually leaks)
+              if [[ "$dep" == /* ]] && [[ "$dep" != /usr/* ]] && [[ "$dep" != /System/* ]] && [[ "$dep" != /Library/* ]]; then
+                echo "ERROR: non-system absolute dependency remains: $bin -> $dep" >&2
+                fail=1
+              fi
+            done < <(deps_of "$bin")
+          done < <(find . -type f \( -name '*.so' -o -name '*.dylib' \) -print0)
+  
+          if [[ "$fail" -ne 0 ]]; then
+            echo "Post-repair validation FAILED." >&2
+            echo "Tip: inspect with: otool -D <file> and otool -L <file>" >&2
+            exit 9
+          fi
+  
+          echo "Post-repair validation OK."
+
 
           # repackage the wheel: find original WHEEL filename (passed by cibuildwheel)
           OUT_WHEEL="$(basename "${WHEEL}")"
