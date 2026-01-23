@@ -356,7 +356,7 @@ tls-audit:
 	@mkdir -p $(BUILD_LIB_DIR)/linkmaps
 	@echo "Running TLS audit script..."
 	@if [ -x "$(TLS_AUDIT)" ]; then \
-	  $(TLS_AUDIT) "$(BUILD_LIB_DIR)" "uedge" || true; \
+	  $(TLS_AUDIT) "$(BUILD_LIB_DIR)" "uedge" "--fail-on-dup" || true; \
 	else \
 	  echo "WARNING: $(TLS_AUDIT) not found or not executable; skipping TLS audit."; \
 	fi
