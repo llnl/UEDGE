@@ -103,6 +103,12 @@ jobs:
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "Latest v* tag is: $tag"
 
+      - name: Install modern bash (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install bash
+          echo "$(brew --prefix bash)/bin" >> "$GITHUB_PATH"
+          bash --version
 
       - name: Write build metadata for wheel provenance
         shell: bash
@@ -271,6 +277,13 @@ jobs:
           out.write_text(json.dumps(info, indent=2) + "\n", encoding="utf-8")
           print(f"Wrote {out}:", out.read_text(encoding="utf-8"))
           PY
+
+      - name: Install modern bash (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install bash
+          echo "$(brew --prefix bash)/bin" >> "$GITHUB_PATH"
+          bash --version
 
       - name: Build wheels (legacy macOS targets via conda-forge toolchain)
         uses: pypa/cibuildwheel@v2.17.0
