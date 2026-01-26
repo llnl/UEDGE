@@ -93,6 +93,21 @@ FLAGS  = {
     'OMPargs': ['--omp'],
 }
 
+if sys.platform == "darwin":
+    rpath_flags = " ".join([
+        "-Wl,-rpath,@loader_path",
+        "-Wl,-rpath,@loader_path/.dylibs",
+    ])
+else:
+    # Linux / manylinux
+    rpath_flags = " ".join([
+        "-Wl,-rpath,'$ORIGIN'",
+        "-Wl,-rpath,'$ORIGIN/.dylibs'",
+    ])
+
+LDFLAGS = f"LDFLAGS = {rpath_flags}"
+
+
 fcompiler = FCompiler(machine=machine,
                       debug=int(arglist['debug']),
                       fcompname=fcomp)
@@ -771,9 +786,17 @@ class uedgeBuild(build):
         py_tag = sys.implementation.cache_tag  # cpython-39, pypy39, etc.
         #NOTE: removing flags causes crash: unclear why
 #        # Call compiler
-        status = call(['make',COMPILEFLAGS,OMPFLAGS,'-f','Makefile.Forthon', f"PYTAG={py_tag}", f"MYPYTHON={sys.executable}"]) 
+        status = call(['make',LDFLAGS,COMPILEFLAGS,OMPFLAGS,'-f','Makefile.Forthon', 'all', f"PYTAG={py_tag}", f"MYPYTHON={sys.executable}"]) 
         if status != 0: 
             raise SystemExit("Build failure")
+        status = call(['make', '-f', 'Makefile.Forthon', 'corelib', "FC=gfortran"])
+        status = call(['make',LDFLAGS,COMPILEFLAGS,OMPFLAGS,'-f','Makefile.Forthon', 'corelib', f"PYTAG={py_tag}", f"MYPYTHON={sys.executable}", "FC=gfortran"]) 
+        if status != 0: 
+            raise SystemExit("Corelib link failure")
+        status = call(['make',LDFLAGS,COMPILEFLAGS,OMPFLAGS,'-f','Makefile.Forthon', 'thin', f"PYTAG={py_tag}", f"MYPYTHON={sys.executable}", "FC=gfortran"]) 
+        if status != 0: 
+            raise SystemExit("Thin packagae linking failed link failure")
+        
         # Run the normal setuptools build (creates build_lib, builds ext_modules, etc.)
         build.run(self)
 

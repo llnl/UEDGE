@@ -1,5 +1,6 @@
 DEBUG = -v --fargs "-Ofast -DFORTHON -cpp" -g --fargs #"-C=array" #--fargs "-CB -traceback"
 
+FC ?= gfortran
 SO = so
 PUBLICHOME = 
 LARGS =
@@ -10,23 +11,77 @@ FORTHON = Forthon3
 PYTAG ?= default
 BUILDBASE = -v --build-base $(BUILDDIR)
 INSTALLARGS = --pkgbase uedge $(BUILDBASE) $(OMPFLAGS) $(LARGS)
+PKGDIR ?= build/lib/uedge
+CORELIB_DIR = $(PKGDIR)/.dylibs
+BUILDTEMP := $(firstword $(wildcard $(BUILDDIR)/temp.*))
+#ifeq ($(strip $(BUILDTEMP)),)
+#  $(error Could not find $(BUILDDIR)/temp.* ; run a build once so it exists)
+#endif
 
 # If building with --omp, ensure the OpenMP runtime is linked for extensions
 ifneq (,$(findstring --omp,$(OMPFLAGS)))
   # Prefer GCC's libgomp when using gfortran -fopenmp (matches the _GOMP_* symbols)
-  LIBGOMP      := $(shell gfortran -print-file-name=libgomp.1.dylib)
-  LIBGOMP_DIR  := $(dir $(LIBGOMP))
+  LIBGOMP_DIR := $(dir $(shell $(FC) -print-file-name=libgomp.1.dylib))
   OMP_LDFLAGS   = -L$(LIBGOMP_DIR) -lgomp -Wl,-rpath,$(LIBGOMP_DIR)
 endif
 
-ifneq (,$(findstring --omp,$(OMPFLAGS)))
-  FORTHON_ENV = LDFLAGS="$(LDFLAGS) $(OMP_LDFLAGS)"
+FORTHON_ENV = env LDFLAGS="$(strip $(LDFLAGS))"
+
+
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Darwin)
+  CORELIB = libuedge_core.dylib
+  CORELIB_LDFLAGS = -dynamiclib -Wl,-install_name,@rpath/$(CORELIB)
+  CORELIB_LDFLAGS += -Wl,-undefined,dynamic_lookup
 else
-  FORTHON_ENV =
+  CORELIB = libuedge_core.so
+  CORELIB_LDFLAGS = -shared -Wl,-soname,$(CORELIB)
 endif
+# Exclude Python extension glue objects from the core dylib/so
 
-
+#LINKMAPDIR ?= $(BUILDTEMP)/linkmaps
 LINKMAPDIR ?= $(BUILDDIR)/linkmaps
+STUB_F := $(BUILDTEMP)/forthon_stub.f
+IFACE_bbbpy := bbb/bbb.v
+IFACE_apipy := api/api.v
+IFACE_ppppy := ppp/ppp.v
+IFACE_wdfpy := wdf/wdf.v
+IFACE_compy := com/com.v
+IFACE_nclpy := ncl/ncl.v
+IFACE_svrpy := svr/svr.v
+IFACE_aphpy := aph/aph.v
+IFACE_flxpy := flx/flx.v
+IFACE_grdpy := grd/grd.v
+
+
+# ----------------------------------------------------------------------
+# Fortran stub for thin Forthon wrappers (no TLS, no OpenMP)
+# ----------------------------------------------------------------------
+
+
+$(STUB_F):
+	@mkdir -p $(dir $@)
+	@echo "      subroutine uedge_stub()" >  $@
+	@echo "      return"                 >> $@
+	@echo "      end"                    >> $@
+
+.INTERMEDIATE: $(STUB_F)
+
+define FORTHON_THIN
+	$(FORTHON_ENV) $(FORTHON) $(INSTALLARGS) \
+	  --build \
+	  --builddir=$(BUILDTEMP) \
+	  --pkgdir=$(PKGDIR) \
+	  --interfacefile=$(1) \
+	  --macros com/com.v \
+	  --fortranfile=$(STUB_F) \
+	  --libdirs=$(PKGDIR)/.dylibs \
+	  --libs=uedge_core \
+	  $(2)
+endef
+
+
+
 
 all:    $(BUILDDIR)/compydep.$(PYTAG) \
         $(BUILDDIR)/bbbpydep.$(PYTAG) \
@@ -39,6 +94,29 @@ all:    $(BUILDDIR)/compydep.$(PYTAG) \
         $(BUILDDIR)/wdfpydep.$(PYTAG) \
         $(BUILDDIR)/nclpydep.$(PYTAG)
 	rm -f uedgeC.so
+
+FORTHON_COMMON = \
+  --build \
+  --builddir=$(BUILDDIR) \
+  --pkgdir=$(PKGDIR) \
+  --libdirs=$(CORELIB_DIR) \
+  --libs=uedge_core
+
+bbbpy: $(STUB_F)
+	$(FORTHON) $(FORTHON_COMMON) \
+	  --interfacefile=bbbpy.v \
+	  --fortranfile=$(STUB_F)
+
+apipy: $(STUB_F)
+	$(FORTHON) $(FORTHON_COMMON) \
+	  --interfacefile=apipy.v \
+	  --fortranfile=$(STUB_F)
+
+ppppy: $(STUB_F)
+	$(FORTHON) $(FORTHON_COMMON) \
+	  --interfacefile=ppppy.v \
+	  --fortranfile=$(STUB_F)
+
 
 $(BUILDDIR)/compydep.$(PYTAG): \
             com/blasext.F \
@@ -294,9 +372,58 @@ $(BUILDDIR)/nclpydep.$(PYTAG): \
                 ncl/u_lu_decomp.f \
                 ncl/write_mod.f
 
+OMP_CORE_OBJS = \
+  $(BUILDTEMP)/api_p.o \
+  $(BUILDTEMP)/bbb_p.o \
+  $(BUILDTEMP)/ppp_p.o \
+  $(BUILDTEMP)/com_p.o \
+  $(BUILDTEMP)/omp_parallel.o
 
 
+corelib:
+	@echo "Linking $(CORELIB)"
+	mkdir -p $(CORELIB_DIR)
+	@test -n "$(OMP_CORE_OBJS)" || (echo "ERROR: no core objects found under $(BUILDTEMP)"; exit 2)
+	$(FC) $(CORELIB_LDFLAGS) -o $(CORELIB_DIR)/$(CORELIB) $(OMP_CORE_OBJS) $(OMP_LDFLAGS)
 
+.PHONY: thin thin-all \
+        thin-bbbpy thin-apipy thin-ppppy \
+        thin-wdfpy thin-compy thin-nclpy thin-svrpy thin-aphpy thin-flxpy thin-grdpy
+
+thin: thin-all
+
+thin-all: thin-bbbpy thin-apipy thin-ppppy thin-wdfpy thin-compy thin-nclpy thin-svrpy thin-aphpy thin-flxpy thin-grdpy
+
+thin-bbbpy: $(STUB_F)
+	$(call FORTHON_THIN,bbb/bbb.v,bbb)
+
+
+thin-apipy: $(STUB_F)
+	$(call FORTHON_THIN,api/api.v,api)
+
+thin-ppppy: $(STUB_F)
+	$(call FORTHON_THIN,ppp/ppp.v,ppp)
+
+thin-wdfpy: $(STUB_F)
+	$(call FORTHON_THIN,wdf/wdf.v,wdf)
+
+thin-compy: $(STUB_F)
+	$(call FORTHON_THIN,com/com.v,com)
+
+thin-nclpy: $(STUB_F)
+	$(call FORTHON_THIN,ncl/ncl.v,ncl)
+
+thin-svrpy: $(STUB_F)
+	$(call FORTHON_THIN,svr/svr.v,svr)
+
+thin-aphpy: $(STUB_F)
+	$(call FORTHON_THIN,aph/aph.v,aph)
+
+thin-flxpy: $(STUB_F)
+	$(call FORTHON_THIN,flx/flx.v,flx)
+
+thin-grdpy: $(STUB_F)
+	$(call FORTHON_THIN,grd/grd.v,grd)
 
 public: all
 	publishpyuedge90.py $(PUBLICHOME)
