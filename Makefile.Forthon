@@ -10,13 +10,20 @@ MYPYTHON ?= python3
 FORTHON = Forthon3
 PYTAG ?= default
 BUILDBASE = -v --build-base $(BUILDDIR)
-INSTALLARGS = --pkgbase uedge $(BUILDBASE) $(OMPFLAGS) $(LARGS)
-PKGDIR ?= build/lib/uedge
+INSTALLARGS = --pkgbase uedge $(BUILDBASE) $(LARGS)
+PKGBASE ?= build/lib/uedge
+ifneq (,$(findstring --omp,$(OMPFLAGS)))
+  PKGDIR = build/lib/uedge_thick
+else
+  PKGDIR = build/lib/uedge
+endif
 CORELIB_DIR = $(PKGDIR)/.dylibs
 BUILDTEMP := $(firstword $(wildcard $(BUILDDIR)/temp.*))
+IMPL_HIDE := $(BUILDTEMP)/_impl_hide
 #ifeq ($(strip $(BUILDTEMP)),)
 #  $(error Could not find $(BUILDDIR)/temp.* ; run a build once so it exists)
 #endif
+FCOMP += $(OMPFLAGS)
 
 # If building with --omp, ensure the OpenMP runtime is linked for extensions
 ifneq (,$(findstring --omp,$(OMPFLAGS)))
@@ -42,46 +49,105 @@ endif
 #LINKMAPDIR ?= $(BUILDTEMP)/linkmaps
 LINKMAPDIR ?= $(BUILDDIR)/linkmaps
 STUB_F := $(BUILDTEMP)/forthon_stub.f
-IFACE_bbbpy := bbb/bbb.v
-IFACE_apipy := api/api.v
-IFACE_ppppy := ppp/ppp.v
-IFACE_wdfpy := wdf/wdf.v
-IFACE_compy := com/com.v
-IFACE_nclpy := ncl/ncl.v
-IFACE_svrpy := svr/svr.v
-IFACE_aphpy := aph/aph.v
-IFACE_flxpy := flx/flx.v
-IFACE_grdpy := grd/grd.v
 
+$(STUB_F):
+	@mkdir -p $(dir $@)
+	@echo "      subroutine uedge_placeholder_stub()" >  $@
+	@echo "      return"                            >> $@
+	@echo "      end"                               >> $@
 
 # ----------------------------------------------------------------------
 # Fortran stub for thin Forthon wrappers (no TLS, no OpenMP)
 # ----------------------------------------------------------------------
 
 
-$(STUB_F):
-	@mkdir -p $(dir $@)
-	@echo "      subroutine uedge_stub()" >  $@
-	@echo "      return"                 >> $@
-	@echo "      end"                    >> $@
+# Create a per-package stub Fortran file to avoid symbol collisions
+define WRITE_PKG_STUB
+	@mkdir -p $(dir $(1))
+	@echo "      subroutine uedge_stub_$(2)()" >  $(1)
+	@echo "      return"                      >> $(1)
+	@echo "      end"                         >> $(1)
+endef
 
 .INTERMEDIATE: $(STUB_F)
+# Per-package stub file location
+
+define STUB_F_PKG
+$(BUILDTEMP)/forthon_stub_$(1).f
+endef
+
+define MAKE_PKG_STUB
+    @echo "creating per-package forthon stub for package '$(1)'"
+	$(call WRITE_PKG_STUB,$(call STUB_F_PKG,$(1)),$(1))
+	$(FC) -c -o $(BUILDTEMP)/forthon_stub.o $(call STUB_F_PKG,$(1))
+endef
+
 
 define FORTHON_THIN
 	$(FORTHON_ENV) $(FORTHON) $(INSTALLARGS) \
 	  --build \
 	  --builddir=$(BUILDTEMP) \
-	  --pkgdir=$(PKGDIR) \
+	  --pkgdir=$(PKGBASE) \
 	  --interfacefile=$(1) \
 	  --macros com/com.v \
 	  --fortranfile=$(STUB_F) \
-	  --libdirs=$(PKGDIR)/.dylibs \
+	  --libdirs=$(PKGBASE)/.dylibs \
 	  --libs=uedge_core \
 	  $(2)
 endef
 
 
+# Make a harmless object file at a specific name (e.g. api_p.o)
+# We compile the existing $(STUB_F) but force the output name.
+define MAKE_STUB_OBJ
+	$(FC) -c -o $(1) $(STUB_F)
+endef
 
+# Move the real impl aside and create a benign placeholder at $(BUILDTEMP)/<pkg>_p.o
+# Usage: $(call THIN_SWAP_IMPL_OUT, pkg)
+define THIN_SWAP_IMPL_OUT
+	@mkdir -p $(IMPL_HIDE)
+	@if [ -f "$(BUILDTEMP)/$(1)_p.o" ]; then \
+	  mv "$(BUILDTEMP)/$(1)_p.o" "$(IMPL_HIDE)/$(1)_p.o.real" ; \
+	  echo "moved real $(1)_p.o -> $(IMPL_HIDE)/$(1)_p.o.real" ; \
+	else \
+	  echo "no real $(1)_p.o to move" ; \
+	fi
+	@echo "creating placeholder $(BUILDTEMP)/$(1)_p.o ..."
+	$(call MAKE_STUB_OBJ,$(BUILDTEMP)/$(1)_p.o)
+endef
+
+# Restore the real impl object (or remove placeholder) after thin wrapper link
+# Usage: $(call THIN_RESTORE_IMPL, pkg)
+define THIN_RESTORE_IMPL
+	@if [ -f "$(IMPL_HIDE)/$(1)_p.o.real" ]; then \
+	  mv "$(IMPL_HIDE)/$(1)_p.o.real" "$(BUILDTEMP)/$(1)_p.o" ; \
+	  echo "restored real $(1)_p.o" ; \
+	else \
+	  rm -f "$(BUILDTEMP)/$(1)_p.o" ; \
+	  echo "removed placeholder $(1)_p.o" ; \
+	fi
+	@rmdir "$(IMPL_HIDE)" 2>/dev/null || true
+endef
+
+# Wrapper: generate per-pkg stub, swap impl, run Forthon thin build, restore impl.
+# Usage: $(call FORTHON_THIN_WRAPPED, <interfacefile>, <pkgname>)
+define FORTHON_THIN_WRAPPED
+	@echo "== thin wrapper: building $(2) (using interface $(1)) =="
+	$(call MAKE_PKG_STUB,$(2))
+	$(call THIN_SWAP_IMPL_OUT,$(2))
+	$(FORTHON_ENV) $(FORTHON) $(INSTALLARGS) \
+	  --build \
+	  --builddir=$(BUILDTEMP) \
+	  --pkgdir=$(PKGBASE) \
+	  --interfacefile=$(1) \
+	  --macros com/com.v \
+	  --fortranfile=$(call STUB_F_PKG,$(2)) \
+	  --libdirs=$(PKGBASE)/.dylibs \
+	  --libs=uedge_core \
+	  $(2)
+	$(call THIN_RESTORE_IMPL,$(2))
+endef
 
 all:    $(BUILDDIR)/compydep.$(PYTAG) \
         $(BUILDDIR)/bbbpydep.$(PYTAG) \
@@ -147,6 +213,7 @@ $(BUILDDIR)/compydep.$(PYTAG): \
                 com/ssum.f \
                 $(PETSC-COM)
 	touch $@
+	@echo "OMPFLAGS ar $(OMPFLAGS)"
 
 $(BUILDDIR)/aphpydep.$(PYTAG): \
             $(BUILDDIR)/compydep.$(PYTAG) \
@@ -372,11 +439,33 @@ $(BUILDDIR)/nclpydep.$(PYTAG): \
                 ncl/u_lu_decomp.f \
                 ncl/write_mod.f
 
+
+# NOTE: More objects need to be included here to have all symbols available
 OMP_CORE_OBJS = \
   $(BUILDTEMP)/api_p.o \
   $(BUILDTEMP)/bbb_p.o \
   $(BUILDTEMP)/ppp_p.o \
   $(BUILDTEMP)/com_p.o \
+  $(BUILDTEMP)/grd_p.o \
+  $(BUILDTEMP)/flx_p.o \
+  $(BUILDTEMP)/svr_p.o \
+  $(BUILDTEMP)/wdf_p.o \
+  $(BUILDTEMP)/aph_p.o \
+  $(BUILDTEMP)/ncl_p.o \
+  $(BUILDTEMP)/pandf.o \
+  $(BUILDTEMP)/aphread.o \
+  $(BUILDTEMP)/Forthon.o \
+  $(BUILDTEMP)/comutil.o \
+  $(BUILDTEMP)/dummy_py.o \
+  $(BUILDTEMP)/odesetup.o \
+  $(BUILDTEMP)/oderhs.o \
+  $(BUILDTEMP)/pandf_boundary.o \
+  $(BUILDTEMP)/pandf_gas_energy.o \
+  $(BUILDTEMP)/svrut4.o \
+  $(BUILDTEMP)/aphpymodule.o \
+  $(BUILDTEMP)/apipymodule.o \
+  $(BUILDTEMP)/compymodule.o \
+  $(BUILDTEMP)/bbbpymodule.o \
   $(BUILDTEMP)/omp_parallel.o
 
 
@@ -392,41 +481,60 @@ corelib:
 
 thin: thin-all
 
-thin-all: thin-bbbpy thin-apipy thin-ppppy thin-wdfpy thin-compy thin-nclpy thin-svrpy thin-aphpy thin-flxpy thin-grdpy
+thin-all: corelib thin-bbbpy thin-apipy thin-ppppy thin-wdfpy thin-compy thin-nclpy thin-svrpy thin-aphpy thin-flxpy thin-grdpy
 
-thin-bbbpy: $(STUB_F)
-	$(call FORTHON_THIN,bbb/bbb.v,bbb)
+hide_impl:
+	@mkdir -p $(IMPL_HIDE)
+	@mv $(BUILDTEMP)/*_p.o $(IMPL_HIDE)/ 2>/dev/null || true
+
+restore_impl:
+	@mv $(IMPL_HIDE)/*_p.o $(BUILDTEMP)/ 2>/dev/null || true
+	@rmdir $(IMPL_HIDE) 2>/dev/null || true
 
 
-thin-apipy: $(STUB_F)
-	$(call FORTHON_THIN,api/api.v,api)
+_thin-bbbpy: $(STUB_F)
+	$(call FORTHON_THIN_WRAPPED,bbb/bbb.v,bbb)
 
-thin-ppppy: $(STUB_F)
-	$(call FORTHON_THIN,ppp/ppp.v,ppp)
+_thin-apipy: $(STUB_F)
+	$(call FORTHON_THIN_WRAPPED,api/api.v,api)
 
-thin-wdfpy: $(STUB_F)
-	$(call FORTHON_THIN,wdf/wdf.v,wdf)
+_thin-ppppy: $(STUB_F)
+	$(call FORTHON_THIN_WRAPPED,ppp/ppp.v,ppp)
 
-thin-compy: $(STUB_F)
-	$(call FORTHON_THIN,com/com.v,com)
+_thin-wdfpy: $(STUB_F)
+	$(call FORTHON_THIN_WRAPPED,wdf/wdf.v,wdf)
 
-thin-nclpy: $(STUB_F)
-	$(call FORTHON_THIN,ncl/ncl.v,ncl)
+_thin-compy: $(STUB_F)
+	$(call FORTHON_THIN_WRAPPED,com/com.v,com)
 
-thin-svrpy: $(STUB_F)
-	$(call FORTHON_THIN,svr/svr.v,svr)
+_thin-nclpy: $(STUB_F)
+	$(call FORTHON_THIN_WRAPPED,ncl/ncl.v,ncl)
 
-thin-aphpy: $(STUB_F)
-	$(call FORTHON_THIN,aph/aph.v,aph)
+_thin-svrpy: $(STUB_F)
+	$(call FORTHON_THIN_WRAPPED,svr/svr.v,svr)
 
-thin-flxpy: $(STUB_F)
-	$(call FORTHON_THIN,flx/flx.v,flx)
+_thin-aphpy: $(STUB_F)
+	$(call FORTHON_THIN_WRAPPED,aph/aph.v,aph)
 
-thin-grdpy: $(STUB_F)
-	$(call FORTHON_THIN,grd/grd.v,grd)
+_thin-flxpy: $(STUB_F)
+	$(call FORTHON_THIN_WRAPPED,flx/flx.v,flx)
+
+_thin-grdpy: $(STUB_F)
+	$(call FORTHON_THIN_WRAPPED,grd/grd.v,grd)
 
 public: all
 	publishpyuedge90.py $(PUBLICHOME)
+
+thin-bbbpy: hide_impl _thin-bbbpy restore_impl
+thin-apipy: hide_impl _thin-apipy restore_impl
+thin-ppppy: hide_impl _thin-ppppy restore_impl
+thin-wdfpy: hide_impl _thin-wdfpy restore_impl
+thin-compy: hide_impl _thin-compy restore_impl
+thin-nclpy: hide_impl _thin-nclpy restore_impl
+thin-svrpy: hide_impl _thin-svrpy restore_impl
+thin-aphpy: hide_impl _thin-aphpy restore_impl
+thin-flxpy: hide_impl _thin-flxpy restore_impl
+thin-grdpy: hide_impl _thin-grdpy restore_impl
 
 update:
 	for dir in $(PUBLICHOME); do \

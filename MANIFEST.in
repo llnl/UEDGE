@@ -11,6 +11,7 @@ recursive-include  grd *
 recursive-include  svr *
 recursive-include  wdf *
 recursive-include  ncl *
+recursive-include  uedge/.dylibs *.dylib
 #recursive-include  dst *
 #recursive-include  idf *
 #recursive-include  psi *

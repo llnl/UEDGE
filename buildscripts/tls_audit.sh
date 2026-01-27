@@ -186,7 +186,9 @@ for candidate in "${SO_CANDIDATES[@]}"; do
             if [ -z "$prev" ]; then
               EMUTLS_SYMBOL_MAP[$s]="$label"
             else
-              EMUTLS_SYMBOL_MAP[$s]="${prev},${label}"
+              if [[ ",$prev," != *",$label,"* ]]; then
+                EMUTLS_SYMBOL_MAP[$s]="${prev},${label}"
+              fi
             fi
           done
         fi

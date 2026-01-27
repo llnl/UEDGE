@@ -12,14 +12,16 @@ from Forthon.compilers import FCompiler
 import getopt
 import logging
 from subprocess import call
-from shutil import rmtree
+from shutil import rmtree, copy2
 from sys import hexversion, argv, platform
+from pathlib import Path
 import sys, subprocess
 import numpy
 from setuptools import Extension, setup, Distribution, find_packages
 from setuptools.command.build import build
 from setuptools.command.bdist_wheel import bdist_wheel
 from setuptools._distutils.ccompiler import CCompiler
+from setuptools.command.build_ext import build_ext
 # Check Python version
 if hexversion < 0x03000000:
     raise SystemExit("Python versions < 3 not supported")
@@ -786,7 +788,7 @@ class uedgeBuild(build):
         py_tag = sys.implementation.cache_tag  # cpython-39, pypy39, etc.
         #NOTE: removing flags causes crash: unclear why
 #        # Call compiler
-        status = call(['make',LDFLAGS,COMPILEFLAGS,OMPFLAGS,'-f','Makefile.Forthon', 'all', f"PYTAG={py_tag}", f"MYPYTHON={sys.executable}"]) 
+        status = call(['make',LDFLAGS,COMPILEFLAGS,OMPFLAGS,'-f','Makefile.Forthon', 'all', f"PYTAG={py_tag}", f"MYPYTHON={sys.executable}", "FC=gfortran"]) 
         if status != 0: 
             raise SystemExit("Build failure")
         status = call(['make', '-f', 'Makefile.Forthon', 'corelib', "FC=gfortran"])
@@ -826,6 +828,24 @@ class uedgeClean(build):
         if call(['make', '-f', 'Makefile.Forthon', 'cleanbuild']) != 0:
             raise SystemExit("Clean failure")
 
+class BuildExtWithCorelib(build_ext):
+    def run(self):
+        # 1) build the shared library (call your existing build system)
+        #    Adjust these to whatever actually produces libuedge_core.dylib
+        subprocess.check_call(['make', '-f', 'Makefile.Forthon', 'corelib', "FC=gfortran"])
+
+        # 2) copy it into the wheel build tree under the package
+        src = Path("build/lib/uedge_thick/.dylibs/libuedge_core.dylib")  # <-- your produced dylib
+        if not src.exists():
+            raise FileNotFoundError(f"Expected dylib not found: {src}")
+
+        dest_dir = Path(self.build_lib) / "uedge" / ".dylibs"
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        copy2(src, dest_dir / src.name)
+
+        # 3) now let the normal extension build proceed
+        super().run()
+
 setup(  name="uedge",
         ext_modules= [
             Extension(
@@ -853,6 +873,7 @@ setup(  name="uedge",
             'build': uedgeBuild,
             'clean': uedgeClean,
             'bdist_wheel': uedgeWheel,
+            'build_ext': BuildExtWithCorelib,
         },
 )
 

@@ -70,6 +70,7 @@ ueplot = [
 
 # TODO: add scripts to separate folder
 [tool.setuptools]
+include-package-data = true
 packages = [
     "uedge",
     "uedge.rates",
@@ -81,9 +82,8 @@ script-files = [
 ]
 
 [tool.setuptools.package-data]
-uedge = ["VERSION", "_build_info.json"]
+uedge = ["VERSION", "_build_info.json", ".dylibs/*.dylib"]
 "uedge.rates" = ["aph/*.dat"]
-
 
 [tool.setuptools.package-dir]
 "" = "src"
