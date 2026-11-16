@@ -8682,6 +8682,8 @@ c ... Calculate right-hand sides near location of perturbed variable.
 
 c ... Calculate possibly nonzero Jacobian elements for this variable,
 c     and store nonzero elements in compressed sparse column format.
+c ... iv is the column (perturbed variable) index, ii is the row
+c ... (equation) index: jacelem = d yldot(ii) / d yl(iv)
          jcsc(iv) = nnz      # sets index for first Jac. elem. of var. iv
          do ii = ii1, ii2
             jacelem = (wk(ii) - yldot00(ii)) / dyl
@@ -8703,7 +8705,7 @@ c ...  Add a pseudo timestep to the diagonal ## if eqn is not algebraic
                if (iv.eq.ii .and. yl(neq+1).eq.1) 
      .             jacelem = jacelem - nufak  #omit .and. iseqalg(iv).eq.0)
             endif
-            if (abs(jacelem*sfscal(iv)) .gt. jaccliplim) then
+            if (abs(jacelem*sfscal(ii)) .gt. jaccliplim) then
                if (nnz .gt. nnzmx) then
                   write(STDOUT,*)
      .             '*** jac_calc -- More storage needed for Jacobian.',
@@ -8735,10 +8737,9 @@ c ... Restore dependent variable yl & assoicated plasma vars near perturbation
          call pandf1 (xc, yc, iv, neq, t, yl, wk)
 
 c...  If this is the last variable before jumping to new cell, reset pandf 
-ccc  Call not needed because goto 18 svrpkg=daspk option disabled above
-ccc         if (mod(iv,numvar).eq.0 .and. isjacreset.ge.1) then
-ccc            call pandf1 (xc, yc, iv, neq, t, yl, wk)
-ccc         endif
+         if (mod(iv,numvar).eq.0 .and. isjacreset.ge.1) then
+            call pandf1 (xc, yc, iv, neq, t, yl, wk)
+         endif
    
 c ... End loop over dependent variables and finish Jacobian storage.
 c##############################################################      
