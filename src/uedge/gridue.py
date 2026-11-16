@@ -57,8 +57,6 @@ def read_gridue(fname=None):
 
     if len(fname.split('/'))>3:
         prfname="/".join(["..."]+fname.split("/")[-2:])
-    else:
-        prfname=fname
 
     if com.iprint != 0:
         print(' Reading grid data from {}.hdf5'.format(prfname))
