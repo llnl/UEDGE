@@ -378,6 +378,8 @@ cfnfmiy   real      /1./    +input #Coef for new fmiy for vel. cells touching x-
 cnimp	  real	    /1./    +input #Coef for impurity radiation loss
 fac2sp    real  [ ] /1./    +input #factor to test 2-species model; for
                             #equal densities, set fac2sp=2
+ccf2dd    real      /1./    +input #factor * grad_P_i,e for cvi2,cviy,cve2 cvey vels
+ccf2bf    real      /0./    +input #factor * grad_b for cvi2,cviy,cve2,cvey  vels
 $$$cfw(1:10) real   /0.1,9*1./ +input #Coeff's for the parallel neutral momentum eq.
 $$$                            #cfw(1)*(the local sound speed) is the parallel
 $$$                            #neutral velocity out of the plate (bound. con.)
@@ -393,6 +395,8 @@ cfloyi    real  [ ] /2.5/   +input #coef mult ion radial convective energy flow
 cfloye    real  [ ] /2.5/   +input #coef mult elec radial convective energy flow
 cfcvte	  real  [ ] /1.0/   +input #coef mult elec poloidal convect(~5/2) energy flow
 cfcvti	  real  [ ] /1.0/   +input #coef mult ion & neut pol convect(~5/2) energy flow
+cfvphite  real  [ ] /1.0/   #coef potential energy convection n*v*phi in Te eqn
+cfvphiti  real  [ ] /1.0/   #coef potential energy convection n*v*phi in Ti eqn  
 cfcvtg	  real  [ ] /1.0/   +input #coef mult gas pol convect(~5/2) energy flow
 cfloxiplt real  [ ] /.0/    +input #coef mult neutral convect engy from plates
 cfloygwall real [ ] /.0/    +input #coef mult neutral convect engy from walls
@@ -1601,8 +1605,12 @@ lni(0:nx+1,0:ny+1,1:nisp)  _real  [m^-3]  #log(ion dens) in prim. cell (ix,iy)
 nm(0:nx+1,0:ny+1,1:nisp)   _real [kg*m^-3]#mass density [nm(,,1) is sum, exclud.
                                           #gas, if nusp=1, isimpon=5] in cell
 nz2(0:nx+1,0:ny+1)         _real  [m^-3]  #sum of ni*zi**2 over all ion species
+niupyfacetest(0:nx+1,0:ny+1) _real [m^-3] #diagnose sten logic ni on up-yface
 uu(0:nx+1,0:ny+1,1:nisp)   _real  [m/s]   #ratio ion-flux/density at x-face;
                                           #if orthog mesh, poloidal ion velocity
+cvix(0:nx+1,0:ny+1,1:nisp) _real  [m/s]   #diagn: total ion pol vel if orthog mesh
+                                          #if nonorthog mesh, ratio ion flux/density on x-face
+cjix(0:nx+1,0:ny+1,1:nisp) _real [Coul/m**2s] #diagn: poloidal ion current on x-face
 uup(0:nx+1,0:ny+1,1:nisp)  _real  [m/s]   #poloidal ion vel (|| flow contrib)
 up(0:nx+1,0:ny+1,1:nisp)   _real  [m/s]   #par ion vel if full mom eqn on
                                           # (mass-dens. avg if isimpon = 5)
@@ -1610,16 +1618,20 @@ upi(0:nx+1,0:ny+1,1:nisp)  _real  [m/s]   #inter. par ion vel even if force bal
 upifmb(0:nx+1,0:ny+1,1:nisp) _real [m/s]  #par ion vel fmombal if isimpon=5
 uz(0:nx+1,0:ny+1,1:nisp)   _real  [m/s]   #toroidal ion vel in pol X rad direct
 v2(0:nx+1,0:ny+1,1:nisp)   _real  [m/s]   #vel normal to parallel & rad. direc.
+cvi2(0:nx+1,0:ny+1,1:nisp) _real  [m/s]   #diagn: tot-vel normal to parallel & rad. direc.
 v2xgp(0:nx+1,0:ny+1,1:nisp) _real [m/s]   #v2 ion vel for v2x_gradx_P eng terms
 v2ce(0:nx+1,0:ny+1,1:nisp) _real  [m/s]   #portion of v2 from ExB
 v2cb(0:nx+1,0:ny+1,1:nisp) _real  [m/s]   #portion of v2 from grad_B
 ve2cb(0:nx+1,0:ny+1)       _real  [m/s]   #electron v2 from grad_B
 v2cd(0:nx+1,0:ny+1,1:nisp) _real  [m/s]   #portion of ion v2 from grad_PxB
-ve2cd(0:nx+1,0:ny+1,1:nisp) _real [m/s]   #portion of elec v2 from grad_PxB
+ve2cd(0:nx+1,0:ny+1) _real [m/s]   #portion of elec v2 from grad_PxB
 q2cd(0:nx+1,0:ny+1,1:nisp) _real  [m/s]   #ion heat flux from grad_PxB
 v2rd(0:nx+1,0:ny+1,1:nisp) _real  [m/s]   #portion of v2 from resistive drift
 v2dd(0:nx+1,0:ny+1,1:nisp) _real  [m/s]   #portion of v2 from anomalous drift
 vy(0:nx+1,0:ny+1,1:nisp)   _real  [m/s]   #radial ion velocity
+cviy(0:nx+1,0:ny+1,1:nisp) _real  [m/s]   #diagn: total radial ion velocity
+cjiy(0:nx+1,0:ny+1,1:nisp) _real  [Coul/m**2s] #diagn: radial ion current
+cjiytot(0:nx+1,0:ny+1)     _real  [Coul/m**2s] #diagn: summed radial ion current	   
 vygp(0:nx+1,0:ny+1,1:nisp) _real  [m/s]    #radial ion vel for vy_grady_P eng terms
 vytan(0:nx+1,0:ny+1,1:nisp)_real  [m/s]   #radial ion vel.*tan(vtag) on x-face
 vygtan(0:nx+1,0:ny+1,1:ngsp)_real [m/s]   #radial gas grad-T vel.*tan(vtag) on
@@ -1632,11 +1644,19 @@ veycp(0:nx+1,0:ny+1)       _real  [m/s]   #electron vy from grad_PeXB
 vyrd(0:nx+1,0:ny+1,1:nisp) _real  [m/s]   #portion of vy from resistive drift
 vydd(0:nx+1,0:ny+1,1:nisp) _real  [m/s]   #portion of vy from anomalous drift
 vyavis(0:nx+1,0:ny+1,1:nisp) _real [m/s]  #rad vel from anom perp vis (ExB,P)
-vex(0:nx+1,0:ny+1)         _real  [m/s]   #Poloidal electron velocity
+vex(0:nx+1,0:ny+1)         _real  [m/s]   #orthog-mesh: div-free pol electron vel
+							 #nonorthog-mesh: pol e-flux/dens, x-face
+cvex(0:nx+1,0:ny+1)        _real  [m/s]   #orthog-mesh: total pol electron vel
+							 #nonorthog-mesh: pol e-flux/dens, x-face
+cjex(0:nx+1,0:ny+1)        _real  [Coul/m**2s] #pol elec current, x-face
+fphijxe(0:nx+1,0:ny+1)     _real  [W]     #elec power flux phi*jex*sx x-face
 upe(0:nx+1,0:ny+1)         _real  [m/s]   #parallel electron velocity
 vep(0:nx+1,0:ny+1)         _real  [m/s]   #old parallel electron velocity-remove
 ve2(0:nx+1,0:ny+1)         _real  [m/s]   #old "2" electron velocity-remove
 vey(0:nx+1,0:ny+1)         _real  [m/s]   #Radial electron velocity
+qniviy(0:nx+1,0:ny+1)       _real [m/s]   #work-var total ion y-current
+cvey(0:nx+1,0:ny+1)        _real  [m/s]   #total radial electron velocity
+cjey(0:nx+1,0:ny+1)        _real  [Coul/m**2s]   #total radial electron current
 vycf(0:nx+1,0:ny+1)	   _real  [m/s]   #radial vel from class. viscosity
 vycr(0:nx+1,0:ny+1)	   _real  [m/s]   #radial vel from class. thermal force
 te(0:nx+1,0:ny+1)          _real  [J]	  #electron temperature in primary cell
@@ -2231,9 +2251,16 @@ smov(0:nx+1,0:ny+1,1:nusp)    _real
 msor(0:nx+1,0:ny+1,1:nisp)    _real [kg-m/s**2]# ioniz. mom. source for ions
 msorxr(0:nx+1,0:ny+1,1:nisp)  _real [kg-m/s**2]# cx&recomb. mom. sink for ions
 seec(0:nx+1,0:ny+1)           _real
+seecnew(0:nx+1,0:ny+1)        _real 
+seecold(0:nx+1,0:ny+1)        _real 
+fracseecnew                    real /0./
 seev(0:nx+1,0:ny+1)           _real
 seic(0:nx+1,0:ny+1)           _real
 seiv(0:nx+1,0:ny+1)           _real
+iyseicgmin                    integer /1/  #neut seic contrib neglected for iy<=iyseicgmin
+seicnew(0:nx+1,0:ny+1)        _real 
+seicold(0:nx+1,0:ny+1)        _real 
+fracseicnew                    real /0./					
 segc(0:nx+1,0:ny+1,1:ngsp)    _real [J/(sm**3)]#v_grad_P for neutral eng. eqn
 resco(0:nx+1,0:ny+1,1:nisp)   _real
 resng(0:nx+1,0:ny+1,1:ngsp)   _real
@@ -2241,6 +2268,7 @@ reseg(0:nx+1,0:ny+1,1:ngsp)   _real
 resmo(0:nx+1,0:ny+1,1:nusp)   _real
 resee(0:nx+1,0:ny+1)          _real
 resei(0:nx+1,0:ny+1)          _real
+fricforeng(0:nx+1,0:ny+1)     _real #Heating from flow friction
 resphi(0:nx+1,0:ny+1)         _real
 
 ***** MCN_dim:

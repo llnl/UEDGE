@@ -121,8 +121,6 @@ c...  if extrapolation b.c. on p.f. region, isextrpf=1, otherwise isextrpf=0
         ix_fl_bc = min(ixpt2(nxpt), nx) # last core cell;use for flux BC
       endif 
 
-      ! write(*,*) ix_fl_bc
-
 c  Note: j3 is local range index for iy passed from pandf in oderhs.m
       if (j3 .le. isextrnpf .or. j3 .le. isextrtpf .or. 
      .                                         j3 .le. isextrngc) then
