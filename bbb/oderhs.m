@@ -1242,8 +1242,8 @@ c...  Precompute radial velocities from fixed BOUT turbulence fluxes
      .                      3.0*gtey(ix,iy)/(tey1(ix,iy)+tey0(ix,iy)) )
 
 c ... Total radial electron velocity V_ey from gradPe, ExB, anom D; for seec
-              cvey(ix,iy) = veycp(ix,iy) + vyce(ix,iy,1) + 
-     .                      ccf2dd*vydd(ix,iy,1) + ccf2bf*veycb(ix,iy)
+              cvey(ix,iy) = ccf2dd*veycp(ix,iy) + ccf2bf*veycb(ix,iy) +
+     .                      vyce(ix,iy,1) + vydd(ix,iy,1)
               cjey(ix,iy) = -qe*cvey(ix,iy)*0.5*(ney0(ix,iy)+ney1(ix,iy))   
 
 c ...   Note that the density grad. term for vydd added below
@@ -1502,7 +1502,8 @@ c ... value at ix-1.
 c ... Need to calculate new currents (fqp) after saving old & before frice,i
       if(isphion+isphiofft .eq. 1)  call calc_currents
 
-c ... Ion current from vydd & vyce on y-faces; used below for vey.
+c ... Ion current on y-faces from the species-common radial velocities
+c ... (anomalous, ExB, resistive, classical); used below for vey.
 c ... Computed over the full face range used by vey.
       do iy = j1, j5
         do ix = i1, i6
@@ -1517,7 +1518,10 @@ c ... Computed over the full face range used by vey.
      .                  (niy1(ix,iy,ifld)+niy0(ix,iy,ifld)))*sy(ix,iy)
               qvy0nysy(ix,iy) = qvy0nysy(ix,iy) + qenysy*
      .                           (vydd(ix,iy,ifld) + 
-     .                            cfyef*vyce(ix,iy,ifld))
+     .                            cfyef*vyce(ix,iy,ifld) +
+     .                            cfrd*vyrd(ix,iy,ifld) +
+     .                            cfvycf*vycf(ix,iy) +
+     .                            cfvycr*vycr(ix,iy))
             enddo
           enddo
         endif
@@ -1838,13 +1842,35 @@ ccc      if(isphion+isphiofft .eq. 1)  call calc_currents
          enddo
       enddo
 
-      do 36 iy = j1, j5   #Include vydd, vexb, & veycb
-	 do 35 ix = i1, i6
-	    vey(ix,iy) = qvy0nysy(ix,iy)/( qe*sy(ix,iy)*
+      if (isveyold == 1) then
+c ... Old form: electron flux = ion charge flux (full vy) - cfjve*J/qe;
+c ... ion-only drifts in vy are cancelled only through the fqy term
+        do ifld = 1, nfsp
+          do iy = j1, j5
+            do ix = i1, i6
+              vey(ix,iy) = vey(ix,iy) + vy(ix,iy,ifld)*zi(ifld)*0.5*
+     .                       ( niy0(ix,iy,ifld)+niy1(ix,iy,ifld) )
+            enddo
+          enddo
+        enddo
+        do iy = j1, j5
+          do ix = i1, i6
+            vey(ix,iy) = (vey(ix,iy)-cfjve*fqy(ix,iy)/(sy(ix,iy)*qe))/
+     .                    (0.5*( ney0(ix,iy)+ney1(ix,iy) ))
+          enddo
+        enddo
+      else
+c ... Drift form: species-common velocities (ion-flux weighted) plus
+c ... electron diamagnetic and electron grad_B drifts
+        do iy = j1, j5
+          do ix = i1, i6
+            vey(ix,iy) = qvy0nysy(ix,iy)/( qe*sy(ix,iy)*
      .                    (0.5*(ney0(ix,iy)+ney1(ix,iy) )) ) +
-     .                   veycb(ix,iy)
-   35    continue
-   36 continue
+     .                   cfydd*bfacyrozh(ix,iy)*veycp(ix,iy) +
+     .                   cfybf*veycb(ix,iy)
+          enddo
+        enddo
+      endif
 	 
 c ... if isnewpot=0, vey(,0) needs to be redone since fqy(,0)=0
       if (isnewpot==1) then

@@ -372,7 +372,9 @@ cfvycf    real      /0./    +input #Coef for visc. force class. vel. vycf
 cfvyavis  real      /1./    +input #Coef for vy from anom perp viscosity
 cfvyinert real      /1./    +input #Coef for vy from vy*grad(vy) inertia
 cfvydt    real      /0./    +input #Coef for vy from time-dep. inertia d(vy)/dt
-cfjve     real      /0./    +input #Coef for J-contribution to ve.
+cfjve     real      /0./    +input #Coef for J-contribution to ve (isveyold=1 only)
+isveyold  integer   /0/     +input #=1: vey from ion charge flux - cfjve*fqy (old);
+                            #=0: vey from species-common + electron drifts
 cfjp2     real      /0./    +input #Coef for B x gradP terms in div(J) eqn
 cfjpy     real      /0./    +input #Coef for B x gradP terms in div(J) eqn
 isnfmiy   integer   /0/     +input #diff fmiy for symmetry for vel. cells touching x-pt.
@@ -1966,7 +1968,7 @@ flngxy(0:nx+1,0:ny+1,1:ngsp) _real [1/s] #nonorthog gas pol.log-cur., east face
 fngyx(0:nx+1,0:ny+1,1:ngsp) _real [1/s] #nonorthog gas rad. cur., north face
 fnixtot(0:nx+1,0:ny+1)      _real [1/s] #total poloidal ion cur.
 fniytot(0:nx+1,0:ny+1)      _real [1/s] #total radial ion cur.
-qvy0nysy(0:nx+1,0:ny+1)     _real [Amp] #qe*zi*niy*(vydd+vyce)*sy summed over ions
+qvy0nysy(0:nx+1,0:ny+1)     _real [Amp] #qe*zi*niy*sy*(vydd+vyce+vyrd+vycf+vycr) summed over ions
 
 ***** Indexes:
 #Indices that help the calculation
