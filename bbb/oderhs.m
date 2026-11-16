@@ -605,6 +605,7 @@ c    yldot is the RHS of ODE solver or RHS=0 for Newton solver (NKSOL)
       integer impflag
       # former Aux module variables
       integer ix,iy,igsp,iv,iv1,iv2,iv3,ix1,ix2,ix3,ix4,ix5,ix6
+      integer ixuf
       real tv,t0,t1,t2,a,t1old,t1new,t2old,t2new
 cnxg      data igs/1/
 
@@ -684,7 +685,7 @@ cnxg      data igs/1/
       real dene,denz(0:1),radz(0:1)
       real rsa, rra, rqa, rcx, emissbs, erl1, erl2, radneq, radimpmc
       real radmc, svdiss, vyiy0, vyiym1, v2ix0, v2ixm1
-      real tgupyface, ngupyface, n1upyface, ng2upyface
+      real tgupyface, ngupyface, n1upyface, ng2upyface, niupyface
       external rsa, rra, rqa, rcx, emissbs, erl1, erl2, radneq, radimpmc
       external radmc, svdiss
       real tick,tock
@@ -2634,54 +2635,48 @@ c  If more neutral species have full parallel mom eqn, need to redo loops
                do 937 ix = i1,i6
 c
                   ix1 = ixm1(ix,iy)
-                  vtn = sqrt(max(tg(ix,iy,1),tgmin*ev)/mi(ifld))
- 		  qfl = flalfvgxa(ix)*nm(ix,iy,ifld)*vtn**2
+                  ixuf = ixm1(ix,iy)+1
+                  vtn = sqrt(max(tg(ixuf,iy,1),tgmin*ev)/mi(ifld))
+ 		  qfl = flalfvgxa(ixuf)*nm(ixuf,iy,ifld)*vtn**2
                   if(isvisxn_old == 1) then
                     lmfpn = 1./(sigcx * 
-     .                          (ni(ix,iy,1) + rnn2cx*ni(ix,iy,ifld)))
+     .                          (ni(ixuf,iy,1) + rnn2cx*ni(ixuf,iy,ifld)))
                   elseif(isvisxn_old==0 .and. ishymol==0) then
-                    lmfppar = vtn/(kelhihg*ni(ix,iy,1) +
-     .                                         kelhghg*ni(ix,iy,ifld))
-                    lmfpperp = vtn/( vtn*sigcx*ni(ix,iy,1) + 
-     .                      kelhihg*ni(ix,iy,1)+kelhghg*ni(ix,iy,ifld) )
-                    rrfac = rr(ix,iy)*rr(ix,iy)
+                    lmfppar = vtn/(kelhihg*ni(ixuf,iy,1) +
+     .                                         kelhghg*ni(ixuf,iy,ifld))
+                    lmfpperp = vtn/( vtn*sigcx*ni(ixuf,iy,1) + 
+     .                      kelhihg*ni(ixuf,iy,1)+kelhghg*ni(ixuf,iy,ifld) )
+                    rrfac = rr(ixuf,iy)*rr(ixuf,iy)
                     lmfpn = lmfppar*rrfac + lmfpperp*(1-rrfac)
                   else   # (isvisxn_old=0 .and. ishymol=1) then #with mols
-                    lmfppar = vtn/(kelhihg*ni(ix,iy,1) +
-     .                     kelhghg*ni(ix,iy,ifld) + kelhmhg*ng(ix,iy,2))
-                    lmfpperp = vtn/( vtn*sigcx*ni(ix,iy,1) + 
-     .                     kelhihg*ni(ix,iy,1) +kelhghg*ni(ix,iy,ifld) +
-     .                     kelhmhg*ng(ix,iy,2) )
-                    rrfac = rr(ix,iy)*rr(ix,iy)
+                    lmfppar = vtn/(kelhihg*ni(ixuf,iy,1) +
+     .                     kelhghg*ni(ixuf,iy,ifld) + kelhmhg*ng(ixuf,iy,2))
+                    lmfpperp = vtn/( vtn*sigcx*ni(ixuf,iy,1) + 
+     .                     kelhihg*ni(ixuf,iy,1) +kelhghg*ni(ixuf,iy,ifld) +
+     .                     kelhmhg*ng(ixuf,iy,2) )
+                    rrfac = rr(ixuf,iy)*rr(ixuf,iy)
                     lmfpn = lmfppar*rrfac + lmfpperp*(1-rrfac)
                   endif
-                  csh = lmfpn*nm(ix,iy,ifld)*vtn*
+                  csh = lmfpn*nm(ixuf,iy,ifld)*vtn*
      .                                      lgvmax/(lgvmax + lmfpn)  
-                  if (isgxvon .eq. 0) then 
-                    qsh = csh * (up(ix1,iy,ifld)-up(ix,iy,ifld))
-     .                                         *gx(ix,iy)
-                  elseif (isgxvon .eq. 1) then
-                    qsh = csh * (up(ix1,iy,ifld)-up(ix,iy,ifld))
-     .                *2*gxf(ix,iy)*gxf(ix1,iy)/(gxf(ix,iy)+gxf(ix1,iy))
-                  endif
+                  qsh = csh * (up(ix1,iy,ifld)-up(ix,iy,ifld)) *
+     .                                                       gx(ix,iy)
                   visx(ix,iy,ifld)= cfvisxn*csh/ 
      .               (1 + (abs(qsh/(qfl+cutlo))**flgamvg))**(1./flgamvg)
-     .               + cfanomvisxg*travis(ifld)*nm(ix,iy,ifld)
+     .               + cfanomvisxg*travis(ifld)*nm(ixuf,iy,ifld)
 
-c    Now do y-direction; use ni on up y-face
+c    Now do y-direction; use ni on up y-face; ixufyp1 equiv to ixuf at iy+1
                   ix2 = ixp1(ix,iy)
                   ix3 = ixp1(ix,iyp1)
-                  tgupyface = 0.25*( tg(ix,iy,1)+
-     .                         tg(ix,iyp1,1)+tg(ix2,iy,1)+
-     .                         tg(ix3,iyp1,1) )
+                  tgupyface = 0.25*( tg(ix,iy,1)  +tg(ix2,iy,1)+
+     .                               tg(ix,iyp1,1)+tg(ix3,iyp1,1) )
                   vtn = sqrt(max(tgupyface,tgmin*ev)/mi(ifld))
-                  nmxface = 0.5*(nm(ix,iy,ifld)+nm(ix2,iy,ifld))
-                  ngupyface = 0.25*( ni(ix,iy,ifld)+
-     .                         ni(ix,iyp1,ifld)+ni(ix2,iy,ifld)+
-     .                         ni(ix3,iyp1,ifld) )
-                  n1upyface = 0.25*( ni(ix,iy,1)+
-     .                         ni(ix,iyp1,1)+ni(ix2,iy,1)+
-     .                         ni(ix3,iyp1,1) )
+                  ngupyface = 0.25*
+     .                        ( ni(ix,iy,ifld)  +ni(ix2,iy,ifld)+
+     .                          ni(ix,iyp1,ifld)+ni(ix3,iyp1,ifld) )
+                  n1upyface = 0.25*
+     .                        ( ni(ix,iy,1)  +ni(ix2,iy,1)+
+     .                          ni(ix,iyp1,1)+ni(ix3,iyp1,1) )
                   if(ishymol == 0) then
                     lmfppar = vtn/(kelhihg*n1upyface +
      .                                         kelhghg*ngupyface)
@@ -2689,9 +2684,9 @@ c    Now do y-direction; use ni on up y-face
      .                      kelhihg*n1upyface+kelhghg*ngupyface )
                     lmfpn = lmfppar*rrfac + lmfpperp*(1-rrfac)
                   else  # ishymol=1
-                    ng2upyface = 0.25*( ng(ix,iy,2)+
-     .                         ng(ix,iyp1,2)+ng(ix2,iy,2)+
-     .                         ng(ix3,iyp1,2) )
+                    ng2upyface = 0.25*
+     .                           ( ng(ix,iy,2)  +ng(ix2,iy,2)+
+     .                             ng(ix,iyp1,2)+ng(ix3,iyp1,2) )
                     lmfppar = vtn/(kelhihg*n1upyface +
      .                     kelhghg*n1upyface + kelhmhg*ng2upyface)
                     lmfpperp = vtn/( vtn*sigcx*n1upyface + 
@@ -2708,12 +2703,13 @@ c    Now do y-direction; use ni on up y-face
      .                                                        gyf(ix,iy)
                   visy(ix,iy,ifld)= cfvisyn*csh / 
      .               (1 + (abs(qsh/(qfl+cutlo))**flgamvg))**(1./flgamvg)
-     .               + cfanomvisyg*travis(ifld)*nmxface
+     .               + cfanomvisyg*travis(ifld)*mi(ifld)*ngupyface
 c
  937           continue
  936        continue
          endif
 c
+c ...  Now calculate ion viscosities on the velocity-mesh faces
 c
        if(zi(ifld) > 1.e-20) then
          do 39 iy = j1, j6
@@ -2726,27 +2722,34 @@ c
             tv = zi(jfld)**2 / sqrt((mi(ifld)+mi(jfld))/(2*mp))
             do 41 iy = j1, j6
                do 40 ix = i1, i6
-                  w(ix,iy) = w(ix,iy) + tv*ni(ix,iy,jfld)
+                  ixuf = ixm1(ix,iy)+1
+                  w(ix,iy) = w(ix,iy) + tv*ni(ixuf,iy,jfld)
    40          continue
    41       continue
    42    continue
 
          do 44 iy = j1, j6
+            iyp1 = min(iy+1,ny+1)
             do 43 ix = i1, i6
-	       ctaui(ix,iy,ifld) = 2.1e13/(loglambda(ix,iy)*zi(ifld)**2) # mass fac?
+               ixuf = ixm1(ix,iy)+1
+               ix2 = ixp1(ix,iy)
+               ix3 = ixp1(ix,iyp1)
+	       ctaui(ix,iy,ifld) = 2.1e13*2./
+     .          ( (loglambda(ixuf,iy)+loglambda(ixm1(ix,iy),iy))*
+     .                                           zi(ifld)**2 ) # mass fac?
                tv2 = ctaui(ix,iy,ifld)/(ev*sqrt(ev))
                if (convis .eq. 0) then
-                  a = max (ti(ix,iy), temin*ev)
+                  a = max (ti(ixuf,iy), temin*ev)
                else
                   a = afix*ev
                endif
-	       epstmp = max(epsneo(ix,iy), 1.e-50)
-               visxtmp = tv2 * coef * rr(ix,iy) * rr(ix,iy) *
-     .                            a*a*sqrt(a) * ni(ix,iy,ifld)/w(ix,iy)
+	       epstmp = max(epsneo(ixuf,iy), 1.e-50)
+               visxtmp = tv2 * coef * rr(ixuf,iy) * rr(ixuf,iy) *
+     .                            a*a*sqrt(a) * ni(ixuf,iy,ifld)/w(ixuf,iy)
                visx(ix,iy,ifld) = parvis(ifld)*visxtmp +
-     .                            trax_use(ix,iy,ifld)*nm(ix,iy,ifld)
-               nuii(ix,iy,ifld) = w(ix,iy)/(tv2*a*sqrt(a))
-               nuiistar(ix,iy,ifld) = ( lconneo(ix,iy)*nuii(ix,iy,ifld)/
+     .                            trax_use(ix,iy,ifld)*nm(ixuf,iy,ifld)
+               nuii(ix,iy,ifld) = w(ixuf,iy)/(tv2*a*sqrt(a))
+               nuiistar(ix,iy,ifld) = ( lconneo(ixuf,iy)*nuii(ix,iy,ifld)/
      .                                 (epstmp**1.5*(2*a/mi(ifld))**0.5)
      .                                           + 1.e-50 )
                visxneo(ix,iy,ifld) = visxtmp*
@@ -2765,24 +2768,28 @@ c
 c...  flux limit the viscosity; beware of using visx(0,iy) and 
 c...  visx(nx+1,iy) as they are meaningless when flux limited
                ix1 = ixm1(ix,iy)
-               t0 = max (ti(ix,iy), temin*ev)
+               t0 = max (ti(ixuf,iy), temin*ev)
                vtn = sqrt(t0/mi(ifld))
-               mfl = flalfv * nm(ix,iy,ifld) * rr(ix,iy) *
-     .               vol(ix,iy) * gx(ix,iy) * (t0/mi(ifld)) 
+               mfl = flalfv * nm(ixuf,iy,ifld) * rr(ixuf,iy) *
+     .               vol(ixuf,iy) * gx(ixuf,iy) * (t0/mi(ifld)) 
 ccc  Distance between veloc. cell centers:
                if (isgxvon .eq. 0) then     # dx(ix)=1/gx(ix)
-                 csh = visx(ix,iy,ifld) * vol(ix,iy) * gx(ix,iy)
-     .                            * gx(ix,iy)
+                 csh = visx(ix,iy,ifld) * vol(ixuf,iy) * gx(ixuf,iy)
+     .                            * gx(ixuf,iy)
                elseif (isgxvon .eq. 1) then # dx(ix)=.5/gxf(ix-1)+.5/gxf(ix)
-                 csh = visx(ix,iy,ifld) * vol(ix,iy) * gx(ix,iy)
-     .               * 2*gxf(ix,iy)*gxf(ix1,iy)/(gxf(ix,iy)+gxf(ix1,iy))
+                 csh = visx(ix,iy,ifld) * vol(ixuf,iy) * gx(ixuf,iy)
+     .               * 2*gxf(ixuf,iy)*gxf(ix1,iy)/(gxf(ixuf,iy)+gxf(ix1,iy))
                endif
 ccc 
-               msh = abs( csh*(upi(ix1,iy,ifld) - upi(ix,iy,ifld)) )
+               msh = abs( csh*(upi(ix1,iy,ifld) - upi(ixuf,iy,ifld)) )
                visx(ix,iy,ifld) = visx(ix,iy,ifld)
      .               / (1 + (msh/(mfl+1.e-20*msh))**flgamv )**(1/flgamv)
+               niupyface = 0.25*
+     .                        ( ni(ix,iy,ifld)  +ni(ix2,iy,ifld)+
+     .                          ni(ix,iyp1,ifld)+ni(ix3,iyp1,ifld) )
+
                visy(ix,iy,ifld)=(fcdif*travis(ifld)+ tray_use(ix,iy,ifld))*
-     .                              nm(ix,iy,ifld) +  4*eta1(ix,iy)
+     .                              mi(ifld)*niupyface +  4*eta1(ixuf,iy)
    43       continue
    44    continue
        endif      # test if zi(ifld) > 1.e-20
