@@ -681,7 +681,7 @@ c    yldot is the RHS of ODE solver or RHS=0 for Newton solver (NKSOL)
 
 *  -- procedures for atomic and molecular rates --
       integer zmax,znuc
-      real dene,denz(0:1),radz(0:1)
+      real dene,denz(0:1),radz(0:1),qenysy
       real rsa, rra, rqa, rcx, emissbs, erl1, erl2, radneq, radimpmc
       real radmc, svdiss, vyiy0, vyiym1, v2ix0, v2ixm1
       real tgupyface, ngupyface, n1upyface, ng2upyface
@@ -1502,18 +1502,49 @@ c ... value at ix-1.
 c ... Need to calculate new currents (fqp) after saving old & before frice,i
       if(isphion+isphiofft .eq. 1)  call calc_currents
 
-c ... Add anomalous perp vis vy using calc_currents result - awkward,change
-      if (cfvyavis > 0.) then
-        do ifld = 1, 1  # nfsp  # only good for ifld=1
-          do iy = max(j1,2), min(j5,ny-1)
-            do ix = max(i1,2), min(i6,nx-1)
-              vyavis(ix,iy,ifld) = fqya(ix,iy)*2/(
-     .                  qe*(niy1(ix,iy,1)+niy0(ix,iy,1))*sy(ix,iy) )
-              vy(ix,iy,ifld) = vy(ix,iy,ifld) + cfvyavis*vyavis(ix,iy,ifld)
+c ... Ion current from vydd & vyce on y-faces; used below for vey.
+c ... Computed over the full face range used by vey.
+      do iy = j1, j5
+        do ix = i1, i6
+          qvy0nysy(ix,iy) = 0.
+        enddo
+      enddo
+      do ifld = 1, nfsp
+        if(zi(ifld) > 0.) then
+          do iy = j1, j5
+            do ix = i1, i6
+              qenysy = 0.5*(qe*zi(ifld)*
+     .                  (niy1(ix,iy,ifld)+niy0(ix,iy,ifld)))*sy(ix,iy)
+              qvy0nysy(ix,iy) = qvy0nysy(ix,iy) + qenysy*
+     .                           (vydd(ix,iy,ifld) + 
+     .                            cfyef*vyce(ix,iy,ifld))
             enddo
           enddo
+        endif
+      enddo
+
+c ... Add small ion current corrections to ion vy: visc, inertia, & dt.
+c ... fqyai, fqymi, fqydti are only updated by calc_currents, so only
+c ... apply these corrections when the potential is solved or frozen.
+      if (isphion+isphiofft .eq. 1) then
+        do ifld = 1, nfsp
+          if(zi(ifld) > 0.) then
+            do iy = max(j1,2), min(j5,ny-1)
+              do ix = max(i1,2), min(i6,nx-1)
+                qenysy = 0.5*(qe*zi(ifld)*
+     .                  (niy1(ix,iy,ifld)+niy0(ix,iy,ifld)))*sy(ix,iy)
+                vyavis(ix,iy,ifld) = fqyai(ix,iy,ifld)/qenysy
+                vyinert(ix,iy,ifld) = fqymi(ix,iy,ifld)/qenysy
+                vydt(ix,iy,ifld) = fqydti(ix,iy,ifld)/qenysy
+                vy(ix,iy,ifld) = vy(ix,iy,ifld) + 
+     .                           cfvyavis*vyavis(ix,iy,ifld) +
+     .                           cfvyinert*vyinert(ix,iy,ifld) +
+     .                           cfvydt*vydt(ix,iy,ifld)
+              enddo
+            enddo
+          endif
         enddo
-      endif          
+      endif
 
 c ... Calc friction forces from Braginskii; no individ chg-states;isimpon < 5.
 
@@ -1756,7 +1787,6 @@ ccc      if(isphion+isphiofft .eq. 1)  call calc_currents
 	 do 24 ix = i1, i6
 	    vex(ix,iy) = 0.
 	    vey(ix,iy) = 0.
-            qniviy(ix,iy) = 0.
    24    continue
    25 continue
 
@@ -1808,21 +1838,11 @@ ccc      if(isphion+isphiofft .eq. 1)  call calc_currents
          enddo
       enddo
 
-      do 734 ifld = 1, nfsp
-	 do 733 iy = j1, j5
-	    do 732 ix = i1, i6   # added ion grad_B ok as next fqy is subtr.
-	       qniviy(ix,iy) = qniviy(ix,iy) + 
-     .                           vy(ix,iy,ifld)*zi(ifld)*0.5*
-     .                           (niy0(ix,iy,ifld)+niy1(ix,iy,ifld))
-  732       continue
-  733    continue
-  734 continue
-
-      do 36 iy = j1, j5   #sub current cancels ion currents & adds elec grad_B 
+      do 36 iy = j1, j5   #Include vydd, vexb, & veycb
 	 do 35 ix = i1, i6
-	    vey(ix,iy) = ( qniviy(ix,iy) - 
-     .                        cfjve*fqy(ix,iy)/(sy(ix,iy)*qe) )/
-     .                        (0.5*( ney0(ix,iy)+ney1(ix,iy) ))
+	    vey(ix,iy) = qvy0nysy(ix,iy)/( qe*sy(ix,iy)*
+     .                    (0.5*(ney0(ix,iy)+ney1(ix,iy) )) ) +
+     .                   veycb(ix,iy)
    35    continue
    36 continue
 	 
@@ -1870,6 +1890,17 @@ c ... If isybdrywd = 1, make vey diffusive, just like vy
             seicold(ix,iy) = 0.0
             seiv(ix,iy) = 0.0
 	    psorbgz(ix,iy) = 0.    # diagnostic only
+            resei_mcarlo(ix,iy) = 0.0
+            resei_eqptei(ix,iy) = 0.0
+            resei_parfric(ix,iy) = 0.0
+            resei_tg2(ix,iy) = 0.0
+            resei_bkgsor(ix,iy) = 0.0
+            resee_hydrad(ix,iy) = 0.0
+            resee_imprad(ix,iy) = 0.0
+            resee_bkgsor(ix,iy) = 0.0
+            do ifld = 1, nusp
+               resei_parvis(ix,iy,ifld) = 0.0
+            enddo
   701    continue
   702 continue
 
@@ -2727,10 +2758,10 @@ c  Mix fraction of old & new seec & seic using fracsee,icnew
 c********************************************************************
       do iy = j2, j5
          do ix = i2, i5
-            seec(ix,iy) = (1.-fracseecnew)*seecold(ix,iy) +
-     .                         fracseecnew*seecnew(ix,iy)
-            seic(ix,iy) = (1.-fracseicnew)*seicold(ix,iy) +
-     .                         fracseicnew*seicnew(ix,iy)
+            seec(ix,iy) = cfseec*( (1.-fracseecnew)*seecold(ix,iy) +
+     .                                  fracseecnew*seecnew(ix,iy) )
+            seic(ix,iy) = cfseic*( (1.-fracseicnew)*seicold(ix,iy) +
+     .                                  fracseicnew*seicnew(ix,iy) )
          enddo
       enddo
          
@@ -4615,8 +4646,9 @@ c ... ## IJ 2016/10/19 add MC neutral flux
               seg_ue(ix,iy,jfld)=-( (fegx_ue(ix,iy,jfld)-fegx_ue(ix1,iy,  jfld))
      .                   + fluxfacy*(fegy_ue(ix,iy,jfld)-fegy_ue(ix, iy-1,jfld)) )
      .                  *( (ni(ix,iy,jfld)*ti(ix,iy))/(ni(ix,iy,jfld)*ti(ix,iy)) )
-              resei(ix,iy) = resei(ix,iy) +
-     .                    cftiexclg*cmneutdiv*cmneutdiv_feg*seg_ue(ix,iy,jfld)
+              resei_mcarlo(ix,iy) = cftiexclg*cmneutdiv*cmneutdiv_feg*
+     .                                                seg_ue(ix,iy,jfld)
+              resei(ix,iy) = resei(ix,iy) + resei_mcarlo(ix,iy)
               reseg(ix,iy,1) = reseg(ix,iy,1) +
      .                             cmneutdiv*cmneutdiv_feg*seg_ue(ix,iy,jfld)
             endif
@@ -4738,6 +4770,8 @@ c*************************************************************
             w0(ix,iy) = vol(ix,iy) * eqp(ix,iy) * (te(ix,iy)-ti(ix,iy))
             resee(ix,iy) = resee(ix,iy) - w0(ix,iy) + vsoree(ix,iy)
             resei(ix,iy) = resei(ix,iy) + w0(ix,iy)
+            resei_eqptei(ix,iy) = w0(ix,iy)
+            resee_hydrad(ix,iy) = vsoree(ix,iy)
             if (isupgon(1).eq.1) then  #Hydrogen atoms species 2
 c These terms due to the friction force between neutrals and ions
                t1 = 0.5*(up(ix,iy,1)+up(ix1,iy,1))
@@ -4762,6 +4796,7 @@ c These terms due to the friction force between neutrals and ions
      .                         +0.5*mi(1)*t1*t1*
      .                          (psor(ix,iy,1)+psorrg(ix,iy,1)+2*tv) )
                resei(ix,iy) = resei(ix,iy) + fricforeng(ix,iy)
+               resei_parfric(ix,iy) = fricforeng(ix,iy)
                reseg(ix,iy,1) = reseg(ix,iy,1)
      .                            - t0+0.5*mg(1) * ( (t1-t2)*(t1-t2)
      .                                              +temp3+temp4 )
@@ -4772,8 +4807,8 @@ c These terms due to the friction force between neutrals and ions
      .                       ( -mg(1)*t1*t2*(psorrg(ix,iy,1)+tv)
      .                         +0.5*mg(1)*(t2*t2+temp3+temp4)*
      .                          (psor(ix,iy,1)+psorrg(ix,iy,1)+2*tv) )
-            else
-               resei(ix,iy) = resei(ix,iy)
+            else  #diffusive hydrogen atom model
+               resei_parfric(ix,iy) = 
      .             + cfneut * cfneutsor_ei * ctsor*1.25e-1*mi(1)*
      .                    (upi(ix,iy,1)+upi(ix1,iy,1))**2*
      .                    fac2sp*psor(ix,iy,1)
@@ -4782,6 +4817,7 @@ c These terms due to the friction force between neutrals and ions
      .                    (  1.5*ti(ix,iy)
      .                     - 0.125*mi(1)*(upi(ix,iy,1)+upi(ix1,iy,1))**2
      .                     - eion*ev  ) * vol(ix,iy)
+               resei(ix,iy) = resei(ix,iy) + resei_parfric(ix,iy)
             endif
   151    continue
   152 continue
@@ -4805,9 +4841,11 @@ c ... If molecules are present as gas species 2, add ion/atom cooling
         do ifld = nhsp+1, nisp
           do iy = j2, j5    # iys,iyf limits dont seem to work(?)
             do ix = i2, i5
-              resei(ix,iy) =resei(ix,iy) -cftiimpg*1.5*ni(ix,iy,ifld)*
+              t0 = -cftiimpg*1.5*ni(ix,iy,ifld)*
      .                      (nucxi(ix,iy,ifld)+nueli(ix,iy,ifld))*
      .                      (ti(ix,iy) - tg(ix,iy,2))*vol(ix,iy)
+              resei_tg2(ix,iy) = resei_tg2(ix,iy) + t0
+              resei(ix,iy) = resei(ix,iy) + t0
             enddo
           enddo
         enddo
@@ -4969,6 +5007,8 @@ c******************************************************************
                resee(ix,iy) = resee(ix,iy) -
      .                            cnimp*pwrze(ix,iy)*vol(ix,iy) +
      .                                pwrebkg(ix,iy)*vol(ix,iy)
+               resee_imprad(ix,iy) = cnimp*pwrze(ix,iy)*vol(ix,iy)
+               resee_bkgsor(ix,iy) = pwrebkg(ix,iy)*vol(ix,iy)
  535        continue
  536     continue
 
@@ -5065,11 +5105,14 @@ c******************************************************************
 	       wvh(ix,iy,ifld) = wvh(ix,iy,ifld) -
      .                             sin(thetacc)*cfvcsy(ifld)*cfvisy*
      .                                   visy(ix,iy,ifld)*dupdx*dupdy
-            if (zi(ifld)==0.0 .and. ifld.eq.iigsp) then 
-              resei(ix,iy) = resei(ix,iy) + cftiexclg*wvh(ix,iy,ifld)*vol(ix,iy)
+            if (zi(ifld)==0.0 .and. ifld.eq.iigsp) then
+              resei_parvis(ix,iy,ifld) = cftiexclg*wvh(ix,iy,ifld)*
+     .                                                   vol(ix,iy)
+              resei(ix,iy) = resei(ix,iy) + resei_parvis(ix,iy,ifld)
               reseg(ix,iy,1) = reseg(ix,iy,1) + wvh(ix,iy,ifld)*vol(ix,iy)
             else
-              resei(ix,iy) = resei(ix,iy) + wvh(ix,iy,ifld)*vol(ix,iy)
+              resei_parvis(ix,iy,ifld) = wvh(ix,iy,ifld)*vol(ix,iy)
+              resei(ix,iy) = resei(ix,iy) + resei_parvis(ix,iy,ifld)
             endif
   155       continue   # loop over up species ifld
   156    continue
@@ -5088,7 +5131,8 @@ c******************************************************************
  
       do iy = j2, j5
         do ix = i2, i5
-          resei(ix,iy) = resei(ix,iy) + pwribkg(ix,iy)*vol(ix,iy)
+          resei_bkgsor(ix,iy) = pwribkg(ix,iy)*vol(ix,iy)
+          resei(ix,iy) = resei(ix,iy) + resei_bkgsor(ix,iy)
         enddo
       enddo
 

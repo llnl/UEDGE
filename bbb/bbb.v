@@ -369,7 +369,9 @@ cfvisxneov real     /0./    +input #Coef for v-driven parallel viscosity
 cfvisxneoq real     /0./    +input #Coef for q-driven parallel viscosity
 cfvycr    real      /0./    +input #Coef for thermal force class. vel. vycr
 cfvycf    real      /0./    +input #Coef for visc. force class. vel. vycf
-cfvyavis  real      /0./    +input #Coef for vy from anom perp viscosity 
+cfvyavis  real      /1./    +input #Coef for vy from anom perp viscosity
+cfvyinert real      /1./    +input #Coef for vy from vy*grad(vy) inertia
+cfvydt    real      /0./    +input #Coef for vy from time-dep. inertia d(vy)/dt
 cfjve     real      /0./    +input #Coef for J-contribution to ve.
 cfjp2     real      /0./    +input #Coef for B x gradP terms in div(J) eqn
 cfjpy     real      /0./    +input #Coef for B x gradP terms in div(J) eqn
@@ -409,8 +411,8 @@ alftng    real      /0./    +input #neutral thermal force coeff; careful of sign
 
 cfqya     real      /1./    +input #Coef for anomalous current in y-direction (new model)
 cfqyao    real      /1./    +input #Coef for anomalous current in y-direction (old model)
-cfqyae    real      /1./    +input #Coef for anomalous electron current in y-direction
-cfqyai    real      /0./    +input #Coef for anomalous ion current in y-direction
+cfqysige  real      /1./    +input #Coef for elec anomalous y-current (old model)
+cfqysigi  real      /1./    +input #Coef for ion anomalous y-current (old model)
 cfhcxgc(ngspmx) real /ngspmx*0./ +input # Coef constant pol heat conduct (chixg_use)
 cfhcygc(ngspmx) real /ngspmx*0./ +input # Coef constant rad heat conduct (chiyg_use)
 cftgcond  real      /1./    +input #Coef for gas thermal cond (usually molecules)
@@ -1641,7 +1643,9 @@ vycp(0:nx+1,0:ny+1,1:nisp) _real  [m/s]   #ion vy from grad_PixB
 veycp(0:nx+1,0:ny+1)       _real  [m/s]   #electron vy from grad_PeXB
 vyrd(0:nx+1,0:ny+1,1:nisp) _real  [m/s]   #portion of vy from resistive drift
 vydd(0:nx+1,0:ny+1,1:nisp) _real  [m/s]   #portion of vy from anomalous drift
-vyavis(0:nx+1,0:ny+1,1:nisp) _real [m/s]  #rad vel from anom perp vis (ExB,P)
+vyavis(0:nx+1,0:ny+1,1:nisp) _real [m/s]  #rad vel from anom perp vis
+vyinert(0:nx+1,0:ny+1,1:nisp) _real [m/s] #rad vel from perp vgradv
+vydt(0:nx+1,0:ny+1,1:nisp)  _real [m/s]   #rad vel from perp vy time-step
 vex(0:nx+1,0:ny+1)         _real  [m/s]   #orthog-mesh: div-free pol electron vel
 							 #nonorthog-mesh: pol e-flux/dens, x-face
 cvex(0:nx+1,0:ny+1)        _real  [m/s]   #orthog-mesh: total pol electron vel
@@ -1651,7 +1655,6 @@ upe(0:nx+1,0:ny+1)         _real  [m/s]   #parallel electron velocity
 vep(0:nx+1,0:ny+1)         _real  [m/s]   #old parallel electron velocity-remove
 ve2(0:nx+1,0:ny+1)         _real  [m/s]   #old "2" electron velocity-remove
 vey(0:nx+1,0:ny+1)         _real  [m/s]   #Radial electron velocity
-qniviy(0:nx+1,0:ny+1)      _real [1/m**2s] #work-var total ion y-flux*zi
 cvey(0:nx+1,0:ny+1)        _real  [m/s]   #total radial electron velocity
 cjey(0:nx+1,0:ny+1)        _real  [Coul/m**2s]   #total radial electron current
 vycf(0:nx+1,0:ny+1)	   _real  [m/s]   #radial vel from class. viscosity
@@ -1903,12 +1906,13 @@ fqyb(0:nx+1,0:ny+1)        _real [Amp]  #radial current from grad_B, north face
 fqyn(0:nx+1,0:ny+1)        _real [Amp]  #radial cur from cx coll, north face
 fqym(0:nx+1,0:ny+1)        _real [Amp]  #radial cur from inertia, north face
 fqymi(0:nx+1,0:ny+1,1:nisp) _real [Amp] #spec rad cur from inertia, north face
-fqya(0:nx+1,0:ny+1)        _real [Amp]  #anomalous visc rad cur, north face
+fqyai(0:nx+1,0:ny+1,1:nisp) _real [Amp] #spec anom visc rad cur, north face
+fqya(0:nx+1,0:ny+1)        _real [Amp]  #total anom visc rad cur, north face
 fqydt(0:nx+1,0:ny+1)       _real [Amp]  #time-dep inertial rad cur, north face
 fqydti(0:nx+1,0:ny+1,1:nisp) _real [Amp]#spec time-dep inert rad cur, north face
 fqyao(0:nx+1,0:ny+1)       _real [Amp]  #old anom mobil rad current, north face
-fqyae(0:nx+1,0:ny+1)       _real [Amp]  #anom mobil rad current for electrons, north face
-fqyai(0:nx+1,0:ny+1)       _real [Amp]  #anom mobil rad current for ions, north face
+fqysige(0:nx+1,0:ny+1)     _real [Amp]  #old anom mobil rad e-curr, north face
+fqysigi(0:nx+1,0:ny+1)     _real [Amp]  #old anom mobil rad i-curr, north face
 fqyd(0:nx+1,0:ny+1)        _real [Amp]  #diamag radial current; north face
 fqygp(0:nx+1,0:ny+1)       _real [Amp]  #net radial curr. uses grad_P, north face
 fq2d(0:nx+1,0:ny+1)        _real [Amp]  #diamag 2-current; east face
@@ -1962,6 +1966,7 @@ flngxy(0:nx+1,0:ny+1,1:ngsp) _real [1/s] #nonorthog gas pol.log-cur., east face
 fngyx(0:nx+1,0:ny+1,1:ngsp) _real [1/s] #nonorthog gas rad. cur., north face
 fnixtot(0:nx+1,0:ny+1)      _real [1/s] #total poloidal ion cur.
 fniytot(0:nx+1,0:ny+1)      _real [1/s] #total radial ion cur.
+qvy0nysy(0:nx+1,0:ny+1)     _real [Amp] #qe*zi*niy*(vydd+vyce)*sy summed over ions
 
 ***** Indexes:
 #Indices that help the calculation
@@ -2185,8 +2190,8 @@ nuvl(0:nx+1,0:ny+1,nisp)    _real  [1/s]  #vol loss rate, ~cs/l_parloss for 1-D
 cfvlh			     real         +input #scal fac for hyd rate in nuvl
 cfvli(nisp)		    _real #/nisp*0./+input #scal fac for individ ion rate nuvl
 l_parloss		     real [m] /1.e20/ +input #parall length for nuvl loss rate
-eqp(0:nx+1,0:ny+1)          _real [1/m**3]#Te,i equipart. fact; needs *(Te-Ti)*vol
-eqpg(0:nx+1,0:ny+1,ngsp)    _real [1/m**3]#Tg,i equipart. fact; needs *(Tg-Ti)*vol
+eqp(0:nx+1,0:ny+1)          _real [1/sm**3]#Te,i equipart. fact; needs *(Te-Ti)*vol
+eqpg(0:nx+1,0:ny+1,ngsp)    _real [1/sm**3]#Tg,i equipart. fact; needs *(Tg-Ti)*vol
                                           #..: modified to incorporate the separation of Tg and Ti.
 engcoolm(0:nx+1,0:ny+1)     _real [J/s]   #cool rate ion/atoms by mols if ishymol=1
 eeli(0:nx+1,0:ny+1)         _real  [J]    #electron energy loss per ionization
@@ -2247,26 +2252,37 @@ smoc(0:nx+1,0:ny+1,1:nusp)    _real
 smov(0:nx+1,0:ny+1,1:nusp)    _real
 msor(0:nx+1,0:ny+1,1:nisp)    _real [kg-m/s**2]# ioniz. mom. source for ions
 msorxr(0:nx+1,0:ny+1,1:nisp)  _real [kg-m/s**2]# cx&recomb. mom. sink for ions
-seec(0:nx+1,0:ny+1)           _real
-seecnew(0:nx+1,0:ny+1)        _real 
-seecold(0:nx+1,0:ny+1)        _real 
+seec(0:nx+1,0:ny+1)           _real [W]
+seecnew(0:nx+1,0:ny+1)        _real [W]
+seecold(0:nx+1,0:ny+1)        _real [W]
 fracseecnew                    real /0./
+cfseec                         real /1./  #scaling factor for seec
 seev(0:nx+1,0:ny+1)           _real
-seic(0:nx+1,0:ny+1)           _real
+seic(0:nx+1,0:ny+1)           _real [W]
 seiv(0:nx+1,0:ny+1)           _real
 iyseicgmin                    integer /1/  #neut seic contrib neglected for iy<=iyseicgmin
-seicnew(0:nx+1,0:ny+1)        _real 
-seicold(0:nx+1,0:ny+1)        _real 
-fracseicnew                    real /0./					
+seicnew(0:nx+1,0:ny+1)        _real [W]
+seicold(0:nx+1,0:ny+1)        _real [W]
+fracseicnew                    real /0./
+cfseic                         real /1./  #scaling factor for seic
 segc(0:nx+1,0:ny+1,1:ngsp)    _real [J/(sm**3)]#v_grad_P for neutral eng. eqn
-resco(0:nx+1,0:ny+1,1:nisp)   _real
-resng(0:nx+1,0:ny+1,1:ngsp)   _real
-reseg(0:nx+1,0:ny+1,1:ngsp)   _real
-resmo(0:nx+1,0:ny+1,1:nusp)   _real
-resee(0:nx+1,0:ny+1)          _real
-resei(0:nx+1,0:ny+1)          _real
-fricforeng(0:nx+1,0:ny+1)     _real #Heating from flow friction
-resphi(0:nx+1,0:ny+1)         _real
+resco(0:nx+1,0:ny+1,1:nisp)   _real [1/s] #ion or neutral density RHS
+resng(0:nx+1,0:ny+1,1:ngsp)   _real [1/s] #Neutral density RHS
+reseg(0:nx+1,0:ny+1,1:ngsp)   _real [W]   #Neutral eng density RHS
+resmo(0:nx+1,0:ny+1,1:nusp)   _real [kg m/s**2] #Parallel momentum RHS
+resee(0:nx+1,0:ny+1)          _real [W]   #Elec eng density RHS
+resei(0:nx+1,0:ny+1)          _real [W]   #Ion eng density RHS
+fricforeng(0:nx+1,0:ny+1)     _real [W]   #Heating from flow friction
+resphi(0:nx+1,0:ny+1)         _real       #Electro-static potential RHS
+resei_mcarlo(0:nx+1,0:ny+1)   _real [W]   #MC contrib to resei
+resei_eqptei(0:nx+1,0:ny+1)   _real [W]   #Te-Ti equilibration in resei
+resei_parfric(0:nx+1,0:ny+1)  _real [W]   #(upi-upg)**2 fric heat in resei
+resei_tg2(0:nx+1,0:ny+1)      _real [W]   #Eng transfer to imp Tg in resei
+resei_parvis(0:nx+1,0:ny+1,1:nusp) _real [W] #Vis heating in resei
+resei_bkgsor(0:nx+1,0:ny+1)   _real [W]   #Backgrd heat source in resei
+resee_hydrad(0:nx+1,0:ny+1)   _real [W]   #Hydrg elec rad loss in resee
+resee_imprad(0:nx+1,0:ny+1)   _real [W]   #Imp elec rad loss in resee
+resee_bkgsor(0:nx+1,0:ny+1)   _real [W]   #Backgrd heat sor in resee
 
 ***** MCN_dim:
 # array bounds used in connection with Monte Carlo Neutrals
