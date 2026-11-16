@@ -254,13 +254,14 @@ c...  use the radial index of the innermost separatrix (see iysptrx definition
 c...  in subroutine nphygeo)
             if ( isxpty(ix,iy)==0 .and. iysptrx.gt.0 )
      .          temp1 = 4.0*(prtv(ix,iy) - prtv(ix3,iy)) * gxc(ix,iy)
-            fqyae(ix,iy) = ( sy(ix,iy)*sigbary/(dynog(ix,iy)*qe) ) * (
+            fqysige(ix,iy) = ( sy(ix,iy)*sigbary/(dynog(ix,iy)*qe) ) * (
      .        + (ney1(ix,iy)*tey1(ix,iy) - ney0(ix,iy)*tey0(ix,iy))/nbary
      .        - qe * (phiy1(ix,iy) - phiy0(ix,iy)) )
-            fqyai(ix,iy) = -(sy(ix,iy)*sigbary/(dynog(ix,iy)*qe*zi(1)) ) * (
+            fqysigi(ix,iy) = -(sy(ix,iy)*sigbary/(dynog(ix,iy)*qe*zi(1)) ) * (
      .        + (niy1(ix,iy,1)*tiy1(ix,iy) - niy0(ix,iy,1)*tiy0(ix,iy))/nbary
      .        + qe*zi(1) * (phiy1(ix,iy) - phiy0(ix,iy)) )  # off by default
-            fqyao(ix,iy) = cfqyao*(cfqyae*fqyae(ix,iy) + cfqyai*fqyai(ix,iy))
+            fqyao(ix,iy) = cfqyao*(cfqysige*fqysige(ix,iy) + 
+     .                                        cfqysigi*fqysigi(ix,iy))
             fqyd(ix,iy) = - sy(ix,iy) * 0.125 * temp1
      .                         * (rbfbt2(ix,iy) + rbfbt2(ix,iy+1))
             nzvibtot = 0.
@@ -270,7 +271,7 @@ c...  in subroutine nphygeo)
             enddo
             fqyb(ix,iy) = qe*sy(ix,iy)*( nzvibtot -
      .                     0.5*(ney0(ix,iy)+ney1(ix,iy))*veycb(ix,iy) )
-ccc            fqy(ix,iy) = fqya(ix,iy) + cfydd*fqyd(ix,iy)
+ccc         fqy(ix,iy) = fqya(ix,iy) + cfydd*fqyd(ix,iy) #see below
    26    continue
    27 continue
 
@@ -315,15 +316,18 @@ c... Use gy not 1/dynog as diff is btwn 2 cells, not interp pts
      .                      (2*r0slab+rm(ix,iy+1,0)+rm(ix,iyp2,0))*utp -
      .                           (niy1(ix,iy,ifld)+niy0(ix,iy,ifld))*
      .                       (2*r0slab+rm(ix,iy,0)+rm(ix,iy+1,0))*ut0 )*
-     .                                                      gy(ix,iy+1)
-
+     .                                                       gy(ix,iy+1)
+     
+             fqyai(ix,iy,ifld) = (2/(rm(ix,iy,0)+rm(ix,iy+1,0)))*
+     .                        ( (fmity(ix,iy+1,ifld)-fmity(ix,iy,ifld))*
+     .                                        gyf(ix,iy)*sy(ix,iy) )
              omgci = qe*zi(ifld)*b(ix,iy,0)/mi(ifld)
              ix3 = ixm1(ix,iy+1)
              ix4 = ixm1(ix,iy)
 
           # here fqym is from inertia; fqyn is calc in calc_curr_cx, must
           # follow update of nucx.
-             fqymi(ix,iy,ifld)= qe*0.5*
+             fqymi(ix,iy,ifld)= qe*zi(ifld)*0.5*
      ,                            (niy0(ix,iy,ifld)+niy1(ix,iy,ifld))*
      .                            (vyce(ix,iy,ifld)+vycp(ix,iy,ifld))*(
      .                    -0.5*( (btot(ix,iy+1)+btot(ix,iyp2))*utp -
@@ -339,7 +343,7 @@ c... Use gy not 1/dynog as diff is btwn 2 cells, not interp pts
             phiy0d = (phiy0(ix,iy) - phiy0s(ix,iy))/dtreal
 
 c... Next diffs btwn interp pts (niy1&niy0), thus use 1/dynog, not gyf
-            fqydti(ix,iy,ifld) = ( -qe*0.5*
+            fqydti(ix,iy,ifld) = ( -qe*zi(ifld)*0.5*
      .                             (niy1(ix,iy,ifld)+niy0(ix,iy,ifld))/
      .                   (mi(ifld)*omgci**2*dynog(ix,iy)) )*sy(ix,iy)* (
      .              (tiy1d-tiy0d) +
@@ -347,7 +351,7 @@ c... Next diffs btwn interp pts (niy1&niy0), thus use 1/dynog, not gyf
      .                 (niy1(ix,iy,ifld)+niy0(ix,iy,ifld)) +
      .                 0.5*(tiy1(ix,iy)+tiy0(ix,iy))*
      .              (niy1d/niy1(ix,iy,ifld) - niy0d/niy0(ix,iy,ifld)) +
-     .                 qe*(phiy1d - phiy0d) )
+     .                 qe*zi(ifld)*(phiy1d - phiy0d) )
 
            enddo  #loop over ix
          enddo    #loop over iy
@@ -363,9 +367,7 @@ c ... Sum ion species contributions to fqya, fqym, fqydti
           fqydt(ix,iy) = 0.
           do ifld = 1, nisp
             if (zi(ifld) > 1.e-10) then
-              fqya(ix,iy)=fqya(ix,iy) + (2/(rm(ix,iy,0)+rm(ix,iy+1,0)))*
-     .                        ( (fmity(ix,iy+1,ifld)-fmity(ix,iy,ifld))*
-     .                                        gyf(ix,iy)*sy(ix,iy) )
+              fqya(ix,iy) = fqya(ix,iy) + fqyai(ix,iy,ifld) 
               fqym(ix,iy) = fqym(ix,iy) + fqymi(ix,iy,ifld)
               fqydt(ix,iy) = fqydt(ix,iy) + fqydti(ix,iy,ifld)
             endif
@@ -399,7 +401,7 @@ c ... Sum contributions for fqy; ave old fqyao & fqya with rnewpot
      .                     rnewpot*fqya(ix,iy) +
      .                     cfqym*fqym(ix,iy)+fqyd(ix,iy)
 
-            if (nx==nxold .and. ny==nyold) then
+            if (nx==nxold .and. ny==nyold) then  #If mesh changes, d/dt not good
                fqy(ix,iy) = fqy(ix,iy) + cfqydt*fqydt(ix,iy)
             endif
             if (cfvycf .ne. 0.) then  # use for classical Braginskii model
