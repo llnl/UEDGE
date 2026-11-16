@@ -395,8 +395,8 @@ cfloyi    real  [ ] /2.5/   +input #coef mult ion radial convective energy flow
 cfloye    real  [ ] /2.5/   +input #coef mult elec radial convective energy flow
 cfcvte	  real  [ ] /1.0/   +input #coef mult elec poloidal convect(~5/2) energy flow
 cfcvti	  real  [ ] /1.0/   +input #coef mult ion & neut pol convect(~5/2) energy flow
-cfvphite  real  [ ] /1.0/   #coef potential energy convection n*v*phi in Te eqn
-cfvphiti  real  [ ] /1.0/   #coef potential energy convection n*v*phi in Ti eqn  
+cfvphite  real  [ ] /1.0/   +input #coef potential energy convection n*v*phi in Te eqn
+cfvphiti  real  [ ] /1.0/   +input #coef potential energy convection n*v*phi in Ti eqn  
 cfcvtg	  real  [ ] /1.0/   +input #coef mult gas pol convect(~5/2) energy flow
 cfloxiplt real  [ ] /.0/    +input #coef mult neutral convect engy from plates
 cfloygwall real [ ] /.0/    +input #coef mult neutral convect engy from walls
@@ -1605,7 +1605,6 @@ lni(0:nx+1,0:ny+1,1:nisp)  _real  [m^-3]  #log(ion dens) in prim. cell (ix,iy)
 nm(0:nx+1,0:ny+1,1:nisp)   _real [kg*m^-3]#mass density [nm(,,1) is sum, exclud.
                                           #gas, if nusp=1, isimpon=5] in cell
 nz2(0:nx+1,0:ny+1)         _real  [m^-3]  #sum of ni*zi**2 over all ion species
-niupyfacetest(0:nx+1,0:ny+1) _real [m^-3] #diagnose sten logic ni on up-yface
 uu(0:nx+1,0:ny+1,1:nisp)   _real  [m/s]   #ratio ion-flux/density at x-face;
                                           #if orthog mesh, poloidal ion velocity
 cvix(0:nx+1,0:ny+1,1:nisp) _real  [m/s]   #diagn: total ion pol vel if orthog mesh
@@ -1631,7 +1630,6 @@ v2dd(0:nx+1,0:ny+1,1:nisp) _real  [m/s]   #portion of v2 from anomalous drift
 vy(0:nx+1,0:ny+1,1:nisp)   _real  [m/s]   #radial ion velocity
 cviy(0:nx+1,0:ny+1,1:nisp) _real  [m/s]   #diagn: total radial ion velocity
 cjiy(0:nx+1,0:ny+1,1:nisp) _real  [Coul/m**2s] #diagn: radial ion current
-cjiytot(0:nx+1,0:ny+1)     _real  [Coul/m**2s] #diagn: summed radial ion current	   
 vygp(0:nx+1,0:ny+1,1:nisp) _real  [m/s]    #radial ion vel for vy_grady_P eng terms
 vytan(0:nx+1,0:ny+1,1:nisp)_real  [m/s]   #radial ion vel.*tan(vtag) on x-face
 vygtan(0:nx+1,0:ny+1,1:ngsp)_real [m/s]   #radial gas grad-T vel.*tan(vtag) on
@@ -1649,12 +1647,11 @@ vex(0:nx+1,0:ny+1)         _real  [m/s]   #orthog-mesh: div-free pol electron ve
 cvex(0:nx+1,0:ny+1)        _real  [m/s]   #orthog-mesh: total pol electron vel
 							 #nonorthog-mesh: pol e-flux/dens, x-face
 cjex(0:nx+1,0:ny+1)        _real  [Coul/m**2s] #pol elec current, x-face
-fphijxe(0:nx+1,0:ny+1)     _real  [W]     #elec power flux phi*jex*sx x-face
 upe(0:nx+1,0:ny+1)         _real  [m/s]   #parallel electron velocity
 vep(0:nx+1,0:ny+1)         _real  [m/s]   #old parallel electron velocity-remove
 ve2(0:nx+1,0:ny+1)         _real  [m/s]   #old "2" electron velocity-remove
 vey(0:nx+1,0:ny+1)         _real  [m/s]   #Radial electron velocity
-qniviy(0:nx+1,0:ny+1)       _real [m/s]   #work-var total ion y-current
+qniviy(0:nx+1,0:ny+1)      _real [1/m**2s] #work-var total ion y-flux*zi
 cvey(0:nx+1,0:ny+1)        _real  [m/s]   #total radial electron velocity
 cjey(0:nx+1,0:ny+1)        _real  [Coul/m**2s]   #total radial electron current
 vycf(0:nx+1,0:ny+1)	   _real  [m/s]   #radial vel from class. viscosity
