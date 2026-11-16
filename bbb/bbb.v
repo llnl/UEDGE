@@ -2920,6 +2920,7 @@ ireorder	integer	    /1/ # Flag used to determine if a reordering
 ***** Jacobian_full:
 #Jacobian matrix in full storage format
 jacfull(neq,neq) _real
+jacfull01(neq,neq) _real  #1 where jacfull nonzero, else 0 (jacmap)
 
 ***** Preconditioning:
 #Parameters for type of preconditioning and sizes of matrices
@@ -3201,6 +3202,8 @@ del             real	/1.e-8/		# fractional change for finite diffs
 delpy           real	/-1.e-8/	# Forthon del; used to set del if > 0
 dylconst        real    /1./            # factor in floor term in dyl
 isjacreset      integer  /1/            # if=1, pandf1 reset for last variable
+isjac2ndord     integer  /0/            # =0 1st-order Jac; =1 2nd-order (central);
+                                        # =2 diagnostic: repeat +del perturbation
 
 ***** Jacobian_clipping restart:
 jaccliplim	real	  /0./	# rel. value of elements to be retained

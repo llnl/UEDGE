@@ -8552,6 +8552,7 @@ c ... Input arguments:
 
 c ... Work-array argument:
       real wk(neq)     # work space available to this subroutine
+      real wkp2(neq)   # work space for 2nd perturbation (isjac2ndord>0)
 
 c ... Output arguments:
       real jac(nnzmx)     # nonzero Jacobian elements
@@ -8661,6 +8662,7 @@ c ... Initialize all of those right-hand sides to their unperturbed
 c     values.
          do ii = ii1, ii2   # below wk is reset, but only over limited range
             wk(ii) = yldot00(ii)
+            wkp2(ii) = yldot00(ii)
          enddo
 
 c ... Set spatial-location indices for this dependent variable.
@@ -8680,14 +8682,27 @@ c     than that typical size.
 c ... Calculate right-hand sides near location of perturbed variable.
          call pandf1 (xc, yc, iv, neq, t, yl, wk)
 
+c ... Optional second evaluation: isjac2ndord=1 central difference using
+c ... -dyl; isjac2ndord=2 repeats +dyl (diagnostic of pandf1 repeatability)
+         if (isjac2ndord == 1) then
+            yl(iv) = yold - dyl
+            call pandf1 (xc, yc, iv, neq, t, yl, wkp2)
+         elseif (isjac2ndord == 2) then
+            yl(iv) = yold + dyl
+            call pandf1 (xc, yc, iv, neq, t, yl, wkp2)
+         endif
+
 c ... Calculate possibly nonzero Jacobian elements for this variable,
 c     and store nonzero elements in compressed sparse column format.
 c ... iv is the column (perturbed variable) index, ii is the row
 c ... (equation) index: jacelem = d yldot(ii) / d yl(iv)
          jcsc(iv) = nnz      # sets index for first Jac. elem. of var. iv
          do ii = ii1, ii2
-            jacelem = (wk(ii) - yldot00(ii)) / dyl
-ccc            jacelem = (wk(ii) - yldot0(ii)) / (2*dyl)  # for 2nd order Jac
+            if (isjac2ndord == 1) then
+               jacelem = 0.5*(wk(ii) - wkp2(ii)) / dyl
+            else
+               jacelem = (wk(ii) - yldot00(ii)) / dyl
+            endif
 c ...  Add diagonal 1/dt for nksol
             if (((svrpkg.eq."nksol") .or. (svrpkg.eq."petsc")) .and. iv.eq.ii) then
               if (iseqalg(iv)*(1-isbcwdt).eq.0) then
@@ -8727,6 +8742,9 @@ cc               if (rdoff.ne.0.e0) jacelem=jacelem*(1.0e0+ranf()*rdoff)
                endif
                call remark("***** non-zero jac_elem at irstop,icstop")
                write(*,*) 'irstop = ', irstop, ', icstop = ', icstop
+               write(*,*) 'ii = ',ii,' wk(ii) = ',wk(ii),
+     .                    ' wkp2(ii) = ',wkp2(ii)
+               write(*,*) 'ii1 = ',ii1,' ii2 = ',ii2
                call xerrab("")
             endif
 
@@ -10167,7 +10185,7 @@ c ... Common blocks:
 
 c ... Local variables:
       integer ierr
-      integer us
+      integer us,ic,ir
 c_mpi      integer my_pe
       character*24 filename
 
@@ -10189,6 +10207,17 @@ c ... Convert Jacobian matrix to full storage format.
      .      ' from csrdns.'
          call xerrab("")
       endif
+
+c ... Full Jacobian with 1 for finite element, 0 otherwise (for plotting)
+      do ic = 1, neq
+        do ir = 1, neq
+          if (abs(jacfull(ir,ic)) > 1.e-40) then
+            jacfull01(ir,ic) = 1.
+          else
+            jacfull01(ir,ic) = 0.
+          endif
+        enddo
+      enddo
 
 c ... Open a file, and output the map.
       call freeus (us)
