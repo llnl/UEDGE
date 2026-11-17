@@ -1064,7 +1064,9 @@ c.... cheaper than checking
       do jx = 1, nxpt  # loop over mesh regions
          is = ixpt1(jx)
          js = iysptrx1(jx)
-         if (geometry.eq."snowflake45" .or. geometry.eq."snowflake75") then 
+         if (geometry.eq."snowflake45" .or. geometry.eq."snowflake75"
+     .      .or. geometry.eq."snowflake105" .or. geometry.eq."snowflake135"
+     .   ) then 
             if (jx==1) then
               ie = ixpt2(nxpt-1) # adjacent cells are in mesh region jx=nxpt
             else
@@ -1202,7 +1204,10 @@ c.. Now reset x-point values; mostly 8-pt ave
         do jx = 1, nxpt  # loop over mesh regions
           is = ixpt1(jx)
           js = iysptrx1(jx)
-          if (geometry.eq."snowflake45" .or. geometry.eq."snowflake75") then 
+          if (geometry.eq."snowflake45" .or. geometry.eq."snowflake75"
+     .      .or. geometry.eq."snowflake105" .or. geometry.eq."snowflake135"
+     .   ) then 
+
             if (jx==1) then
               ie = ixpt2(nxpt-1) # adjacent cells are in mesh region jx=nxpt
             else

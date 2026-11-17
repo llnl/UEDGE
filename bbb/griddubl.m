@@ -1110,9 +1110,14 @@ c --  Local variables
                iyl = iyo
   20        continue
   25        continue
-            varn(ix,iy) = (varo(ix,iyl  )*(yo(ix,iyl+1)-yn(ix,iy )) +
+c --        If old region is only one cell wide, copy values into new region 
+            if (iyos.eq.iyof) then
+                varn(ix,iy) = varo(ix, iy)
+            else
+                varn(ix,iy) = (varo(ix,iyl  )*(yo(ix,iyl+1)-yn(ix,iy )) +
      .                     varo(ix,iyl+1)*(yn(ix,iy   )-yo(ix,iyl))) /
      .                                    (yo(ix,iyl+1)-yo(ix,iyl))
+            endif
 c ...    check for extrapolation and limit change to chng
             if(yn(ix,iy) .lt. yo(ix,iyl)) then
                avn = abs(varn(ix,iy))
@@ -1132,7 +1137,12 @@ c ...    check for extrapolation and limit change to chng
                else
                   avn = min(avn, avo*chng)
                endif
-               varn(ix,iy) = sign (avn, varo(ix,iyl+1))
+c --            If old region is only one cell wide, copy values into new region 
+                if (iyos.eq.iyof) then
+                    varn(ix,iy) = varo(ix, iy)
+                else
+                    varn(ix,iy) = sign (avn, varo(ix,iyl+1))
+                endif
             endif
   30     continue
   40  continue
@@ -1171,9 +1181,14 @@ c --  Local variables
                ixl = ixo
   20        continue
   25        continue
-            varn(ix,iy) = (varo(ixl  ,iy)*(xo(ixl+1,iy)-xn(ix ,iy)) +
+c --        If old region only is 1 cell wide, copy value into new region
+            if (ixos.eq.ixof) then
+                varn(ix,iy) = varo(ix, iy)            
+            else
+                varn(ix,iy) = (varo(ixl  ,iy)*(xo(ixl+1,iy)-xn(ix ,iy)) +
      .                     varo(ixl+1,iy)*(xn(ix   ,iy)-xo(ixl,iy))) /
      .                                    (xo(ixl+1,iy)-xo(ixl,iy))
+            endif
 c ...    check for extrapolation and limit change to chng
             if(xn(ix,iy) .lt. xo(ixl,iy)) then
                avn = abs(varn(ix,iy))
@@ -1193,7 +1208,12 @@ c ...    check for extrapolation and limit change to chng
                else
                   avn = min(avn, avo*chng)
                endif
-               varn(ix,iy) = sign (avn, varo(ixl+1,iy))
+c --        If old region only is 1 cell wide, copy value into new region
+                if (ixos.eq.ixof) then
+                    varn(ix,iy) = varo(ix, iy)            
+                else
+                    varn(ix,iy) = sign (avn, varo(ixl+1,iy))
+                endif
             endif
   30     continue
   40  continue
